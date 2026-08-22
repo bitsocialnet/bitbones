@@ -77,8 +77,11 @@ const Community = ({ community, index }: CommunityProps) => {
   const labels = [];
   // add created time as a label
   if (community?.createdAt) {
-    // getFormattedTime only returns undefined when TimeAgo throws, which this call has always assumed cannot happen
-    labels.push(utils.getFormattedTime(community.createdAt)!.replace(' ago', ''));
+    // getFormattedTime returns '' when TimeAgo cannot format createdAt; an empty label renders as an empty bordered box
+    const createdAt = utils.getFormattedTime(community.createdAt).replace(' ago', '');
+    if (createdAt) {
+      labels.push(createdAt);
+    }
   }
   // if you have a role, add it
   if (community?.role?.role) {
