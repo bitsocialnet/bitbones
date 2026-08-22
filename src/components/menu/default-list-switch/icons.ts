@@ -1,7 +1,7 @@
 // 16x16 client marks, inlined as data URIs so the 12px control in the sticky menu never pops in
 // and nothing has to resolve a public/ path under electron's file:// or the capacitor build.
 // Sources: 5chan/public/assets/logo/logo-small.png and seedit/public/icon.png downscaled to 16px.
-const icons = {
+const icons: Record<string, string> = {
   '5chan':
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAAXNSR0IArs4c6QAAAJdJREFUOE+1U9sRgCAMqzPpTA7lTDoTXjnK9ZHwpf3imhACKZvwaiKyDdivww4jZJl23rtcx9P7bl34SwGvOsT+E9A7Ws17q3WtdHrgKrnf14qQi6gJU8AlYNrwoOIAWIYCxUHKkaaTeYy4mK8IIQF75YzBfiGx6Eh/zrr6WsbJovYOvhHQQQKfZ36ujKGH6rOBBmn0AvYCGlheD2BJIA4AAAAASUVORK5CYII=',
   seedit:

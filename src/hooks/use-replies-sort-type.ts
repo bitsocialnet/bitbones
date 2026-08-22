@@ -1,7 +1,8 @@
 import createStore from 'zustand';
+import type { UseRepliesOptions } from '@bitsocial/bitsocial-react-hooks';
 
 const repliesPerPage = 50;
-const repliesSortTypesToUseRepliesOptions = {
+const repliesSortTypesToUseRepliesOptions: Record<string, UseRepliesOptions> = {
   nested: { sortType: 'best', flat: false, repliesPerPage, accountComments: { newerThan: Infinity, append: false } },
   flat: { sortType: 'old', flat: true, repliesPerPage, accountComments: { newerThan: Infinity, append: true } }, // appending is more common when sorting by old
   new: { sortType: 'new', flat: false, repliesPerPage, accountComments: { newerThan: Infinity, append: false } },
@@ -9,7 +10,12 @@ const repliesSortTypesToUseRepliesOptions = {
 };
 const repliesSortTypes = Object.keys(repliesSortTypesToUseRepliesOptions);
 
-const useRepliesSortTypeStore = createStore((setState, getState) => ({
+interface RepliesSortTypeState {
+  repliesSortType: string;
+  setRepliesSortType: (repliesSortType: string) => void;
+}
+
+const useRepliesSortTypeStore = createStore<RepliesSortTypeState>((setState, getState) => ({
   repliesSortType: localStorage.getItem('bitbonesRepliesSortType') || 'nested',
   setRepliesSortType: (repliesSortType) => {
     setState((state) => ({ repliesSortType }));
@@ -17,7 +23,14 @@ const useRepliesSortTypeStore = createStore((setState, getState) => ({
   },
 }));
 
-const useRepliesSortType = () => {
+interface RepliesSortTypeResult {
+  repliesSortType: string;
+  repliesSortTypes: string[];
+  setRepliesSortType: (repliesSortType: string) => void;
+  useRepliesOptions: UseRepliesOptions;
+}
+
+const useRepliesSortType = (): RepliesSortTypeResult => {
   const { repliesSortType, setRepliesSortType } = useRepliesSortTypeStore();
   return { repliesSortType, repliesSortTypes, setRepliesSortType, useRepliesOptions: repliesSortTypesToUseRepliesOptions[repliesSortType] };
 };

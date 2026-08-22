@@ -10,10 +10,49 @@
 import vendoredSeedit from '../data/vendored-seedit-defaults.json';
 import vendored5chan from '../data/vendored-5chan-defaults.json';
 
+// one entry of a default list, as the vendored mirrors and both remote shapes resolve to
+export interface DefaultListCommunity {
+  address: string;
+  title?: string;
+  directoryCode?: string;
+}
+
+// what a source's localStorage slot holds
+interface StoredList {
+  communities: DefaultListCommunity[];
+  timestamp: number;
+}
+
+// what getDefaultList resolves with, so callers can drop a response that lost a toggle race
+interface DefaultListResult {
+  source: string;
+  communities: DefaultListCommunity[];
+}
+
+// the raw bitsocialnet/lists payloads: everything below `directories` is validated before use, so
+// only the fields this file actually reads are described
+interface RemoteSeeditList {
+  communities?: { address?: string; title?: string }[];
+}
+
+interface RemoteFiveChanDefaults {
+  directories: Record<string, { title?: string }>;
+}
+
+interface RemoteFiveChanBoard {
+  address?: string;
+  score?: number;
+  addedAt?: number;
+}
+
+interface RemoteFiveChanDirectory {
+  boards?: RemoteFiveChanBoard[];
+}
+
 const RAW_BASE = 'https://raw.githubusercontent.com/bitsocialnet/lists/master';
 const SEEDIT_URL = `${RAW_BASE}/seedit-default-subscriptions.json`;
 const FIVECHAN_DEFAULTS_URL = `${RAW_BASE}/5chan-directories/5chan-directories-defaults.json`;
-const fiveChanDirectoryUrl = (code) => `${RAW_BASE}/5chan-directories/5chan-${code}-directory.json`;
+const fiveChanDirectoryUrl = (code: string): string => `${RAW_BASE}/5chan-directories/5chan-${code}-directory.json`;
 
 const FETCH_TIMEOUT_MS = 10000;
 // how long a successful refresh is trusted before going back to GitHub
@@ -27,23 +66,24 @@ const CACHE_VERSION = 'v1';
 const EXCLUDED_DIRECTORY_CODES = new Set(['trash']);
 const EXCLUDED_ADDRESSES = new Set(['off-topic.bso']);
 
-const vendored = { seedit: vendoredSeedit.communities, '5chan': vendored5chan.communities };
+const vendored: Record<string, DefaultListCommunity[]> = { seedit: vendoredSeedit.communities, '5chan': vendored5chan.communities };
 
-const caches = new Map();
-const pending = new Map();
-const lastFailedAt = new Map();
+const caches = new Map<string, DefaultListCommunity[]>();
+const pending = new Map<string, Promise<DefaultListCommunity[]>>();
+const lastFailedAt = new Map<string, number>();
 
-const storageKey = (source) => `bitbonesDefaultList:${CACHE_VERSION}:${source}`;
+const storageKey = (source: string): string => `bitbonesDefaultList:${CACHE_VERSION}:${source}`;
 
-const isValidList = (communities) => Array.isArray(communities) && communities.length > 0 && communities.every((community) => typeof community?.address === 'string');
+const isValidList = (communities: unknown): communities is DefaultListCommunity[] =>
+  Array.isArray(communities) && communities.length > 0 && communities.every((community) => typeof community?.address === 'string');
 
-const readStorage = (source) => {
+const readStorage = (source: string): StoredList | undefined => {
   try {
     const raw = localStorage.getItem(storageKey(source));
     if (!raw) {
       return undefined;
     }
-    const { communities, timestamp } = JSON.parse(raw);
+    const { communities, timestamp }: StoredList = JSON.parse(raw);
     if (!isValidList(communities)) {
       localStorage.removeItem(storageKey(source));
       return undefined;
@@ -54,7 +94,7 @@ const readStorage = (source) => {
   }
 };
 
-const writeStorage = (source, communities) => {
+const writeStorage = (source: string, communities: DefaultListCommunity[]): void => {
   try {
     localStorage.setItem(storageKey(source), JSON.stringify({ communities, timestamp: Date.now() }));
   } catch (e) {
@@ -62,7 +102,7 @@ const writeStorage = (source, communities) => {
   }
 };
 
-const fetchJson = async (url) => {
+const fetchJson = async <T>(url: string): Promise<T> => {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
@@ -77,10 +117,10 @@ const fetchJson = async (url) => {
 };
 
 // one request: this file already stores resolved addresses, so no winner selection is needed
-const fetchSeedit = async () => {
-  const list = await fetchJson(SEEDIT_URL);
+const fetchSeedit = async (): Promise<DefaultListCommunity[]> => {
+  const list = await fetchJson<RemoteSeeditList>(SEEDIT_URL);
   const communities = (Array.isArray(list?.communities) ? list.communities : [])
-    .filter((community) => typeof community?.address === 'string')
+    .filter((community): community is { address: string; title?: string } => typeof community?.address === 'string')
     .map((community) => ({ address: community.address, title: community.title }));
   // unlike seedit itself, bitbones does not police the list's `revision` for monotonicity. seedit
   // needs that because it writes these addresses into real account subscriptions; bitbones only
@@ -89,7 +129,7 @@ const fetchSeedit = async () => {
 };
 
 // same ranking 5chan uses (src/lib/utils/directory-list-utils.ts): score desc, addedAt asc, address
-const pickDirectoryWinner = (boards) =>
+const pickDirectoryWinner = (boards: RemoteFiveChanBoard[]): RemoteFiveChanBoard | undefined =>
   [...boards].sort((a, b) => {
     const scoreDifference = (b?.score ?? 0) - (a?.score ?? 0);
     if (scoreDifference !== 0) {
@@ -105,15 +145,15 @@ const pickDirectoryWinner = (boards) =>
 // 5chan keeps no aggregated defaults file: the codes come from the defaults file and the addresses
 // from one candidate file per code, so a full refresh is ~65 requests. That is why it only ever runs
 // in the background, behind the 1h TTL, against the vendored mirror.
-const fetch5chan = async () => {
-  const defaults = await fetchJson(FIVECHAN_DEFAULTS_URL);
+const fetch5chan = async (): Promise<(DefaultListCommunity | undefined)[]> => {
+  const defaults = await fetchJson<RemoteFiveChanDefaults>(FIVECHAN_DEFAULTS_URL);
   const codes = Object.keys(defaults?.directories ?? {}).filter((code) => !EXCLUDED_DIRECTORY_CODES.has(code));
-  const vendoredByCode = new Map(vendored['5chan'].map((community) => [community.directoryCode, community]));
+  const vendoredByCode = new Map(vendored['5chan'].map((community): [string | undefined, DefaultListCommunity] => [community.directoryCode, community]));
 
   const entries = await Promise.all(
     codes.map(async (code) => {
       try {
-        const directory = await fetchJson(fiveChanDirectoryUrl(code));
+        const directory = await fetchJson<RemoteFiveChanDirectory>(fiveChanDirectoryUrl(code));
         const winner = pickDirectoryWinner(Array.isArray(directory?.boards) ? directory.boards : []);
         if (!winner?.address) {
           return vendoredByCode.get(code);
@@ -129,10 +169,10 @@ const fetch5chan = async () => {
   return entries.filter((community) => community?.address && !EXCLUDED_ADDRESSES.has(community.address));
 };
 
-const fetchers = { seedit: fetchSeedit, '5chan': fetch5chan };
+const fetchers: Record<string, () => Promise<(DefaultListCommunity | undefined)[]>> = { seedit: fetchSeedit, '5chan': fetch5chan };
 
 // the instant, synchronous value for a source: memory, then localStorage, then the vendored mirror
-export const getCachedDefaultList = (source) => {
+export const getCachedDefaultList = (source: string): DefaultListCommunity[] => {
   const cached = caches.get(source);
   if (cached) {
     return cached;
@@ -145,13 +185,13 @@ export const getCachedDefaultList = (source) => {
   return vendored[source] || [];
 };
 
-const isFresh = (source) => {
+const isFresh = (source: string): boolean => {
   const stored = readStorage(source);
   return !!stored && Date.now() - stored.timestamp < CACHE_MAX_AGE_MS;
 };
 
 // resolves with {source, communities} so callers can drop a response that lost a toggle race
-export const getDefaultList = async (source) => {
+export const getDefaultList = async (source: string): Promise<DefaultListResult> => {
   if (!fetchers[source]) {
     return { source, communities: [] };
   }
@@ -173,12 +213,13 @@ export const getDefaultList = async (source) => {
         writeStorage(source, communities);
         return communities;
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         lastFailedAt.set(source, Date.now());
         throw e;
       })
       .finally(() => pending.delete(source));
     pending.set(source, promise);
   }
-  return { source, communities: await pending.get(source) };
+  // non-null: the branch above sets the entry, and nothing deletes it before this line
+  return { source, communities: await pending.get(source)! };
 };

@@ -1,8 +1,14 @@
 import utils from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import styles from './text-only-post.module.css';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
-const TextOnlyPost = ({ post, index }) => {
+interface TextOnlyPostProps {
+  post: Comment;
+  index?: number;
+}
+
+const TextOnlyPost = ({ post, index }: TextOnlyPostProps) => {
   const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
   const externalLink = post?.link;
 

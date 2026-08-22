@@ -99,7 +99,7 @@ Capture the issue number from the output.
 Stage only the relevant files:
 
 ```bash
-git add file1.js file2.jsx ...
+git add file1.ts file2.tsx ...
 ```
 
 Commit using Conventional Commits with scope:

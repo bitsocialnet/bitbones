@@ -2,12 +2,12 @@ import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import useDefaultList from '../../hooks/use-default-list';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, type StateSnapshot, type VirtuosoHandle } from 'react-virtuoso';
 import BoardPost from '../../components/board-post';
 import { useParams } from 'react-router-dom';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
 
-const lastVirtuosoStates = {};
+const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
 const Loading = () => 'loading...';
 
@@ -15,7 +15,7 @@ const Loading = () => 'loading...';
 const accountComments = { newerThan: 60 * 60 * 12 };
 
 function Board() {
-  const params = useParams();
+  const params = useParams<{ sortType?: string }>();
   const communityAddresses = useDefaultCommunityAddresses();
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'active';
@@ -25,7 +25,7 @@ function Board() {
   const Footer = hasMore ? Loading : undefined;
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {

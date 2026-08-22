@@ -4,8 +4,13 @@ import Arrow from '../../../components/icons/arrow';
 import styles from './post.module.css';
 import PostTools from '../../../components/post-tools';
 import { useBlock } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
-const PostMedia = ({ post }) => {
+interface PostMediaProps {
+  post?: Comment;
+}
+
+const PostMedia = ({ post }: PostMediaProps) => {
   const mediaType = utils.getCommentMediaType(post);
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
@@ -26,7 +31,11 @@ const PostMedia = ({ post }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const Reply = ({ reply }) => {
+interface ReplyProps {
+  reply: Comment;
+}
+
+const Reply = ({ reply }: ReplyProps) => {
   const replies = reply?.replies?.pages?.topAll?.comments || '';
   return (
     <div className={styles.reply}>
@@ -40,7 +49,7 @@ const Reply = ({ reply }) => {
         <div className={styles.replyContent}>{reply.content}</div>
       </div>
       <div className={styles.replies}>
-        {replies?.map?.((reply) => (
+        {replies?.map?.((reply: Comment) => (
           <Reply key={reply?.cid} reply={reply} />
         ))}
       </div>
@@ -48,13 +57,17 @@ const Reply = ({ reply }) => {
   );
 };
 
-function Post({ post }) {
+interface PostProps {
+  post?: Comment;
+}
+
+function Post({ post }: PostProps) {
   let hostname;
   try {
     hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const replies = post?.replies?.pages?.topAll?.comments?.map?.((reply) => <Reply key={reply?.cid} reply={reply} />) || '';
+  const replies = post?.replies?.pages?.topAll?.comments?.map?.((reply: Comment) => <Reply key={reply?.cid} reply={reply} />) || '';
 
   const { blocked: hidden } = useBlock({ cid: post?.cid });
 
@@ -97,7 +110,7 @@ function Post({ post }) {
           </div>
         </div>
       </div>
-      <div className={hidden && styles.hidden}>
+      <div className={hidden ? styles.hidden : undefined}>
         <PostMedia post={post} />
       </div>
       <div className={styles.replies}>{replies}</div>

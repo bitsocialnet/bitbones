@@ -1,10 +1,19 @@
 import utils from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import { flattenCommentsPages } from '@bitsocial/bitsocial-react-hooks/dist/lib/utils/index.js';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import { useMemo } from 'react';
 import styles from './board-post.module.css';
 
-const BoardPostMedia = ({ mediaType, mediaUrl }) => {
+// the media type union returned by utils.getCommentMediaType is not exported, so derive it here
+type MediaType = ReturnType<typeof utils.getCommentMediaType>;
+
+interface BoardPostMediaProps {
+  mediaType: MediaType;
+  mediaUrl?: string;
+}
+
+const BoardPostMedia = ({ mediaType, mediaUrl }: BoardPostMediaProps) => {
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
   }
@@ -25,7 +34,11 @@ const BoardPostMedia = ({ mediaType, mediaUrl }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const Reply = ({ reply }) => {
+interface ReplyProps {
+  reply: Comment;
+}
+
+const Reply = ({ reply }: ReplyProps) => {
   return (
     <div className={styles.reply}>
       <div className={styles.replyHeaderWrapper}>
@@ -40,7 +53,12 @@ const Reply = ({ reply }) => {
   );
 };
 
-const BoardPost = ({ post, index }) => {
+interface BoardPostProps {
+  post: Comment;
+  index?: number;
+}
+
+const BoardPost = ({ post, index }: BoardPostProps) => {
   const mediaType = utils.getCommentMediaType(post);
 
   const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
@@ -50,7 +68,7 @@ const BoardPost = ({ post, index }) => {
     () =>
       flattenCommentsPages(post.replies)
         .splice(0, 5)
-        .map((reply) => <Reply reply={reply} />),
+        .map((reply: Comment) => <Reply reply={reply} />),
     [post.replies],
   );
 

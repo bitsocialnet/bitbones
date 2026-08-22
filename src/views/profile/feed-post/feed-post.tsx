@@ -4,10 +4,17 @@ import styles from './feed-post.module.css';
 import Arrow from '../../../components/icons/arrow';
 import PostTools from '../../../components/post-tools';
 import { useAuthorAddress, useEditedComment } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import useUnreadReplyCount from '../../../hooks/use-unread-reply-count';
 import useCommentLabels from '../../../hooks/use-comment-labels';
 
-const FeedPostMedia = ({ mediaType, mediaUrl, link }) => {
+interface FeedPostMediaProps {
+  mediaType?: string;
+  mediaUrl?: string;
+  link: string;
+}
+
+const FeedPostMedia = ({ mediaType, mediaUrl, link }: FeedPostMediaProps) => {
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
   }
@@ -39,7 +46,12 @@ const FeedPostMedia = ({ mediaType, mediaUrl, link }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const FeedPost = ({ post, index }) => {
+interface FeedPostProps {
+  post?: Comment;
+  index?: number;
+}
+
+const FeedPost = ({ post, index }: FeedPostProps) => {
   // handle pending mod or author edit
   const { state: editedPostState, editedComment: editedPost } = useEditedComment({ comment: post });
   if (editedPost) {

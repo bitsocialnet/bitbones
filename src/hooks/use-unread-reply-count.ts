@@ -1,10 +1,19 @@
 import createStore from 'zustand';
 import localForageLru from '@bitsocial/bitsocial-react-hooks/dist/lib/localforage-lru/index.js';
 import { useCallback } from 'react';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
 const readReplyCountsDb = localForageLru.createInstance({ name: `bitbonesReadReplyCounts`, size: 2000 });
 
-const useReadReplyCountsStore = createStore((setState, getState) => ({
+// keyed by the shortened comment cid, see the substring(2, 14) calls below
+type ReadReplyCounts = Record<string, number>;
+
+interface ReadReplyCountsState {
+  readReplyCounts: ReadReplyCounts;
+  setReadReplyCount: (commentCid: string, readReplyCount: number) => void;
+}
+
+const useReadReplyCountsStore = createStore<ReadReplyCountsState>((setState, getState) => ({
   readReplyCounts: {},
   setReadReplyCount: (commentCid, readReplyCount) => {
     setState((state) => ({
@@ -15,10 +24,10 @@ const useReadReplyCountsStore = createStore((setState, getState) => ({
 }));
 
 // load reply counts from database once on load
-const initializeReadReplyCountsStore = async () => {
+const initializeReadReplyCountsStore = async (): Promise<void> => {
   const readReplyCountsEntries = await readReplyCountsDb.entries();
-  const readReplyCounts = {};
-  readReplyCountsEntries.forEach(([commentCid, readReplyCount]) => {
+  const readReplyCounts: ReadReplyCounts = {};
+  readReplyCountsEntries.forEach(([commentCid, readReplyCount]: [string, number]) => {
     readReplyCounts[commentCid] = readReplyCount;
   });
 
@@ -28,7 +37,7 @@ const initializeReadReplyCountsStore = async () => {
 };
 initializeReadReplyCountsStore();
 
-const useUnreadReplyCount = (post) => {
+const useUnreadReplyCount = (post?: Comment): [number | undefined, () => void] => {
   const readReplyCount = useReadReplyCountsStore((state) => state.readReplyCounts[post?.cid?.substring(2, 14)]);
   const setReadReplyCount = useReadReplyCountsStore((state) => state.setReadReplyCount);
   const setRepliesToRead = useCallback(() => {
@@ -44,7 +53,7 @@ const useUnreadReplyCount = (post) => {
       setReadReplyCount(post.cid.substring(2, 14), post.replyCount);
     }
   }, [post, readReplyCount, setReadReplyCount]);
-  let unreadReplyCount;
+  let unreadReplyCount: number | undefined;
   if (typeof post?.replyCount === 'number' && typeof readReplyCount === 'number') {
     unreadReplyCount = post.replyCount - readReplyCount;
 
@@ -56,12 +65,12 @@ const useUnreadReplyCount = (post) => {
   return [unreadReplyCount, setRepliesToRead];
 };
 
-export const incrementReadReplyCount = (commentCid) => {
+export const incrementReadReplyCount = (commentCid: string): void => {
   if (!commentCid) {
     throw new Error(`readReplyCountsStore.incrementReadReplyCount invalid commentCid argument '${commentCid}'`);
   }
   commentCid = commentCid?.substring(2, 14);
-  let nextCount;
+  let nextCount: number | undefined;
   useReadReplyCountsStore.setState((state) => {
     nextCount = (state.readReplyCounts[commentCid] || 0) + 1;
     return { readReplyCounts: { ...state.readReplyCounts, [commentCid]: nextCount } };

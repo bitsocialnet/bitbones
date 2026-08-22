@@ -3,8 +3,18 @@ import { Link } from 'react-router-dom';
 import styles from './feed-post.module.css';
 import { useState, useEffect } from 'react';
 import useIsMounted from '../../hooks/use-is-mounted';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
-const FeedPostMedia = ({ mediaType, mediaUrl, show }) => {
+// the media type union returned by utils.getCommentMediaType is not exported, so derive it here
+type MediaType = ReturnType<typeof utils.getCommentMediaType>;
+
+interface FeedPostMediaProps {
+  mediaType: MediaType;
+  mediaUrl?: string;
+  show: boolean;
+}
+
+const FeedPostMedia = ({ mediaType, mediaUrl, show }: FeedPostMediaProps) => {
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
   }
@@ -29,8 +39,12 @@ const FeedPostMedia = ({ mediaType, mediaUrl, show }) => {
   return <div className={styles.noMedia}></div>;
 };
 
+interface MediaProps {
+  mediaType?: MediaType;
+}
+
 // fake slow media
-const Media = ({ mediaType }) => {
+const Media = ({ mediaType }: MediaProps) => {
   let i = 50000000;
   let a = 0;
   while (i--) {
@@ -40,7 +54,12 @@ const Media = ({ mediaType }) => {
   return <div style={{ height: 300, width: 400, backgroundColor: 'red' }}></div>;
 };
 
-const FeedPost = ({ post, index }) => {
+interface FeedPostProps {
+  post: Comment;
+  index?: number;
+}
+
+const FeedPost = ({ post, index }: FeedPostProps) => {
   let hostname;
   try {
     hostname = new URL(post?.link).hostname.replace(/^www\./, '');

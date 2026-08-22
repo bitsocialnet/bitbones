@@ -56,6 +56,7 @@ Then confirm nothing else broke:
 
 ```bash
 yarn lint 2>&1
+yarn type-check 2>&1
 yarn build 2>&1
 ```
 
@@ -70,7 +71,7 @@ Return a structured report to the parent agent:
 <original diagnostic text>
 
 ### Files Modified
-- `path/to/file.jsx` — <brief description of change>
+- `path/to/file.tsx` — <brief description of change>
 
 ### Fix Applied
 <concise description of what was changed and why>
@@ -79,7 +80,7 @@ Return a structured report to the parent agent:
 - **Original issue resolved:** YES/NO
 - **New issues introduced:** YES (list them) / NO
 - **react-doctor output (relevant lines):** <paste relevant output>
-- **Lint / build:** PASS/FAIL
+- **Lint / type-check / build:** PASS/FAIL
 
 ### Status: SUCCESS / PARTIAL / FAILED
 ```
@@ -117,6 +118,6 @@ Extract logical sections into focused sub-components in separate files. bitbones
 - Always verify with react-doctor before reporting back
 - Report which files changed and any remaining risk
 - If the fix is unclear or risky, report back with concerns instead of guessing
-- Never introduce TypeScript — this repo is plain `.jsx`/`.js`
+- Keep `src/` strict TypeScript — `.ts`/`.tsx` files, no `any`, no `@ts-ignore`
 - Pin exact package versions if any dependency changes are needed
 - Use `yarn`, not `npm`

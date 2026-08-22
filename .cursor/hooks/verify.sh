@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # stop hook: run the repo verification commands for agent-driven changes.
-# bitbones is plain JavaScript with no test suite, so the gate is lint + build.
+# src/ is strict TypeScript and there is no test suite, so the gate is lint + type-check + build.
 
 set -u
 
@@ -69,12 +69,13 @@ run_required_check() {
   return 1
 }
 
-echo "Running lint, build, and security audit..."
+echo "Running lint, type-check, build, and security audit..."
 echo ""
 
 failures=0
 
 run_required_check "corepack yarn lint" corepack yarn lint || failures=1
+run_required_check "corepack yarn type-check" corepack yarn type-check || failures=1
 run_required_check "corepack yarn build" corepack yarn build || failures=1
 
 echo "=== corepack yarn npm audit ==="
@@ -103,7 +104,7 @@ if [ "$failures" -ne 0 ]; then
   # Exit 2 is the only exit code that blocks the stop and feeds the reason back
   # to the agent in Claude Code and Codex; exit 1 would be a silent, non-blocking
   # error. The full logs are on stdout above; keep the stderr reason short.
-  echo "Verification failed: lint or build reported errors (see hook output). Fix them before finishing, or rerun with AGENT_VERIFY_MODE=advisory to intentionally stop on a broken tree." >&2
+  echo "Verification failed: lint, type-check or build reported errors (see hook output). Fix them before finishing, or rerun with AGENT_VERIFY_MODE=advisory to intentionally stop on a broken tree." >&2
   exit 2
 fi
 

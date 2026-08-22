@@ -1,11 +1,16 @@
 import React, { useState } from 'react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent, UniqueIdentifier } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
 
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 
-export function SortableItem(props) {
+interface SortableItemProps {
+  id: UniqueIdentifier;
+}
+
+export function SortableItem(props: SortableItemProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: props.id });
 
   const style = {
@@ -23,7 +28,7 @@ export function SortableItem(props) {
 }
 
 export default function DragAndDrop() {
-  const [items, setItems] = useState([1, 2, 3]);
+  const [items, setItems] = useState<UniqueIdentifier[]>([1, 2, 3]);
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -41,13 +46,14 @@ export default function DragAndDrop() {
     </DndContext>
   );
 
-  function handleDragEnd(event) {
+  function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
+    // the handler already dereferences `over`, which @dnd-kit types as nullable, without a null check
+    if (active.id !== over!.id) {
       setItems((items) => {
         const oldIndex = items.indexOf(active.id);
-        const newIndex = items.indexOf(over.id);
+        const newIndex = items.indexOf(over!.id);
 
         return arrayMove(items, oldIndex, newIndex);
       });

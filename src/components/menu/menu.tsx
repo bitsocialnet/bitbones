@@ -3,7 +3,7 @@ import styles from './menu.module.css';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import AccountMenu from './account-menu';
 import Submit from './submit';
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import GoToCommunityModal from './go-to-community-modal';
 import DefaultListSwitch from './default-list-switch';
 import { useTranslation } from 'react-i18next';
@@ -36,7 +36,7 @@ const Menu = () => {
   const { timeFilterNames } = useTimeFilter();
   const [goToCommunityModalIsOpen, setGoToCommunityModalIsOpen] = useState(false);
   const navigate = useNavigate();
-  const params = useParams();
+  const params = useParams<{ commentCid?: string; sortType?: string; timeFilterName?: string }>();
   const { pathname, key } = useLocation();
   const pathNames = pathname?.split?.('/');
   // is first page visitor
@@ -60,13 +60,13 @@ const Menu = () => {
   const feedLink = createFeedLink(feedName, params.sortType, params.timeFilterName);
   const catalogLink = createCatalogLink(feedName, params.sortType, params.timeFilterName);
 
-  const changeSortType = (event) => {
+  const changeSortType = (event: ChangeEvent<HTMLSelectElement>) => {
     const sortType = event.target.value;
     const link = isCatalog ? createCatalogLink(feedName, sortType, params.timeFilterName) : createFeedLink(feedName, sortType, params.timeFilterName);
     navigate(link);
   };
 
-  const changeFeedName = (event) => {
+  const changeFeedName = (event: ChangeEvent<HTMLSelectElement>) => {
     const feedName = event.target.value;
 
     if (feedName === 'goToCommunity') {
@@ -77,7 +77,7 @@ const Menu = () => {
     navigate(link);
   };
 
-  const changeTimeFilter = (event) => {
+  const changeTimeFilter = (event: ChangeEvent<HTMLSelectElement>) => {
     const timeFilterName = event.target.value;
     const link = isCatalog ? createCatalogLink(feedName, params.sortType, timeFilterName) : createFeedLink(feedName, params.sortType, timeFilterName);
     navigate(link);
@@ -136,7 +136,7 @@ const Menu = () => {
   );
 };
 
-const createFeedLink = (feedName, sortType, timeFilterName) => {
+const createFeedLink = (feedName?: string, sortType?: string, timeFilterName?: string) => {
   let feedLink = '';
   if (feedName && feedName !== 'all') {
     feedLink = `/p/${feedName}`;
@@ -156,7 +156,7 @@ const createFeedLink = (feedName, sortType, timeFilterName) => {
   return feedLink;
 };
 
-const createCatalogLink = (feedName, sortType, timeFilterName) => {
+const createCatalogLink = (feedName?: string, sortType?: string, timeFilterName?: string) => {
   let catalogLink = '/catalog';
   if (feedName && feedName !== 'all') {
     catalogLink = `/p/${feedName}/catalog`;

@@ -1,7 +1,9 @@
 import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import { Virtuoso } from 'react-virtuoso';
+import type { Components } from 'react-virtuoso';
 import FeedPost from './feed-post';
 import { useParams, useMatch } from 'react-router-dom';
 import useFeedStateString from '../../hooks/use-feed-state-string';
@@ -9,6 +11,10 @@ import useTimeFilter from '../../hooks/use-time-filter';
 import PostView from '../../views/post';
 import styles from './home.module.css';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
+
+// UseFeedResult omits updatedFeed, which useFeed does return at runtime, always as an array
+// (bitsocial-react-hooks/dist/hooks/feeds/feeds.js)
+type FeedResult = UseFeedResult & { updatedFeed: Comment[] };
 
 const lastVirtuosoStates = {};
 
@@ -24,10 +30,10 @@ function Home() {
   // const {timeFilterSeconds} = useTimeFilter()
   const timeFilterSeconds = undefined;
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments });
+  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
-  let Footer;
+  let Footer: Components['Footer'];
   if (feed?.length === 0) {
     Footer = NoPosts;
   }
@@ -51,8 +57,10 @@ function Home() {
   // }, [sortType, timeFilterSeconds])
   // const lastVirtuosoState = lastVirtuosoStates?.[sortType + timeFilterSeconds]
 
+  // `class` is not a prop React types, and it is left as-is here on purpose: this is a types-only
+  // migration, so the wrong attribute name is spread through instead of being renamed
   return (
-    <div class={styles.wrapper}>
+    <div {...{ class: styles.wrapper }}>
       <div className={[!params.commentCid ? styles.visible : styles.hidden].join(' ')}>
         <Virtuoso
           increaseViewportBy={{ bottom: 1200, top: 600 }}

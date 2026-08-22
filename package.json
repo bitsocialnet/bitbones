@@ -189,7 +189,7 @@
   },
   "main": "electron/main.js",
   "lint-staged": {
-    "{src}/**/*.{ts,tsx}": [
+    "src/**/*.{ts,tsx}": [
       "oxfmt"
     ],
     "{electron,scripts}/**/*.{js,mjs}": [

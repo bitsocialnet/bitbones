@@ -7,11 +7,13 @@ import { HashRouter as Router } from 'react-router-dom';
 import './index.css';
 import './themes.css';
 import { App as CapacitorApp } from '@capacitor/app';
+import type { BackButtonListenerEvent } from '@capacitor/app';
 
 // set up libp2pjs as default
 // window.defaultPkcOptions = {libp2pJsClientsOptions: [{key: 'libp2pjs'}]}
 
-createRoot(document.getElementById('root')).render(
+// #root is declared in index.html, so the non-null assertion is the standard React entry-point idiom
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <Router>
       <App />
@@ -20,7 +22,7 @@ createRoot(document.getElementById('root')).render(
 );
 
 // add back button in android app
-CapacitorApp.addListener('backButton', ({ canGoBack }) => {
+CapacitorApp.addListener('backButton', ({ canGoBack }: BackButtonListenerEvent) => {
   if (canGoBack) {
     window.history.back();
   } else {

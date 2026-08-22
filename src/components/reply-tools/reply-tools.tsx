@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './reply-tools.module.css';
 import { useBlock } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import Arrow from '../icons/arrow';
 import useUpvote from '../../hooks/use-upvote';
 import useDownvote from '../../hooks/use-downvote';
@@ -9,13 +10,18 @@ import useReply from '../../hooks/use-reply';
 import { Link } from 'react-router-dom';
 
 const getQuote = () => {
-  const selection = window.getSelection().toString();
+  const selection = window.getSelection()!.toString();
   if (selection) {
     return `>${selection}\n\n`;
   }
 };
 
-const Menu = ({ reply, onPublished }) => {
+interface MenuProps {
+  reply?: Comment;
+  onPublished?: () => void;
+}
+
+const Menu = ({ reply, onPublished }: MenuProps) => {
   const { blocked: hidden, block: hide, unblock: unhide } = useBlock({ cid: reply?.cid });
   const { blocked: authorBlocked, block: blockAuthor, unblock: unblockAuthor } = useBlock({ address: reply?.author?.address });
   const toggleHide = () => (!hidden ? hide() : unhide());
@@ -47,11 +53,11 @@ const Menu = ({ reply, onPublished }) => {
   }, [replyIndex, onPublished, resetContent]);
 
   // autofocus textarea without scrolling
-  const textareaRef = useRef();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
-    textareaRef.current.focus({ preventScroll: true });
+    textareaRef.current!.focus({ preventScroll: true });
     // set cursor at end of text
-    textareaRef.current.selectionStart = textareaRef.current.value.length;
+    textareaRef.current!.selectionStart = textareaRef.current!.value.length;
   }, []);
 
   return (
@@ -101,7 +107,12 @@ const Menu = ({ reply, onPublished }) => {
   );
 };
 
-function ReplyTools({ children, reply }) {
+interface ReplyToolsProps {
+  children?: ReactNode;
+  reply?: Comment;
+}
+
+function ReplyTools({ children, reply }: ReplyToolsProps) {
   // modal stuff
   const [isOpen, setIsOpen] = useState(false);
 

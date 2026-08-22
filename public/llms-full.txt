@@ -65,6 +65,7 @@ yarn start
 | `yarn build` | production build into `build/` |
 | `yarn sync:lists` | refresh the vendored default community lists from bitsocialnet/lists |
 | `yarn lint` | oxlint |
+| `yarn type-check` | `tsc --noEmit` over `src/` |
 | `yarn prettier` | oxfmt |
 | `yarn knip` | unused/undeclared dependency check |
 | `yarn electron:dev` | run the desktop app against the dev server |
@@ -143,7 +144,8 @@ Agents may use compiled context to navigate quickly, but must verify against sou
 | Situation | Required action |
 |---|---|
 | A protocol hook is called (`useFeed`, `useCommunity`, `useCommunityStats`, `useCommunitiesStates`, `useSubscribe`) | Check both argument traps in the Protocol Hook Rules below before finishing |
-| React UI logic changed (`src/components`, `src/views`, `src/hooks`, `src/lib`, `src/app.jsx`) | Follow the React architecture rules below, review the diff with `vercel-react-best-practices` when available, fix valid findings, then run `yarn doctor` |
+| React UI logic changed (`src/components`, `src/views`, `src/hooks`, `src/lib`, `src/app.tsx`) | Follow the React architecture rules below, review the diff with `vercel-react-best-practices` when available, fix valid findings, then run `yarn doctor` |
+| Anything under `src/` changed (types, props, hook signatures, a new file) | Run `yarn type-check`; `src/` is strict TypeScript and `tsc --noEmit` is the only type gate |
 | `package.json` changed | Run `corepack yarn install` to keep `yarn.lock` in sync |
 | Dependencies or import graph changed | Run `yarn knip` (`yarn knip:full` for the advisory full report) |
 | Translation key/value changed | Use the `translate` skill (spawns parallel `translator` subagents); it drives `scripts/update-translations.js`, never hand-edit the language files |
@@ -163,15 +165,17 @@ Agents may use compiled context to navigate quickly, but must verify against sou
 ## Stack
 
 - Node 22.12.0 (`nvm use`), Yarn 4.17.1 via corepack (`corepack enable`)
-- React 19 + Vite 8 (rolldown) + plain `.jsx`, CSS modules
+- React 19 + Vite 8 (rolldown) + TypeScript 7 in strict mode, CSS modules
 - `@bitsocial/bitsocial-react-hooks` for all protocol access, `@pkcprotocol/pkc-js` in electron only
 - zustand 4 for local UI state, react-router-dom 7 with `HashRouter`
 - i18next for translations
 - oxlint + oxfmt, knip for dependency hygiene, react-doctor for React review
 - electron-forge for desktop, capacitor for android
 
-This is **JavaScript, not TypeScript**. There is no `tsc`, no `type-check` script, and no `.ts`/`.tsx`
-file in `src/`. There is also no test runner: no vitest, no `yarn test`. Do not invent either.
+`src/` is **strict TypeScript**: every source file is `.ts` or `.tsx`, `tsconfig.json` sets
+`strict: true` and `allowJs: false`, and `yarn type-check` (`tsc --noEmit`) is the type gate.
+`electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` stay plain JavaScript on purpose —
+only `src/` is TypeScript. There is still no test runner: no vitest, no `yarn test`. Do not invent one.
 
 ## Project Structure
 
@@ -184,8 +188,11 @@ src/
 └── data/         # Generated default-community-list mirrors
 ```
 
+Ambient declarations live in three files at the root of `src/`: `modules.d.ts` (CSS modules),
+`env.d.ts` (`import.meta.env`), and `globals.d.ts` (`Window` extras).
+
 There is no `src/stores/` directory. Shared UI state lives in small zustand stores created with
-`createStore` inside `src/hooks/` (see `src/hooks/use-theme.js`) or colocated with the single
+`createStore` inside `src/hooks/` (see `src/hooks/use-theme.ts`) or colocated with the single
 component that owns them.
 
 ## Core MUST Rules
@@ -204,7 +211,7 @@ component that owns them.
 
 - `useFeed`, `useCommunity`, `useCommunityStats` and `useCommunitiesStates` take a
   `CommunityIdentifier` (`{name}` or `{publicKey}`), never an address string. Go through
-  `src/hooks/use-community-identifier.js`. Passing an address silently returns nothing — no throw,
+  `src/hooks/use-community-identifier.ts`. Passing an address silently returns nothing — no throw,
   no console error, just an empty feed or a blank community header.
 - `useSubscribe` is the exception: it still takes a plain `communityAddress` string.
 - Every hook argument must be an object or `undefined`. The library asserts
@@ -229,6 +236,21 @@ component that owns them.
 - Avoid boolean flag soup for complex flows; prefer the `state` / `updatingState` value the protocol hook already returns.
 - Use React Router for navigation; no manual history manipulation. Routing is `HashRouter`, so any
   URL you construct by hand needs the `#` segment.
+
+### TypeScript Rules
+
+- Everything under `src/` is `.ts`/`.tsx`. Never add a `.js`/`.jsx` file there, and never turn on `allowJs`.
+- No `any`, and no `@ts-ignore` / `@ts-expect-error`. If a type fights you, fix the type.
+- Import domain types (`Comment`, `Community`, `Account`, `CommunityIdentifier`, ...) from
+  `@bitsocial/bitsocial-react-hooks`. Do not hand-roll a local copy of a type the library exports.
+- Type props with an `interface XProps { ... }` declared directly above the component. No `React.FC`.
+- Keep relative imports extensionless (`./use-theme`, not `./use-theme.ts`).
+- Extend `src/modules.d.ts` (CSS modules), `src/env.d.ts` (`import.meta.env`), or `src/globals.d.ts`
+  (`Window` extras) rather than adding a fourth ambient file. The only reason to add a new `.d.ts` is a
+  `declare module` shim for a dependency that ships no typings, and it belongs next to the code that
+  imports it.
+- `electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` are outside `tsconfig.json`'s
+  `include` and stay plain JavaScript.
 
 ### Code Organization Rules
 
@@ -257,13 +279,14 @@ component that owns them.
 ### Verification Rules
 
 - Never mark work complete without verification.
-- After code changes, run: `yarn lint`, `yarn build`.
+- After code changes, run: `yarn lint`, `yarn type-check`, `yarn build`.
 - After React UI logic changes, also run `yarn doctor`. Treat react-doctor output as guidance for
   *newly introduced* issues, not as an aggregate score to grind up: many `error`-level diagnostics
   flag intentional patterns or current React-Compiler limitations.
 - After dependency or import-graph changes, run `yarn knip`.
-- There is no type-check and no test command. If a checklist asks for one, say it does not exist here
-  rather than inventing a command.
+- `yarn type-check` (`tsc --noEmit`) is the type gate; run it after any change under `src/`.
+- There is no test command. If a checklist asks for one, say it does not exist here rather than
+  inventing a command.
 - `yarn build` runs `yarn sync:lists` first and can rewrite the tracked `src/data/vendored-*.json`
   mirrors. Review that diff and keep or discard it deliberately.
 - Do not commit or force-add local rebuild output. `build/` is the generated build output; remove it
@@ -290,7 +313,7 @@ component that owns them.
 - Do not pin `model` or `model_reasoning_effort` in committed Codex custom-agent TOMLs under `.codex/agents/*.toml`; omit both so subagents inherit the current parent settings.
 - If `AGENTS.md` references a skill, agent, or hook, prefer a tracked file under `.codex/`, `.cursor/`, or `.claude/` rather than an untracked local-only instruction.
 - Review `.codex/config.toml`, `.codex/hooks.json`, `.cursor/hooks.json`, and `.claude/settings.json` before changing agent orchestration or hook behavior.
-- Before finishing any React UI logic change under `src/components`, `src/views`, `src/hooks`, `src/lib`, or `src/app.jsx`, review the changed diff with `vercel-react-best-practices`. Fix valid findings before final verification.
+- Before finishing any React UI logic change under `src/components`, `src/views`, `src/hooks`, `src/lib`, or `src/app.tsx`, review the changed diff with `vercel-react-best-practices`. Fix valid findings before final verification.
 - When a diff adds new `useEffect`, `useLayoutEffect`, `useInsertionEffect`, `useMemo`, `useCallback`, or `memo(...)` usage under `src/`, treat the repo hook reminder as mandatory and reconsider the change with `you-might-not-need-an-effect` before finishing.
 - For work expected to span multiple sessions, keep explicit task state in a `feature-list.json` plus `progress.md` pair using `docs/agent-playbooks/long-running-agent-workflow.md`.
 - If more than one human or toolchain needs the same task state, keep it in a tracked location such as `docs/agent-runs/<slug>/` instead of a tool-specific hidden directory.
@@ -318,7 +341,7 @@ component that owns them.
 ## Default Community Lists
 
 `src/data/vendored-*.json` are generated by `yarn sync:lists` from bitsocialnet/lists. Never hand
-edit them. `src/lib/default-lists.js` layers memory -> localStorage (1h TTL) -> vendored mirror and
+edit them. `src/lib/default-lists.ts` layers memory -> localStorage (1h TTL) -> vendored mirror and
 refreshes in the background; caches are keyed per source so switching the default list cannot serve
 one client's list under the other's name.
 
@@ -337,10 +360,11 @@ corepack yarn install
 yarn start                # https://bitbones.localhost
 yarn build
 yarn lint
+yarn type-check
 yarn knip
 yarn knip:full
 yarn doctor
-yarn retest:quality       # build + lint + knip + doctor
+yarn retest:quality       # build + lint + type-check + knip + doctor
 yarn prettier
 yarn electron
 yarn ai-workflow:check
@@ -459,7 +483,7 @@ If uncertain, ask the developer before adding an entry.
 - **Context:** porting the client onto `@bitsocial/bitsocial-react-hooks`.
 - **What was surprising:** `useFeed`, `useCommunity`, `useCommunityStats` and `useCommunitiesStates` take a `CommunityIdentifier` object (`{name}` or `{publicKey}`), not the `communityAddress` string the rest of the app passes around. Handing them an address does not throw and does not log — the hook just returns nothing.
 - **Impact:** an empty feed, a blank community header, or missing stats that look like a network or protocol problem, and get debugged in the wrong layer for a long time.
-- **Mitigation:** convert addresses through `src/hooks/use-community-identifier.js` (`useCommunityIdentifier` / `useCommunityIdentifiers`) before passing them to those four hooks. `useSubscribe` is the documented exception and still takes a plain `communityAddress` string.
+- **Mitigation:** convert addresses through `src/hooks/use-community-identifier.ts` (`useCommunityIdentifier` / `useCommunityIdentifiers`) before passing them to those four hooks. `useSubscribe` is the documented exception and still takes a plain `communityAddress` string.
 - **Status:** confirmed
 
 ### A falsy-non-null hook argument throws mid-render
@@ -514,17 +538,17 @@ Before editing, check git history for the relevant code. Previous contributors m
 
 ```bash
 # Recent commit titles for a specific file
-git log --oneline -10 -- src/views/community/community.jsx
+git log --oneline -10 -- src/views/community/community.tsx
 
 # Recent commit titles for a specific line range
-git blame -L 20,35 src/views/community/community.jsx
+git blame -L 20,35 src/views/community/community.tsx
 ```
 
 2. Inspect only relevant commits with scoped diffs:
 
 ```bash
 # Show commit message + diff for one file
-git show <commit-hash> -- path/to/file.jsx
+git show <commit-hash> -- path/to/file.tsx
 ```
 
 3. Continue with reproduction and fix after understanding the history context.
@@ -588,7 +612,7 @@ Prefer JSON for the feature list so agents can update a small number of fields w
 2. Read `progress.md`.
 3. Read `feature-list.json`.
 4. Run `git log --oneline -20`.
-5. Confirm the baseline still builds: `corepack yarn install && yarn lint && yarn build`.
+5. Confirm the baseline still builds: `corepack yarn install && yarn lint && yarn type-check && yarn build`.
 6. Choose exactly one highest-priority item that is still `pending`, `in_progress`, or `blocked`.
 
 If the baseline check fails, fix the broken baseline before implementing a new feature slice.
@@ -617,8 +641,8 @@ Use a short structure like:
 
 - Item: F003
 - Summary: Routed the community header through useCommunityIdentifier instead of the raw address.
-- Files: `src/views/community/community.jsx`, `src/hooks/use-community-identifier.js`
-- Verification: `yarn lint`, `yarn build`, opened /p/<address> and confirmed the header renders
+- Files: `src/views/community/community.tsx`, `src/hooks/use-community-identifier.ts`
+- Verification: `yarn lint`, `yarn type-check`, `yarn build`, opened /p/<address> and confirmed the header renders
 - Next: Do the same for the catalog route.
 ```
 ```
@@ -705,7 +729,7 @@ npx skills add https://github.com/vercel-labs/skills --skill find-skills
 | Command | What it gives you |
 |---|---|
 | `yarn start` | Dev server at https://bitbones.localhost via portless (`PORTLESS=0 yarn start` for http://localhost:5173) |
-| `yarn lint` / `yarn build` | The required gate, also enforced by the stop hook |
+| `yarn lint` / `yarn type-check` / `yarn build` | The required gate, also enforced by the stop hook |
 | `yarn knip` | Manifest/import audit (strict); `yarn knip:full` is the advisory full report |
 | `yarn doctor` | react-doctor review of React UI logic; treat it as a reviewer of *new* diagnostics, not a score |
 | `yarn ai-workflow:check` | Parity check across `.claude/`, `.cursor/`, `.codex/` |
@@ -743,7 +767,7 @@ Example:
 
 > **Commit title:** `fix(default lists): keep the seedit cache out of the other client's key`
 >
-> Keyed the localStorage entry per source in `default-lists.js` so switching lists cannot serve one client's list under the other's name.
+> Keyed the localStorage entry per source in `default-lists.ts` so switching lists cannot serve one client's list under the other's name.
 
 ## GitHub Issue Suggestion Format
 
@@ -776,17 +800,16 @@ Run `yarn ai-workflow:check` after changing any of this.
 
 | Edit-time / stop | Script | Purpose |
 |---|---|---|
-| edit-time | `hooks/format.sh` | Auto-format `.js`/`.jsx`/`.cjs`/`.mjs` after AI edits (`npx oxfmt`) |
+| edit-time | `hooks/format.sh` | Auto-format `.ts`/`.tsx`/`.js`/`.jsx`/`.cjs`/`.mjs` after AI edits (`npx oxfmt`) |
 | edit-time | `hooks/yarn-install.sh` | Run `corepack yarn install` when the root `package.json` changes |
 | edit-time + stop | `hooks/react-pattern-review.sh` | When React UI source changes, remind the agent to run the React best-practice review skills; flag new `useEffect`/memo primitives, and flag protocol-hook calls so the argument traps get checked |
 | stop | `hooks/sync-git-branches.sh` | Prune stale refs and delete integrated temporary task branches |
 | stop | `hooks/code-quality-review-reminder.sh` | Remind the agent to run the advisory `code-quality-review` skill when the diff is non-trivial |
-| stop | `hooks/verify.sh` | Gate `yarn lint` and `yarn build`; keep `yarn npm audit` informational |
+| stop | `hooks/verify.sh` | Gate `yarn lint`, `yarn type-check` and `yarn build`; keep `yarn npm audit` informational |
 | session start (Claude only) | `.claude/hooks/session-start.sh` | `corepack yarn install` when `node_modules` is missing (fresh worktrees) |
 
-`verify.sh` gates lint and build only. There is no type-check step (bitbones is plain JavaScript) and
-no test suite, so nothing else belongs in the gate. `yarn doctor` and `yarn knip` stay advisory and
-are run by the agent, not the hook.
+`verify.sh` gates lint, type-check and build only. There is no test suite, so nothing else belongs in
+the gate. `yarn doctor` and `yarn knip` stay advisory and are run by the agent, not the hook.
 
 ## Entry points (harness-specific formats)
 

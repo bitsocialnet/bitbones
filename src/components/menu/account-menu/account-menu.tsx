@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './account-menu.module.css';
 import { useAccount, useAccounts, createAccount, setActiveAccount } from '@bitsocial/bitsocial-react-hooks';
@@ -7,7 +7,11 @@ const commitRef = import.meta.env.VITE_COMMIT_REF?.slice(0, 7);
 // injected by vite.config.js — importing package.json here would inline the whole manifest
 const version = commitRef || `v${import.meta.env.VITE_APP_VERSION}`;
 
-const Menu = ({ onMenuLinkClick }) => {
+interface MenuProps {
+  onMenuLinkClick: () => void;
+}
+
+const Menu = ({ onMenuLinkClick }: MenuProps) => {
   const { accounts } = useAccounts();
   const accountsOptions = accounts.map((account) => (
     <option key={account?.id} value={account?.name}>
@@ -21,7 +25,7 @@ const Menu = ({ onMenuLinkClick }) => {
   );
   const account = useAccount();
 
-  const onAccountSelectChange = async (event) => {
+  const onAccountSelectChange = async (event: ChangeEvent<HTMLSelectElement>) => {
     if (event.target.value === 'createAccount') {
       createAccount();
     } else {
@@ -68,7 +72,11 @@ const Menu = ({ onMenuLinkClick }) => {
   );
 };
 
-function AccountMenu({ className }) {
+interface AccountMenuProps {
+  className?: string;
+}
+
+function AccountMenu({ className }: AccountMenuProps) {
   // modal stuff
   const [isOpen, setIsOpen] = useState(false);
 

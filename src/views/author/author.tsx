@@ -1,12 +1,18 @@
 import { useRef, useEffect } from 'react';
 import { useAuthor, useAuthorComments, useAuthorAvatar } from '@bitsocial/bitsocial-react-hooks';
 import { Virtuoso } from 'react-virtuoso';
+import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
 import { useParams, useNavigate } from 'react-router-dom';
 import styles from './author.module.css';
 import { Link } from 'react-router-dom';
 
-const AuthorInfo = ({ authorAddress, commentCid }) => {
+interface AuthorInfoProps {
+  authorAddress?: string;
+  commentCid?: string;
+}
+
+const AuthorInfo = ({ authorAddress, commentCid }: AuthorInfoProps) => {
   const { author } = useAuthor({ commentCid, authorAddress });
   const { imageUrl: avatarUrl } = useAuthorAvatar({ author });
 
@@ -25,7 +31,7 @@ const AuthorInfo = ({ authorAddress, commentCid }) => {
   );
 };
 
-const lastVirtuosoStates = {};
+const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
 const Loading = () => 'loading...';
 
@@ -37,13 +43,13 @@ function Author() {
   const Footer = hasMore ? Loading : undefined;
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {
         // TODO: not sure if checking for empty snapshot.ranges works for all scenarios
         if (snapshot?.ranges?.length) {
-          lastVirtuosoStates[authorAddress] = snapshot;
+          lastVirtuosoStates[authorAddress!] = snapshot;
         }
       });
     // TODO: doesn't work if the user hasn't scrolled
@@ -51,7 +57,7 @@ function Author() {
     // clean listener on unmount
     return () => window.removeEventListener('scroll', setLastVirtuosoState);
   }, [authorAddress]);
-  const lastVirtuosoState = lastVirtuosoStates?.[authorAddress];
+  const lastVirtuosoState = lastVirtuosoStates?.[authorAddress!];
 
   // always redirect to latest author cid
   useEffect(() => {

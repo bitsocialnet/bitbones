@@ -3,8 +3,8 @@ import useStateString from './use-state-string';
 import { useCommunity, useCommunitiesStates } from '@bitsocial/bitsocial-react-hooks';
 import { useCommunityIdentifier, useCommunityIdentifiers } from './use-community-identifier';
 
-const clientHosts = {};
-const getClientHost = (clientUrl) => {
+const clientHosts: Record<string, string> = {};
+const getClientHost = (clientUrl: string): string => {
   if (!clientHosts[clientUrl]) {
     try {
       clientHosts[clientUrl] = new URL(clientUrl).hostname || clientUrl;
@@ -15,7 +15,7 @@ const getClientHost = (clientUrl) => {
   return clientHosts[clientUrl];
 };
 
-const useFeedStateString = (communityAddresses) => {
+const useFeedStateString = (communityAddresses?: (string | undefined)[]): string | undefined => {
   // single community feed state string
   const communityAddress = communityAddresses?.length === 1 ? communityAddresses[0] : undefined;
   const communityIdentifier = useCommunityIdentifier(communityAddress);
@@ -42,8 +42,8 @@ const useFeedStateString = (communityAddresses) => {
     }
 
     // find all page client and sub addresses
-    const pagesStatesClientHosts = new Set();
-    const pagesStatesCommunityAddresses = new Set();
+    const pagesStatesClientHosts = new Set<string>();
+    const pagesStatesCommunityAddresses = new Set<string>();
     for (const state in states) {
       if (state.match('page')) {
         states[state].clientUrls.forEach((clientUrl) => pagesStatesClientHosts.add(getClientHost(clientUrl)));

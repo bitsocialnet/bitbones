@@ -55,7 +55,8 @@ Agents may use compiled context to navigate quickly, but must verify against sou
 | Situation | Required action |
 |---|---|
 | A protocol hook is called (`useFeed`, `useCommunity`, `useCommunityStats`, `useCommunitiesStates`, `useSubscribe`) | Check both argument traps in the Protocol Hook Rules below before finishing |
-| React UI logic changed (`src/components`, `src/views`, `src/hooks`, `src/lib`, `src/app.jsx`) | Follow the React architecture rules below, review the diff with `vercel-react-best-practices` when available, fix valid findings, then run `yarn doctor` |
+| React UI logic changed (`src/components`, `src/views`, `src/hooks`, `src/lib`, `src/app.tsx`) | Follow the React architecture rules below, review the diff with `vercel-react-best-practices` when available, fix valid findings, then run `yarn doctor` |
+| Anything under `src/` changed (types, props, hook signatures, a new file) | Run `yarn type-check`; `src/` is strict TypeScript and `tsc --noEmit` is the only type gate |
 | `package.json` changed | Run `corepack yarn install` to keep `yarn.lock` in sync |
 | Dependencies or import graph changed | Run `yarn knip` (`yarn knip:full` for the advisory full report) |
 | Translation key/value changed | Use the `translate` skill (spawns parallel `translator` subagents); it drives `scripts/update-translations.js`, never hand-edit the language files |
@@ -75,15 +76,17 @@ Agents may use compiled context to navigate quickly, but must verify against sou
 ## Stack
 
 - Node 22.12.0 (`nvm use`), Yarn 4.17.1 via corepack (`corepack enable`)
-- React 19 + Vite 8 (rolldown) + plain `.jsx`, CSS modules
+- React 19 + Vite 8 (rolldown) + TypeScript 7 in strict mode, CSS modules
 - `@bitsocial/bitsocial-react-hooks` for all protocol access, `@pkcprotocol/pkc-js` in electron only
 - zustand 4 for local UI state, react-router-dom 7 with `HashRouter`
 - i18next for translations
 - oxlint + oxfmt, knip for dependency hygiene, react-doctor for React review
 - electron-forge for desktop, capacitor for android
 
-This is **JavaScript, not TypeScript**. There is no `tsc`, no `type-check` script, and no `.ts`/`.tsx`
-file in `src/`. There is also no test runner: no vitest, no `yarn test`. Do not invent either.
+`src/` is **strict TypeScript**: every source file is `.ts` or `.tsx`, `tsconfig.json` sets
+`strict: true` and `allowJs: false`, and `yarn type-check` (`tsc --noEmit`) is the type gate.
+`electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` stay plain JavaScript on purpose —
+only `src/` is TypeScript. There is still no test runner: no vitest, no `yarn test`. Do not invent one.
 
 ## Project Structure
 
@@ -96,8 +99,11 @@ src/
 └── data/         # Generated default-community-list mirrors
 ```
 
+Ambient declarations live in three files at the root of `src/`: `modules.d.ts` (CSS modules),
+`env.d.ts` (`import.meta.env`), and `globals.d.ts` (`Window` extras).
+
 There is no `src/stores/` directory. Shared UI state lives in small zustand stores created with
-`createStore` inside `src/hooks/` (see `src/hooks/use-theme.js`) or colocated with the single
+`createStore` inside `src/hooks/` (see `src/hooks/use-theme.ts`) or colocated with the single
 component that owns them.
 
 ## Core MUST Rules
@@ -116,7 +122,7 @@ component that owns them.
 
 - `useFeed`, `useCommunity`, `useCommunityStats` and `useCommunitiesStates` take a
   `CommunityIdentifier` (`{name}` or `{publicKey}`), never an address string. Go through
-  `src/hooks/use-community-identifier.js`. Passing an address silently returns nothing — no throw,
+  `src/hooks/use-community-identifier.ts`. Passing an address silently returns nothing — no throw,
   no console error, just an empty feed or a blank community header.
 - `useSubscribe` is the exception: it still takes a plain `communityAddress` string.
 - Every hook argument must be an object or `undefined`. The library asserts
@@ -141,6 +147,21 @@ component that owns them.
 - Avoid boolean flag soup for complex flows; prefer the `state` / `updatingState` value the protocol hook already returns.
 - Use React Router for navigation; no manual history manipulation. Routing is `HashRouter`, so any
   URL you construct by hand needs the `#` segment.
+
+### TypeScript Rules
+
+- Everything under `src/` is `.ts`/`.tsx`. Never add a `.js`/`.jsx` file there, and never turn on `allowJs`.
+- No `any`, and no `@ts-ignore` / `@ts-expect-error`. If a type fights you, fix the type.
+- Import domain types (`Comment`, `Community`, `Account`, `CommunityIdentifier`, ...) from
+  `@bitsocial/bitsocial-react-hooks`. Do not hand-roll a local copy of a type the library exports.
+- Type props with an `interface XProps { ... }` declared directly above the component. No `React.FC`.
+- Keep relative imports extensionless (`./use-theme`, not `./use-theme.ts`).
+- Extend `src/modules.d.ts` (CSS modules), `src/env.d.ts` (`import.meta.env`), or `src/globals.d.ts`
+  (`Window` extras) rather than adding a fourth ambient file. A `declare module` shim for a dependency
+  that ships no typings goes in `src/modules.d.ts` alongside the CSS-module shim, the way the sibling
+  client 5chan does it.
+- `electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` are outside `tsconfig.json`'s
+  `include` and stay plain JavaScript.
 
 ### Code Organization Rules
 
@@ -169,13 +190,14 @@ component that owns them.
 ### Verification Rules
 
 - Never mark work complete without verification.
-- After code changes, run: `yarn lint`, `yarn build`.
+- After code changes, run: `yarn lint`, `yarn type-check`, `yarn build`.
 - After React UI logic changes, also run `yarn doctor`. Treat react-doctor output as guidance for
   *newly introduced* issues, not as an aggregate score to grind up: many `error`-level diagnostics
   flag intentional patterns or current React-Compiler limitations.
 - After dependency or import-graph changes, run `yarn knip`.
-- There is no type-check and no test command. If a checklist asks for one, say it does not exist here
-  rather than inventing a command.
+- `yarn type-check` (`tsc --noEmit`) is the type gate; run it after any change under `src/`.
+- There is no test command. If a checklist asks for one, say it does not exist here rather than
+  inventing a command.
 - `yarn build` runs `yarn sync:lists` first and can rewrite the tracked `src/data/vendored-*.json`
   mirrors. Review that diff and keep or discard it deliberately.
 - Do not commit or force-add local rebuild output. `build/` is the generated build output; remove it
@@ -202,7 +224,7 @@ component that owns them.
 - Do not pin `model` or `model_reasoning_effort` in committed Codex custom-agent TOMLs under `.codex/agents/*.toml`; omit both so subagents inherit the current parent settings.
 - If `AGENTS.md` references a skill, agent, or hook, prefer a tracked file under `.codex/`, `.cursor/`, or `.claude/` rather than an untracked local-only instruction.
 - Review `.codex/config.toml`, `.codex/hooks.json`, `.cursor/hooks.json`, and `.claude/settings.json` before changing agent orchestration or hook behavior.
-- Before finishing any React UI logic change under `src/components`, `src/views`, `src/hooks`, `src/lib`, or `src/app.jsx`, review the changed diff with `vercel-react-best-practices`. Fix valid findings before final verification.
+- Before finishing any React UI logic change under `src/components`, `src/views`, `src/hooks`, `src/lib`, or `src/app.tsx`, review the changed diff with `vercel-react-best-practices`. Fix valid findings before final verification.
 - When a diff adds new `useEffect`, `useLayoutEffect`, `useInsertionEffect`, `useMemo`, `useCallback`, or `memo(...)` usage under `src/`, treat the repo hook reminder as mandatory and reconsider the change with `you-might-not-need-an-effect` before finishing.
 - For work expected to span multiple sessions, keep explicit task state in a `feature-list.json` plus `progress.md` pair using `docs/agent-playbooks/long-running-agent-workflow.md`.
 - If more than one human or toolchain needs the same task state, keep it in a tracked location such as `docs/agent-runs/<slug>/` instead of a tool-specific hidden directory.
@@ -230,7 +252,7 @@ component that owns them.
 ## Default Community Lists
 
 `src/data/vendored-*.json` are generated by `yarn sync:lists` from bitsocialnet/lists. Never hand
-edit them. `src/lib/default-lists.js` layers memory -> localStorage (1h TTL) -> vendored mirror and
+edit them. `src/lib/default-lists.ts` layers memory -> localStorage (1h TTL) -> vendored mirror and
 refreshes in the background; caches are keyed per source so switching the default list cannot serve
 one client's list under the other's name.
 
@@ -249,10 +271,11 @@ corepack yarn install
 yarn start                # https://bitbones.localhost
 yarn build
 yarn lint
+yarn type-check
 yarn knip
 yarn knip:full
 yarn doctor
-yarn retest:quality       # build + lint + knip + doctor
+yarn retest:quality       # build + lint + type-check + knip + doctor
 yarn prettier
 yarn electron
 yarn ai-workflow:check

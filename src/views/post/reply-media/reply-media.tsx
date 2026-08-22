@@ -1,9 +1,14 @@
 import utils from '../../../lib/utils';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import styles from './reply-media.module.css';
-import { useState } from 'react';
+import { useState, type MouseEvent, type MouseEventHandler } from 'react';
 import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId, FloatingOverlay, FloatingPortal } from '@floating-ui/react';
 
-function ImageModal({ url }) {
+interface MediaModalProps {
+  url?: string;
+}
+
+function ImageModal({ url }: MediaModalProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const { refs, context } = useFloating({
@@ -19,11 +24,12 @@ function ImageModal({ url }) {
 
   const refProps = getReferenceProps();
   // prevent opening the reply modal on click
-  const onClickAndStopPropagation = (e) => {
-    refProps.onClick(e);
+  const onClickAndStopPropagation = (e: MouseEvent<HTMLImageElement>) => {
+    // getReferenceProps() is typed as Record<string, unknown>, so its click handler needs the cast
+    (refProps.onClick as MouseEventHandler<HTMLImageElement>)(e);
     e.stopPropagation();
   };
-  const stopPropagation = (e) => e.stopPropagation();
+  const stopPropagation = (e: MouseEvent<HTMLImageElement>) => e.stopPropagation();
 
   const headingId = useId();
   const descriptionId = useId();
@@ -54,7 +60,7 @@ function ImageModal({ url }) {
   );
 }
 
-function VideoModal({ url }) {
+function VideoModal({ url }: MediaModalProps) {
   const [isOpen, setIsOpen] = useState(false);
 
   const { refs, context } = useFloating({
@@ -70,11 +76,12 @@ function VideoModal({ url }) {
 
   const refProps = getReferenceProps();
   // prevent opening the reply modal on click
-  const onClickAndStopPropagation = (e) => {
-    refProps.onClick(e);
+  const onClickAndStopPropagation = (e: MouseEvent<HTMLVideoElement>) => {
+    // getReferenceProps() is typed as Record<string, unknown>, so its click handler needs the cast
+    (refProps.onClick as MouseEventHandler<HTMLVideoElement>)(e);
     e.stopPropagation();
   };
-  const stopPropagation = (e) => e.stopPropagation();
+  const stopPropagation = (e: MouseEvent<HTMLVideoElement>) => e.stopPropagation();
 
   const headingId = useId();
   const descriptionId = useId();
@@ -105,7 +112,11 @@ function VideoModal({ url }) {
   );
 }
 
-const ReplyMedia = ({ reply }) => {
+interface ReplyMediaProps {
+  reply?: Comment;
+}
+
+const ReplyMedia = ({ reply }: ReplyMediaProps) => {
   if (!reply?.link) {
     return '';
   }

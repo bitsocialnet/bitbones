@@ -5,10 +5,10 @@ const lastVisitTimestamp = localStorage.getItem('bitbonesLastVisitTimestamp');
 
 // update the last visited timestamp every n seconds
 setInterval(() => {
-  localStorage.setItem('bitbonesLastVisitTimestamp', Date.now());
+  localStorage.setItem('bitbonesLastVisitTimestamp', String(Date.now()));
 }, 60 * 1000);
 
-const timeFilterNamesToSeconds = {
+const timeFilterNamesToSeconds: Record<string, number | undefined> = {
   '1h': 60 * 60,
   '12h': 60 * 60 * 12,
   '24h': 60 * 60 * 24,
@@ -20,9 +20,9 @@ const timeFilterNamesToSeconds = {
 };
 
 // calculate the last visit timeFilterNamesToSeconds
-const secondsSinceLastVisit = lastVisitTimestamp ? (Date.now() - lastVisitTimestamp) / 1000 : Infinity;
+const secondsSinceLastVisit = lastVisitTimestamp ? (Date.now() - Number(lastVisitTimestamp)) / 1000 : Infinity;
 const day = 24 * 60 * 60;
-let lastVisitTimeFilterName;
+let lastVisitTimeFilterName: string;
 if (secondsSinceLastVisit > 30 * day) {
   lastVisitTimeFilterName = 'month';
   timeFilterNamesToSeconds[lastVisitTimeFilterName] = timeFilterNamesToSeconds['month'];
@@ -41,8 +41,13 @@ if (secondsSinceLastVisit > 30 * day) {
 
 const timeFilterNames = [lastVisitTimeFilterName, '1h', '12h', '24h', '48h', 'week', 'month', 'year', 'all'];
 
-const useTimeFilter = () => {
-  const params = useParams();
+interface TimeFilter {
+  timeFilterSeconds: number | undefined;
+  timeFilterNames: string[];
+}
+
+const useTimeFilter = (): TimeFilter => {
+  const params = useParams<{ timeFilterName?: string }>();
   let timeFilterName = params.timeFilterName;
 
   // the default time filter is the last visit time filter

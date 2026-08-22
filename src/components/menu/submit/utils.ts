@@ -4,7 +4,7 @@ import getShortAddress from '../../../lib/get-short-address';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 
-export const isLink = (content) => {
+export const isLink = (content?: string): boolean => {
   if (!content) {
     return false;
   }
@@ -20,12 +20,18 @@ export const isLink = (content) => {
   return false;
 };
 
-export const useDefaultAndSubscriptionsCommunities = () => {
-  const { communityAddress: communityAddressParam } = useParams();
+// one option of the submit menu's community select
+export interface SubmitCommunity {
+  address: string;
+  displayAddress: string;
+}
+
+export const useDefaultAndSubscriptionsCommunities = (): SubmitCommunity[] => {
+  const { communityAddress: communityAddressParam } = useParams<{ communityAddress?: string }>();
   const account = useAccount();
   const defaultCommunities = useDefaultCommunities();
   return useMemo(() => {
-    const communities = {};
+    const communities: Record<string, SubmitCommunity> = {};
     // add community from params first so easily visible
     if (communityAddressParam) {
       communities[communityAddressParam] = { address: communityAddressParam, displayAddress: communityAddressParam };

@@ -1,19 +1,32 @@
 import { useState } from 'react';
 import { useAccount, setAccount } from '@bitsocial/bitsocial-react-hooks';
+import type { Account, Wallet } from '@bitsocial/bitsocial-react-hooks';
 
-const getWalletMessageToSign = (authorAddress, timestamp) => {
+const getWalletMessageToSign = (authorAddress: string, timestamp: number) => {
   // use plain JSON so the user can read what he's signing
   // property names must always be in this order for signature to match so don't use JSON.stringify
   return `{"domainSeparator":"pkc-author-wallet","authorAddress":"${authorAddress}","timestamp":${timestamp}}`;
 };
 
-const CryptoWalletsForm = ({ account }) => {
+// the form edits a flat row per chain, while the account stores the signature nested inside a Wallet
+interface WalletInput {
+  chainTicker?: string;
+  address?: string;
+  timestamp?: number;
+  signature?: string;
+}
+
+interface CryptoWalletsFormProps {
+  account?: Account;
+}
+
+const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   // force account to be defined to be able to use account as default values
   if (!account) {
     throw Error('CryptoWalletsForm account prop must be defined');
   }
   const authorAddress = account?.author?.address;
-  const defaultWalletsArray = Object.keys(account?.author?.wallets || {}).map((chainTicker) => ({
+  const defaultWalletsArray: WalletInput[] = Object.keys(account?.author?.wallets || {}).map((chainTicker) => ({
     chainTicker,
     address: account?.author?.wallets?.[chainTicker]?.address,
     timestamp: account?.author?.wallets?.[chainTicker]?.timestamp,
@@ -23,7 +36,7 @@ const CryptoWalletsForm = ({ account }) => {
     defaultWalletsArray.push({});
   }
   const [walletsArray, setWalletsArray] = useState(defaultWalletsArray);
-  const setWalletsArrayProperty = (index, property, value) => {
+  const setWalletsArrayProperty = (index: number, property: keyof WalletInput, value: string | number) => {
     const newArray = [...walletsArray];
     newArray[index] = { ...newArray[index], [property]: value };
     setWalletsArray(newArray);
@@ -70,7 +83,7 @@ const CryptoWalletsForm = ({ account }) => {
   });
 
   const save = () => {
-    const wallets = {};
+    const wallets: Record<string, Wallet> = {};
     for (const wallet of walletsArray) {
       if (!wallet.chainTicker) {
         continue;

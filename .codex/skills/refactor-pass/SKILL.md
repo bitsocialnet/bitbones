@@ -19,9 +19,9 @@ description: Perform a refactor pass focused on simplicity after recent changes.
    - Remove premature optimization (unnecessary `useMemo`, `useCallback`, etc.)
    - Extract duplicated logic into custom hooks (`src/hooks/`) or shared components (`src/components/`)
 
-3. **Verify** — run both checks (there is no type-check step; bitbones is plain JavaScript):
+3. **Verify** — run all three checks (`src/` is strict TypeScript; there is no test suite):
    ```bash
-   yarn lint && yarn build
+   yarn lint && yarn type-check && yarn build
    ```
    Run `yarn knip` when the refactor removed imports or dependencies, and `yarn doctor` when it touched React UI logic.
 
@@ -33,13 +33,13 @@ When refactoring, watch for these anti-patterns from AGENTS.md:
 
 | Anti-pattern | Refactor to |
 |---|---|
-| `useState` for shared state | zustand store in `src/hooks/` (see `use-theme.js`) |
+| `useState` for shared state | zustand store in `src/hooks/` (see `use-theme.ts`) |
 | `useEffect` for data fetching | `@bitsocial/bitsocial-react-hooks` (`useComment`, `useFeed`, etc.) |
 | `useEffect` to sync derived state | Calculate during render |
 | Copy-pasted logic across components | Custom hook in `src/hooks/` |
 | Boolean flag soup (`isLoading`, `isError`, `isSuccess`) | One state value in a zustand store |
 | Prop drilling through many layers | zustand store |
-| An address string passed to `useFeed`/`useCommunity`/`useCommunityStats`/`useCommunitiesStates` | `useCommunityIdentifier`/`useCommunityIdentifiers` from `src/hooks/use-community-identifier.js` |
+| An address string passed to `useFeed`/`useCommunity`/`useCommunityStats`/`useCommunitiesStates` | `useCommunityIdentifier`/`useCommunityIdentifiers` from `src/hooks/use-community-identifier.ts` |
 
 ## Rules
 

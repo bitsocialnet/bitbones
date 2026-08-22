@@ -1,14 +1,22 @@
 import { useEffect, useState } from 'react';
 import useDefaultList from './use-default-list';
 import { getCachedDefaultList, getDefaultList } from '../lib/default-lists';
+import type { DefaultListCommunity } from '../lib/default-lists';
+
+export interface DefaultCommunitiesState {
+  communities: DefaultListCommunity[];
+  loading: boolean;
+  error: Error | undefined;
+  listSource: string;
+}
 
 // The default communities of whichever client is currently selected (5chan or seedit).
 // Returns [{address, title}] so the submit menu can still show titles.
-export const useDefaultCommunitiesState = () => {
+export const useDefaultCommunitiesState = (): DefaultCommunitiesState => {
   const [listSource] = useDefaultList();
-  const [communities, setCommunities] = useState(() => getCachedDefaultList(listSource));
+  const [communities, setCommunities] = useState<DefaultListCommunity[]>(() => getCachedDefaultList(listSource));
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState();
+  const [error, setError] = useState<Error | undefined>();
 
   useEffect(() => {
     let mounted = true;
@@ -43,6 +51,6 @@ export const useDefaultCommunitiesState = () => {
   return { communities, loading, error, listSource };
 };
 
-const useDefaultCommunities = () => useDefaultCommunitiesState().communities;
+const useDefaultCommunities = (): DefaultListCommunity[] => useDefaultCommunitiesState().communities;
 
 export default useDefaultCommunities;

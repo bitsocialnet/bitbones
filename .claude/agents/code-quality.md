@@ -13,6 +13,7 @@ Execute these commands and capture all output:
 
 ```bash
 yarn lint 2>&1
+yarn type-check 2>&1
 yarn build 2>&1
 ```
 
@@ -24,11 +25,12 @@ yarn doctor 2>&1
 ```
 
 Use `yarn knip` when package manifests or direct imports changed, and `yarn doctor` when the change
-touched React UI logic. `yarn retest:quality` runs build, lint, knip and doctor in one command.
+touched React UI logic. `yarn retest:quality` runs build, lint, type-check, knip and doctor in one
+command.
 
-There is no type-check step and no test suite in this repo — bitbones is plain JavaScript with no
-vitest. Do not invent `yarn type-check` or `yarn test`; if the parent agent asks for them, say they
-do not exist here.
+`yarn type-check` (`tsc --noEmit`) is the type gate: `src/` is strict TypeScript. There is no test
+suite in this repo — no vitest. Do not invent `yarn test`; if the parent agent asks for it, say it
+does not exist here.
 
 `yarn build` runs `yarn sync:lists` first, which fetches the default community lists and may rewrite
 the tracked `src/data/vendored-*.json` mirrors. That is expected and offline-safe. Report the
@@ -63,12 +65,13 @@ Return a structured report:
 ## Quality Check Results
 
 ### Lint: PASS/FAIL
+### Type-check: PASS/FAIL
 ### Build: PASS/FAIL
 ### Knip (if run): PASS/FAIL
 ### Doctor (if run): PASS/FAIL
 
 ### Fixes Applied
-- `path/to/file.jsx` — description of fix
+- `path/to/file.tsx` — description of fix
 
 ### Remaining Issues (if any)
 - description of issue that couldn't be auto-fixed

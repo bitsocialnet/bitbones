@@ -4,11 +4,18 @@ import utils from '../../../lib/utils';
 import styles from './community.module.css';
 import Arrow from '../../../components/icons/arrow';
 import { useBlock, useCommunityStats } from '@bitsocial/bitsocial-react-hooks';
+import type { Community as CommunityType } from '@bitsocial/bitsocial-react-hooks';
 import useUpvote from '../../../hooks/use-upvote';
 import useDownvote from '../../../hooks/use-downvote';
 import { useCommunityIdentifier } from '../../../hooks/use-community-identifier';
 
-const CommunityMedia = ({ mediaType, mediaUrl, link }) => {
+interface CommunityMediaProps {
+  mediaType?: string;
+  mediaUrl?: string;
+  link: string;
+}
+
+const CommunityMedia = ({ mediaType, mediaUrl, link }: CommunityMediaProps) => {
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
   }
@@ -40,7 +47,12 @@ const CommunityMedia = ({ mediaType, mediaUrl, link }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const Community = ({ community, index }) => {
+interface CommunityProps {
+  community?: CommunityType;
+  index?: number;
+}
+
+const Community = ({ community, index }: CommunityProps) => {
   const communityIdentifier = useCommunityIdentifier(community?.address);
   const stats = useCommunityStats(communityIdentifier ? { community: communityIdentifier } : undefined);
 
@@ -55,7 +67,7 @@ const Community = ({ community, index }) => {
   const [upvoted] = useUpvote(community);
   const [downvoted] = useDownvote(community);
 
-  let scoreNumber = community?.upvoteCount - community?.downvoteCount;
+  let scoreNumber: number | string = community?.upvoteCount - community?.downvoteCount;
   const negativeScoreNumber = scoreNumber < 0;
   const largeScoreNumber = String(scoreNumber).length > 3;
   if (isNaN(scoreNumber)) {
@@ -65,7 +77,8 @@ const Community = ({ community, index }) => {
   const labels = [];
   // add created time as a label
   if (community?.createdAt) {
-    labels.push(utils.getFormattedTime(community.createdAt).replace(' ago', ''));
+    // getFormattedTime only returns undefined when TimeAgo throws, which this call has always assumed cannot happen
+    labels.push(utils.getFormattedTime(community.createdAt)!.replace(' ago', ''));
   }
   // if you have a role, add it
   if (community?.role?.role) {

@@ -2,9 +2,12 @@ import extName from 'ext-name';
 import TimeAgo from 'javascript-time-ago';
 import en from 'javascript-time-ago/locale/en';
 import memoize from 'memoizee';
+import type { ChallengeVerification, Comment, Vote } from '@bitsocial/bitsocial-react-hooks';
+
+type CommentMediaType = 'image' | 'video' | 'audio';
 
 // cache media type because it takes on average 5ms
-const getCommentLinkMediaTypeNoCache = (link) => {
+const getCommentLinkMediaTypeNoCache = (link?: string): CommentMediaType | undefined => {
   if (!link) return;
   let mime;
   try {
@@ -18,7 +21,7 @@ const getCommentLinkMediaTypeNoCache = (link) => {
 };
 const getCommentLinkMediaType = memoize(getCommentLinkMediaTypeNoCache, { max: 1000 });
 
-export const getCommentMediaType = (comment) => {
+export const getCommentMediaType = (comment?: Comment): CommentMediaType | undefined => {
   if (!comment?.link) return;
   if (comment.linkHtmlTagName === 'img') return 'image';
   if (comment.linkHtmlTagName === 'video') return 'video';
@@ -29,20 +32,20 @@ export const getCommentMediaType = (comment) => {
 };
 
 // bitbones catalog is image/video only, not including thumbnail urls
-export const catalogFilter = (comment) => {
+export const catalogFilter = (comment?: Comment): boolean => {
   const mediaType = getCommentMediaType(comment);
   return mediaType === 'image' || mediaType === 'video';
 };
 
 TimeAgo.addDefaultLocale(en);
 const timeAgo = new TimeAgo('en-US');
-export const getFormattedTime = (timestamp) => {
+export const getFormattedTime = (timestamp: number): string | undefined => {
   try {
     return timeAgo.format(timestamp * 1000);
   } catch (e) {}
 };
 
-export const alertChallengeVerificationFailed = (challengeVerification, publication) => {
+export const alertChallengeVerificationFailed = (challengeVerification?: ChallengeVerification, publication?: Comment | Vote): void => {
   if (challengeVerification?.challengeSuccess === false) {
     console.warn(challengeVerification, publication);
 

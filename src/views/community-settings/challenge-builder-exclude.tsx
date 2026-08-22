@@ -1,12 +1,21 @@
-import { useState } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import styles from './challenge-builder.module.css';
 import { useChallengesStore } from './challenge-builder';
+import type { ChallengeExcludeNode, ChallengeNode } from './challenge-builder';
 import pkcRpcSettings from './pkc-rpc-settings-mock';
+import type { PkcRpcChallengeOptionInput, PkcRpcChallengeSettings } from '@bitsocial/bitsocial-react-hooks';
 
-export const ChallengeExcludeSelect = ({ challenge, challengesTreePath, excludeIndex, excludeName }) => {
+interface ChallengeExcludeSelectProps {
+  challenge: ChallengeNode;
+  challengesTreePath: number[];
+  excludeIndex: number;
+  excludeName?: string;
+}
+
+export const ChallengeExcludeSelect = ({ challenge, challengesTreePath, excludeIndex, excludeName }: ChallengeExcludeSelectProps) => {
   const excludeNames = Object.keys(pkcRpcSettings?.challengeExcludes || {});
   const updateChallenge = useChallengesStore((state) => state.updateChallenge);
-  const setChallengeExclude = (e) => {
+  const setChallengeExclude = (e: ChangeEvent<HTMLSelectElement>) => {
     if (!e.target.value) return;
     const excludeCopy = structuredClone(challenge.exclude || []);
     excludeCopy[excludeIndex] = { name: e.target.value };
@@ -36,12 +45,21 @@ export const ChallengeExcludeSelect = ({ challenge, challengesTreePath, excludeI
   );
 };
 
-const ChallengeExcludeOptions = ({ challenge, challengesTreePath, excludeIndex, excludeName }) => {
-  const optionInputs = pkcRpcSettings?.challengeExcludes?.[excludeName]?.optionInputs || [];
-  const exclude = challenge?.exclude?.[excludeIndex] || {};
+interface ChallengeExcludeOptionsProps {
+  challenge: ChallengeNode;
+  challengesTreePath: number[];
+  excludeIndex: number;
+  excludeName?: string;
+}
+
+const ChallengeExcludeOptions = ({ challenge, challengesTreePath, excludeIndex, excludeName }: ChallengeExcludeOptionsProps) => {
+  // pkcRpcSettings.challengeExcludes is keyed by exclude name, and the builder looks it up before a
+  // name has been picked; the lookup already relies on the missing key falling through to the fallback
+  const optionInputs: PkcRpcChallengeOptionInput[] = pkcRpcSettings?.challengeExcludes?.[excludeName as string]?.optionInputs || [];
+  const exclude: ChallengeExcludeNode = challenge?.exclude?.[excludeIndex] || {};
 
   const updateChallenge = useChallengesStore((state) => state.updateChallenge);
-  const updateChallengeExclude = (option, newValue) => {
+  const updateChallengeExclude = (option: string, newValue: string) => {
     const excludeCopy = structuredClone(challenge.exclude || []);
     if (!excludeCopy[excludeIndex]) excludeCopy[excludeIndex] = { name: excludeName, options: {} };
     if (!excludeCopy[excludeIndex].options) excludeCopy[excludeIndex].options = {};
@@ -73,13 +91,22 @@ const ChallengeExcludeOptions = ({ challenge, challengesTreePath, excludeIndex, 
   );
 };
 
-const ChallengeExclude = ({ challenge, challengesTreePath, excludeIndex }) => {
-  const excludeName = challenge?.exclude?.[excludeIndex]?.name;
-  const { label, description } = pkcRpcSettings?.challengeExcludes?.[excludeName] || {};
-  const updateChallenge = useChallengesStore((state) => state.updateChallenge);
-  const removeExclude = () => updateChallenge(challengesTreePath, { exclude: challenge.exclude.filter((_, i) => i !== excludeIndex) });
+interface ChallengeExcludeProps {
+  challenge: ChallengeNode;
+  challengesTreePath: number[];
+  // ChallengeExcludeArray also passes the exclude itself, which this component reads back off the challenge
+  exclude?: ChallengeExcludeNode;
+  excludeIndex: number;
+}
 
-  const onChallengeMoreButton = (e) => {
+const ChallengeExclude = ({ challenge, challengesTreePath, excludeIndex }: ChallengeExcludeProps) => {
+  const excludeName = challenge?.exclude?.[excludeIndex]?.name;
+  const { label, description }: PkcRpcChallengeSettings = pkcRpcSettings?.challengeExcludes?.[excludeName as string] || {};
+  const updateChallenge = useChallengesStore((state) => state.updateChallenge);
+  // removeExclude only runs from the list rendered out of challenge.exclude, so the list is there
+  const removeExclude = () => updateChallenge(challengesTreePath, { exclude: challenge.exclude!.filter((_, i) => i !== excludeIndex) });
+
+  const onChallengeMoreButton = (e: ChangeEvent<HTMLSelectElement>) => {
     if (e.target.value === 'remove') {
       removeExclude();
     }
@@ -105,7 +132,12 @@ const ChallengeExclude = ({ challenge, challengesTreePath, excludeIndex }) => {
   );
 };
 
-const ChallengeExcludeArray = ({ challenge, challengesTreePath }) => {
+interface ChallengeExcludeArrayProps {
+  challenge: ChallengeNode;
+  challengesTreePath: number[];
+}
+
+const ChallengeExcludeArray = ({ challenge, challengesTreePath }: ChallengeExcludeArrayProps) => {
   return (
     <div>
       {challenge.exclude?.map((exclude, i) => (

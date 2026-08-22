@@ -2,14 +2,20 @@ import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import useDefaultList from '../../hooks/use-default-list';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import { Virtuoso } from 'react-virtuoso';
+import type { Components, StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from './feed-post';
 import { useParams, useLocation } from 'react-router-dom';
 import PostModal from './post-modal';
 import useFeedStateString from '../../hooks/use-feed-state-string';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
 
-const lastVirtuosoStates = {};
+// UseFeedResult omits updatedFeed, which useFeed does return at runtime, always as an array
+// (bitsocial-react-hooks/dist/hooks/feeds/feeds.js)
+type FeedResult = UseFeedResult & { updatedFeed: Comment[] };
+
+const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
 const NoPosts = () => 'no posts';
 
@@ -24,10 +30,10 @@ function Home() {
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'hot';
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments });
+  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments }) as FeedResult;
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
-  let Footer;
+  let Footer: Components['Footer'];
   if (feed?.length === 0) {
     Footer = NoPosts;
   }
@@ -36,7 +42,7 @@ function Home() {
   }
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {

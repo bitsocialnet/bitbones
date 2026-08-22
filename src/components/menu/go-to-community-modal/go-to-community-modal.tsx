@@ -2,8 +2,14 @@ import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFo
 import styles from './go-to-community-modal.module.css';
 import { useNavigate } from 'react-router-dom';
 import createStore from 'zustand';
+import type { ChangeEvent, Dispatch, SetStateAction, SyntheticEvent } from 'react';
 
-const useCommunityAddress = createStore((setState) => ({
+interface CommunityAddressState {
+  communityAddress: string;
+  setCommunityAddress: (communityAddress: string) => void;
+}
+
+const useCommunityAddress = createStore<CommunityAddressState>((setState) => ({
   communityAddress: '',
   setCommunityAddress: (communityAddress) => setState((state) => ({ communityAddress })),
 }));
@@ -12,7 +18,8 @@ const GoToCommunity = () => {
   const navigate = useNavigate();
   const { communityAddress, setCommunityAddress } = useCommunityAddress();
 
-  const go = (e) => {
+  // serves both the input's onKeyPress and the button's onClick, so the event only sometimes has a key
+  const go = (e: SyntheticEvent & { key?: string }) => {
     if (e.key === 'Enter' || e.key === undefined) {
       const cleanedCommunityAddress = communityAddress.trim().replace(/^\/?p\//i, '');
       if (cleanedCommunityAddress) {
@@ -21,7 +28,7 @@ const GoToCommunity = () => {
     }
   };
 
-  const onChange = (e) => setCommunityAddress(e.target.value);
+  const onChange = (e: ChangeEvent<HTMLInputElement>) => setCommunityAddress(e.target.value);
 
   return (
     <div className={styles.goToCommunity}>
@@ -31,7 +38,12 @@ const GoToCommunity = () => {
   );
 };
 
-function GoToCommunityModal({ isOpen, setIsOpen }) {
+interface GoToCommunityModalProps {
+  isOpen: boolean;
+  setIsOpen: Dispatch<SetStateAction<boolean>>;
+}
+
+function GoToCommunityModal({ isOpen, setIsOpen }: GoToCommunityModalProps) {
   const { refs, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,

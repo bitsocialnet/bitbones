@@ -2,12 +2,12 @@ import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import useDefaultList from '../../hooks/use-default-list';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, type StateSnapshot, type VirtuosoHandle } from 'react-virtuoso';
 import TextOnlyPost from '../../components/text-only-post';
 import { useParams } from 'react-router-dom';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
 
-const lastVirtuosoStates = {};
+const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
 const Loading = () => 'loading...';
 const NoPosts = () => 'no posts';
@@ -16,7 +16,7 @@ const NoPosts = () => 'no posts';
 const accountComments = { newerThan: 60 * 60 * 12 };
 
 function TextOnly() {
-  const params = useParams();
+  const params = useParams<{ sortType?: string }>();
   const communityAddresses = useDefaultCommunityAddresses();
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'hot';
@@ -32,7 +32,7 @@ function TextOnly() {
   }
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {

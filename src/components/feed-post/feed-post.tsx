@@ -4,13 +4,23 @@ import styles from './feed-post.module.css';
 import Arrow from '../icons/arrow';
 import PostTools from '../post-tools';
 import { useBlock, useAuthorAddress, useEditedComment, useCommunity, useAuthorAvatar } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import useUnreadReplyCount from '../../hooks/use-unread-reply-count';
 import useUpvote from '../../hooks/use-upvote';
 import useDownvote from '../../hooks/use-downvote';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 
-const FeedPostMedia = ({ mediaType, mediaUrl, link }) => {
+// the media type union returned by utils.getCommentMediaType is not exported, so derive it here
+type MediaType = ReturnType<typeof utils.getCommentMediaType>;
+
+interface FeedPostMediaProps {
+  mediaType: MediaType;
+  mediaUrl?: string;
+  link: string;
+}
+
+const FeedPostMedia = ({ mediaType, mediaUrl, link }: FeedPostMediaProps) => {
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
   }
@@ -42,7 +52,11 @@ const FeedPostMedia = ({ mediaType, mediaUrl, link }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const FeedPostAuthorAddress = ({ post }) => {
+interface FeedPostAuthorAddressProps {
+  post?: Comment;
+}
+
+const FeedPostAuthorAddress = ({ post }: FeedPostAuthorAddressProps) => {
   // show the public key author address for a few ms until the crypto name verification loads
   const { shortAuthorAddress, authorAddressChanged } = useAuthorAddress({ comment: post });
 
@@ -56,7 +70,11 @@ const FeedPostAuthorAddress = ({ post }) => {
   );
 };
 
-const FeedPostAuthorAvatar = ({ post }) => {
+interface FeedPostAuthorAvatarProps {
+  post?: Comment;
+}
+
+const FeedPostAuthorAvatar = ({ post }: FeedPostAuthorAvatarProps) => {
   const { imageUrl } = useAuthorAvatar({ author: post?.author });
   // if comment.author.avatar is defined, load empty space even without imageUrl
   // to not displace the feed after image loads
@@ -70,7 +88,14 @@ const FeedPostAuthorAvatar = ({ post }) => {
   );
 };
 
-const FeedPost = ({ post, updatedPost, index }) => {
+interface FeedPostProps {
+  // useAuthorComments hands back (Comment | undefined)[], and every read below is optional chained
+  post?: Comment;
+  updatedPost?: Comment;
+  index?: number;
+}
+
+const FeedPost = ({ post, updatedPost, index }: FeedPostProps) => {
   if (!updatedPost) {
     updatedPost = post;
   }
@@ -102,7 +127,8 @@ const FeedPost = ({ post, updatedPost, index }) => {
   const [upvoted, upvote] = useUpvote(post);
   const [downvoted, downvote] = useDownvote(post);
 
-  let scoreNumber = updatedPost?.upvoteCount - updatedPost?.downvoteCount;
+  // widened because the block below swaps in the '-' placeholder when the counts are missing
+  let scoreNumber: number | string = updatedPost?.upvoteCount - updatedPost?.downvoteCount;
   const negativeScoreNumber = scoreNumber < 0;
   const largeScoreNumber = String(scoreNumber).length > 3;
   if (isNaN(scoreNumber)) {

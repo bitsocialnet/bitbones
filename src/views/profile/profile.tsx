@@ -1,6 +1,7 @@
 import { useRef, useEffect } from 'react';
 import { useAccountComments, useAccount, useAuthorAvatar } from '@bitsocial/bitsocial-react-hooks';
 import { Virtuoso } from 'react-virtuoso';
+import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from './feed-post';
 import styles from './profile.module.css';
 
@@ -35,7 +36,7 @@ const ProfileInfo = () => {
   );
 };
 
-let lastVirtuosoState;
+let lastVirtuosoState: StateSnapshot | undefined;
 
 function Profile() {
   const account = useAccount();
@@ -43,7 +44,7 @@ function Profile() {
   accountComments = [...accountComments].reverse();
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {

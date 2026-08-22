@@ -2,15 +2,36 @@ import { useState, useEffect, memo } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './submit.module.css';
 import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
+import type { Challenge, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import createStore from 'zustand';
 import challengesStore from '../../../hooks/use-challenges';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
+import type { SubmitCommunity } from './utils';
 import { alertChallengeVerificationFailed } from '../../../lib/utils';
 
 const { addChallenge } = challengesStore.getState();
 
-const useSubmitStore = createStore((setState, getState) => ({
+interface SetSubmitStoreOptions {
+  communityAddress?: string;
+  title?: string;
+  content?: string;
+}
+
+interface SubmitState {
+  communityAddress: string | undefined;
+  title: string | undefined;
+  content: string | undefined;
+  // typed as the library's loose PublishCommentOptions bag: UsePublishCommentOptions declares
+  // onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
+  // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+  publishCommentOptions: PublishCommentOptions | undefined;
+  setSubmitStore: (options: SetSubmitStoreOptions) => void;
+  // the implementation takes no argument, but the redirect effect below calls it with one
+  resetSubmitStore: (options?: SetSubmitStoreOptions) => void;
+}
+
+const useSubmitStore = createStore<SubmitState>((setState, getState) => ({
   communityAddress: undefined,
   title: undefined,
   content: undefined,
@@ -31,9 +52,9 @@ const useSubmitStore = createStore((setState, getState) => ({
         communityAddress: nextState.communityAddress,
         title: nextState.title,
         content: nextState.content,
-        onChallenge: (...args) => addChallenge(args),
+        onChallenge: (...args: [Challenge, Comment?]) => addChallenge(args),
         onChallengeVerification: alertChallengeVerificationFailed,
-        onError: (error) => {
+        onError: (error: Error) => {
           console.warn(error);
           alert(error);
         },
@@ -48,8 +69,12 @@ const useSubmitStore = createStore((setState, getState) => ({
   resetSubmitStore: () => setState((state) => ({ communityAddress: undefined, title: undefined, content: undefined, publishCommentOptions: undefined })),
 }));
 
-const Submit = ({ onSubmit }) => {
-  const params = useParams();
+interface SubmitProps {
+  onSubmit?: () => void;
+}
+
+const Submit = ({ onSubmit }: SubmitProps) => {
+  const params = useParams<{ communityAddress?: string }>();
   const communities = useDefaultAndSubscriptionsCommunities();
   const { communityAddress, title, content, publishCommentOptions, setSubmitStore, resetSubmitStore } = useSubmitStore();
   const { index, publishComment } = usePublishComment(publishCommentOptions);
@@ -111,7 +136,13 @@ const Submit = ({ onSubmit }) => {
   );
 };
 
-const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore }) => {
+interface CommunitySelectProps {
+  communities: SubmitCommunity[];
+  communityAddress?: string;
+  setSubmitStore: (options: SetSubmitStoreOptions) => void;
+}
+
+const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore }: CommunitySelectProps) => {
   const communitiesOptions = communities.map((community) => (
     <option key={community.address} value={community.address}>
       p/{community.displayAddress}
@@ -137,7 +168,11 @@ const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore })
   );
 });
 
-function SubmitModal({ className }) {
+interface SubmitModalProps {
+  className?: string;
+}
+
+function SubmitModal({ className }: SubmitModalProps) {
   // modal stuff
   const [isOpen, setIsOpen] = useState(false);
 

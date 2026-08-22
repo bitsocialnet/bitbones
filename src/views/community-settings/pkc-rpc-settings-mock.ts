@@ -1,4 +1,12 @@
-const pkcRpcSettings = {
+import type { PkcRpcSettings } from '@bitsocial/bitsocial-react-hooks';
+
+// the fixture mirrors a pkc rpc settings payload verbatim, including the `getExclude`/`getRateLimit`
+// placeholders that reference values it never defines; declaring them keeps the mock's shape as-is
+// instead of inventing runtime values for it
+declare const ExcludeFunction: unknown;
+declare const RateLimitFunction: unknown;
+
+const pkcRpcSettings: PkcRpcSettings = {
   challenges: {
     'text-math': {
       optionInputs: [{ option: 'difficulty', label: 'Difficulty', default: '1', description: 'The math difficulty of the challenge between 1-3.', placeholder: '1' }],

@@ -1,6 +1,11 @@
 import createStore from 'zustand';
 
-const useThemeStore = createStore((setState, getState) => ({
+interface ThemeState {
+  theme: string;
+  setTheme: (theme: string) => void;
+}
+
+const useThemeStore = createStore<ThemeState>((setState, getState) => ({
   theme: localStorage.getItem('bitbonesTheme') || 'dark',
   setTheme: (theme) => {
     localStorage.setItem('bitbonesTheme', theme);
@@ -8,7 +13,7 @@ const useThemeStore = createStore((setState, getState) => ({
   },
 }));
 
-const useTheme = () => {
+const useTheme = (): [string, (theme: string) => void] => {
   const { theme, setTheme } = useThemeStore();
   return [theme, setTheme];
 };

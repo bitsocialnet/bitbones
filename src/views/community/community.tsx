@@ -1,6 +1,8 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { useFeed, useCommunity, useCommunityStats, useSubscribe } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import { Virtuoso } from 'react-virtuoso';
+import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
 import { useParams } from 'react-router-dom';
 import styles from './community.module.css';
@@ -35,7 +37,11 @@ import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 //   return createdAt
 // }
 
-const CommunityInfo = ({ communityAddress }) => {
+interface CommunityInfoProps {
+  communityAddress?: string;
+}
+
+const CommunityInfo = ({ communityAddress }: CommunityInfoProps) => {
   const communityIdentifier = useCommunityIdentifier(communityAddress);
   const community = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined);
   const stats = useCommunityStats(communityIdentifier ? { community: communityIdentifier } : undefined);
@@ -71,7 +77,7 @@ const CommunityInfo = ({ communityAddress }) => {
       {description && <div className={styles.description}>{description}</div>}
       {community.rules && (
         <ol className={styles.rules}>
-          {community.rules.map?.((rule) => (
+          {community.rules.map?.((rule: string) => (
             <li>{rule?.trim?.()}</li>
           ))}
         </ol>
@@ -80,23 +86,27 @@ const CommunityInfo = ({ communityAddress }) => {
   );
 };
 
-const lastVirtuosoStates = {};
+const lastVirtuosoStates: Record<string, Record<string, StateSnapshot>> = {};
 
 const NoPosts = () => 'no posts';
 
 // show own pending posts at the top for 12 hours
 const accountComments = { newerThan: 60 * 60 * 12 };
 
+// useFeed returns updatedFeed at runtime, but the library's UseFeedResult type omits it
+type FeedResult = UseFeedResult & { updatedFeed: Comment[] };
+
 function Community() {
-  const params = useParams();
-  const communityAddress = params.communityAddress;
+  const params = useParams<{ communityAddress?: string; sortType?: string }>();
+  // the /p/:communityAddress route always sets the param, react-router types every route param as optional
+  const communityAddress = params.communityAddress!;
   const communityAddresses = useMemo(() => [communityAddress], [communityAddress]);
   const sortType = params?.sortType || 'hot';
   const { timeFilterSeconds } = useTimeFilter();
   // single sub feeds only need time filter for sort type top and controversial
   const newerThan = sortType === 'topAll' || sortType === 'controversialAll' ? timeFilterSeconds : undefined;
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, newerThan, accountComments });
+  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, newerThan, accountComments }) as FeedResult;
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
   let Footer;
@@ -108,7 +118,7 @@ function Community() {
   }
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {

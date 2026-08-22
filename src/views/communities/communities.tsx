@@ -4,17 +4,18 @@ import { useAccountCommunities, useCreateCommunity } from '@bitsocial/bitsocial-
 import Community from './community';
 
 function Communities() {
-  const [title, setTitle] = useState();
+  const [title, setTitle] = useState<string>();
   const { createCommunity } = useCreateCommunity({ title });
   const { accountCommunities } = useAccountCommunities();
   const accountCommunitiesArray = useMemo(() => Object.values(accountCommunities), [accountCommunities]);
 
-  const inputRef = useRef();
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const create = () => {
     createCommunity();
     setTitle('');
-    inputRef.current.value = '';
+    // the input is always rendered, so the ref is set by the time the create button can be clicked
+    inputRef.current!.value = '';
   };
 
   return (

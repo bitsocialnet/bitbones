@@ -73,7 +73,7 @@ npx skills add https://github.com/vercel-labs/skills --skill find-skills
 | Command | What it gives you |
 |---|---|
 | `yarn start` | Dev server at https://bitbones.localhost via portless (`PORTLESS=0 yarn start` for http://localhost:5173) |
-| `yarn lint` / `yarn build` | The required gate, also enforced by the stop hook |
+| `yarn lint` / `yarn type-check` / `yarn build` | The required gate, also enforced by the stop hook |
 | `yarn knip` | Manifest/import audit (strict); `yarn knip:full` is the advisory full report |
 | `yarn doctor` | react-doctor review of React UI logic; treat it as a reviewer of *new* diagnostics, not a score |
 | `yarn ai-workflow:check` | Parity check across `.claude/`, `.cursor/`, `.codex/` |

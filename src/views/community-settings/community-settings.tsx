@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import styles from './community-settings.module.css';
 import { useCommunity, usePublishCommunityEdit, deleteCommunity } from '@bitsocial/bitsocial-react-hooks';
+import type { Challenge, Comment, PublishCommunityEditOptions } from '@bitsocial/bitsocial-react-hooks';
 import stringify from 'json-stringify-pretty-compact';
 import { useParams, useNavigate } from 'react-router-dom';
 import { alertChallengeVerificationFailed } from '../../lib/utils';
@@ -9,8 +10,8 @@ import ChallengeBuilder from './challenge-builder';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 
 // don't publish props that haven't changed, saves bandwidth and avoids uneditable props
-const getEditedPropsOnly = (original, edited) => {
-  const editedProps = {};
+const getEditedPropsOnly = (original: Record<string, unknown>, edited: Record<string, unknown>): Record<string, unknown> => {
+  const editedProps: Record<string, unknown> = {};
   const allProps = new Set([...Object.keys(original), ...Object.keys(edited)]);
   for (const prop of allProps) {
     if (original[prop] === undefined && edited[prop] === undefined) {
@@ -32,7 +33,7 @@ const getEditedPropsOnly = (original, edited) => {
   return editedProps;
 };
 
-const tryJsonParse = (string) => {
+const tryJsonParse = (string: string): Record<string, unknown> | undefined => {
   try {
     return JSON.parse(string);
   } catch (e) {}
@@ -53,15 +54,18 @@ function CommunitySettings() {
   const communityJson = useMemo(() => stringify(community.editable), [community]);
 
   const [text, setText] = useState('');
-  const editedCommunity = tryJsonParse(text) || {};
+  const editedCommunity: Record<string, unknown> = tryJsonParse(text) || {};
 
+  // typed as the library's loose PublishCommunityEditOptions bag: UsePublishCommunityEditOptions
+  // declares onChallenge/onChallengeVerification as returning Promise<void>, but the library calls
+  // them synchronously and discards the result, so these sync handlers do not fit the stricter type.
   const { publishCommunityEdit } = usePublishCommunityEdit({
     ...getEditedPropsOnly(communityEditable, editedCommunity),
     communityAddress,
-    onChallenge: (...args) => addChallenge([...args, community]),
+    onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, community]),
     onChallengeVerification: alertChallengeVerificationFailed,
     onError: console.warn,
-  });
+  } as PublishCommunityEditOptions);
 
   // set the initial community json
   useEffect(() => {
@@ -77,7 +81,7 @@ function CommunitySettings() {
       alert(`saved`);
     } catch (e) {
       console.warn(e);
-      alert(`failed editing community: ${e.message}`);
+      alert(`failed editing community: ${(e as Error).message}`);
     }
   };
 
@@ -90,19 +94,19 @@ function CommunitySettings() {
     try {
       setDeleteButtonDisabled(true);
       console.log(`deleting ${communityAddress}...`);
-      await deleteCommunity(communityAddress);
+      await deleteCommunity(communityAddress!);
       console.log(`deleted ${communityAddress}`);
       navigate(`/communities`, { replace: true });
     } catch (e) {
       console.warn(e);
-      alert(`failed deleting community: ${e.message}`);
+      alert(`failed deleting community: ${(e as Error).message}`);
     }
   };
 
   return (
     <div className={styles.settings}>
       <ChallengeBuilder />
-      <textarea onChange={(e) => setText(e.target.value)} autoCorrect='off' rows='24' value={text} />
+      <textarea onChange={(e) => setText(e.target.value)} autoCorrect='off' rows={24} value={text} />
       <button onClick={saveCommunity}>save</button>
       <button disabled={deleteButtonDisabled} onClick={_deleteCommunity}>
         delete p/{community?.shortAddress}

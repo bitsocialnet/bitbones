@@ -20,12 +20,12 @@ Based on https://react.dev/learn/you-might-not-need-an-effect
 1. **Determine scope** — get the relevant code:
    - Default: `git diff` for uncommitted changes
    - If a directory/file is specified, read those files
-   - If "whole codebase": search all `.jsx`/`.js` files under `src/` for `useEffect`
+   - If "whole codebase": search all `.tsx`/`.ts` files under `src/` for `useEffect`
 
 2. **Scan for anti-patterns** — check each `useEffect` against the patterns below
 
 3. **Fix or propose** — depending on the `fix` argument:
-   - `fix=true`: apply the refactors, then verify with `yarn lint && yarn build`
+   - `fix=true`: apply the refactors, then verify with `yarn lint && yarn type-check && yarn build`
    - `fix=false`: list each anti-pattern found with a before/after code suggestion
 
 4. **Report** — summarize what was found and changed
@@ -135,12 +135,12 @@ if (typeof window !== 'undefined') {
 | useEffect pattern | Replace with |
 |-------------------|-------------|
 | Fetch data | `useComment`, `useFeed`, `useCommunity`, etc. from `@bitsocial/bitsocial-react-hooks` |
-| Sync shared state | zustand store in `src/hooks/` (there is no `src/stores/` here — see `use-theme.js`) |
+| Sync shared state | zustand store in `src/hooks/` (there is no `src/stores/` here — see `use-theme.ts`) |
 | Derive values from state | Calculate during render |
 | Boolean loading/error flags | the `state` / `updatingState` field the protocol hook already returns |
 
 Effects that hold a `react-virtuoso` scroll position or set `document.title` are established, correct
-uses in this repo — see `src/app.jsx` and `src/views/board/board.jsx`. Do not "fix" those.
+uses in this repo — see `src/app.tsx` and `src/views/board/board.tsx`. Do not "fix" those.
 
 ## When useEffect IS Appropriate
 

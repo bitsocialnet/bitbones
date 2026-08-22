@@ -1,6 +1,7 @@
 import { useComment, useEditedComment, useAccountComment, useAuthorAvatar, useReplies } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import Arrow from '../../components/icons/arrow';
 import styles from './post.module.css';
@@ -17,7 +18,11 @@ import useStateString from '../../hooks/use-state-string';
 import ReplyMedia from './reply-media';
 import Embed, { canEmbed } from '../../components/embed';
 
-const AuthorAvatar = ({ comment }) => {
+interface AuthorAvatarProps {
+  comment?: Comment;
+}
+
+const AuthorAvatar = ({ comment }: AuthorAvatarProps) => {
   const { imageUrl } = useAuthorAvatar({ author: comment?.author });
   // if comment.author.avatar is defined, load empty space even without imageUrl
   // to not displace the feed after image loads
@@ -31,7 +36,11 @@ const AuthorAvatar = ({ comment }) => {
   );
 };
 
-const PostMedia = ({ post }) => {
+interface PostMediaProps {
+  post?: Comment;
+}
+
+const PostMedia = ({ post }: PostMediaProps) => {
   if (!post?.link) {
     return <div className={styles.noMedia}></div>;
   }
@@ -62,7 +71,14 @@ const PostMedia = ({ post }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const Reply = ({ reply, updatedReply, depth, isLast }) => {
+interface ReplyProps {
+  reply: Comment;
+  updatedReply?: Comment;
+  depth?: number;
+  isLast?: boolean;
+}
+
+const Reply = ({ reply, updatedReply, depth, isLast }: ReplyProps) => {
   // handle pending mod or author edit
   const { state: editedReplyState, editedComment: editedReply } = useEditedComment({ comment: reply });
   if (editedReply) {
@@ -73,7 +89,7 @@ const Reply = ({ reply, updatedReply, depth, isLast }) => {
   const { shortAuthorAddress } = useAuthorAddress({ comment: reply });
   const { useRepliesOptions } = useRepliesSortType();
   const { replies, bufferedReplies, updatedReplies, loadMore, hasMore } = useReplies({ ...useRepliesOptions, comment: reply });
-  const replyDepthEven = depth % 2 === 0;
+  const replyDepthEven = depth !== undefined && depth % 2 === 0;
 
   // publishing states exist only on account comment
   const accountReply = useAccountComment({ commentIndex: reply.index });
@@ -82,12 +98,12 @@ const Reply = ({ reply, updatedReply, depth, isLast }) => {
 
   const labels = useCommentLabels(reply, editedReplyState);
 
-  const _loadMore = (event) => {
+  const _loadMore = (event: MouseEvent<HTMLSpanElement>) => {
     event.stopPropagation(); // don't trigger the reply typing modal
     loadMore();
   };
 
-  let score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
+  let score: string | number = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
   if (score === 0) {
     score = '';
   } else if (score > 0) {
@@ -152,7 +168,11 @@ const Reply = ({ reply, updatedReply, depth, isLast }) => {
   );
 };
 
-const ReplyQuote = ({ commentCid }) => {
+interface ReplyQuoteProps {
+  commentCid?: string;
+}
+
+const ReplyQuote = ({ commentCid }: ReplyQuoteProps) => {
   const comment = useComment({ commentCid, onlyIfCached: true });
   // show the unverified author address for a few ms until the verified arrives
   const { shortAuthorAddress } = useAuthorAddress({ comment });
@@ -162,14 +182,14 @@ const ReplyQuote = ({ commentCid }) => {
   if (!content) {
     return '';
   }
-  let ellipsis = '';
+  let ellipsis: ReactNode = '';
 
   const tooLong = content.length > 60;
   if (!isOpen && tooLong) {
     content = content.substring(0, 60).trim();
     ellipsis = <span className={styles.quoteEllipsis}>..... [+]</span>;
   }
-  const open = (event) => {
+  const open = (event: MouseEvent<HTMLDivElement>) => {
     if (isOpen || !tooLong) {
       return;
     }
@@ -195,8 +215,8 @@ const ReplyQuote = ({ commentCid }) => {
 };
 
 function Post() {
-  const { commentCid, communityAddress } = useParams();
-  let post = useComment({ commentCid });
+  const { commentCid, communityAddress } = useParams<{ communityAddress?: string; commentCid?: string }>();
+  let post: Comment = useComment({ commentCid });
 
   // handle pending mod or author edit
   const { state: editedPostState, editedComment: editedPost } = useEditedComment({ comment: post });
@@ -229,7 +249,7 @@ function Post() {
   // scroll to top on first load
   useEffect(() => window.scrollTo(0, 0), []);
 
-  let scoreNumber = post?.upvoteCount - post?.downvoteCount;
+  let scoreNumber: string | number = post?.upvoteCount - post?.downvoteCount;
   const negativeScoreNumber = scoreNumber < 0;
   const largeScoreNumber = String(scoreNumber).length > 3;
   if (isNaN(scoreNumber)) {

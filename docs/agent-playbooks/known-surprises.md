@@ -35,7 +35,7 @@ If uncertain, ask the developer before adding an entry.
 - **Context:** porting the client onto `@bitsocial/bitsocial-react-hooks`.
 - **What was surprising:** `useFeed`, `useCommunity`, `useCommunityStats` and `useCommunitiesStates` take a `CommunityIdentifier` object (`{name}` or `{publicKey}`), not the `communityAddress` string the rest of the app passes around. Handing them an address does not throw and does not log — the hook just returns nothing.
 - **Impact:** an empty feed, a blank community header, or missing stats that look like a network or protocol problem, and get debugged in the wrong layer for a long time.
-- **Mitigation:** convert addresses through `src/hooks/use-community-identifier.js` (`useCommunityIdentifier` / `useCommunityIdentifiers`) before passing them to those four hooks. `useSubscribe` is the documented exception and still takes a plain `communityAddress` string.
+- **Mitigation:** convert addresses through `src/hooks/use-community-identifier.ts` (`useCommunityIdentifier` / `useCommunityIdentifiers`) before passing them to those four hooks. `useSubscribe` is the documented exception and still takes a plain `communityAddress` string.
 - **Status:** confirmed
 
 ### A falsy-non-null hook argument throws mid-render

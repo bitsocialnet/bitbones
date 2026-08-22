@@ -3,11 +3,12 @@ import utils from '../../lib/utils';
 import styles from './catalog-row.module.css';
 import useUnreadReplyCount from '../../hooks/use-unread-reply-count';
 import PostTools from '../post-tools';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
 // column width in px
 const columnWidth = 180;
 
-const getCatalogPostMediaDimensions = (post) => {
+const getCatalogPostMediaDimensions = (post?: Comment) => {
   if (post?.linkWidth && post?.linkHeight && typeof post?.linkWidth === 'number' && typeof post?.linkHeight === 'number' && post?.linkWidth !== post?.linkHeight) {
     if (post?.linkWidth > post?.linkHeight) {
       return { width: columnWidth, height: Math.round((post?.linkHeight / post?.linkWidth) * columnWidth) };
@@ -17,7 +18,11 @@ const getCatalogPostMediaDimensions = (post) => {
   }
 };
 
-const CatalogPostMedia = ({ post }) => {
+interface CatalogPostMediaProps {
+  post?: Comment;
+}
+
+const CatalogPostMedia = ({ post }: CatalogPostMediaProps) => {
   const mediaType = utils.getCommentMediaType(post);
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
@@ -40,7 +45,11 @@ const CatalogPostMedia = ({ post }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const CatalogPost = ({ post }) => {
+interface CatalogPostProps {
+  post?: Comment;
+}
+
+const CatalogPost = ({ post }: CatalogPostProps) => {
   const internalLink = `/p/${post?.communityAddress}/c/${post?.cid}`;
 
   let title = post?.title || '';
@@ -77,7 +86,13 @@ const CatalogPost = ({ post }) => {
   );
 };
 
-const CatalogRow = ({ row }) => {
+interface CatalogRowProps {
+  row: Comment[];
+  // supplied by react-virtuoso's itemContent, unused by the row itself
+  index?: number;
+}
+
+const CatalogRow = ({ row }: CatalogRowProps) => {
   const posts = [];
   for (const post of row) {
     posts.push(<CatalogPost key={post?.cid} post={post} />);

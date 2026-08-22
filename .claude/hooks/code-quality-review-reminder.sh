@@ -39,7 +39,7 @@ is_generated_or_lock_file() {
 
 is_reviewable_file() {
   case "$1" in
-    *.js|*.jsx|*.mjs|*.cjs|*.css|*.json|*.md|*.yml|*.yaml|*.toml|*.sh) return 0 ;;
+    *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs|*.css|*.json|*.md|*.yml|*.yaml|*.toml|*.sh) return 0 ;;
     *) return 1 ;;
   esac
 }

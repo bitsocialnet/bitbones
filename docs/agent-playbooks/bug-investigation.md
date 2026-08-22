@@ -12,17 +12,17 @@ Before editing, check git history for the relevant code. Previous contributors m
 
 ```bash
 # Recent commit titles for a specific file
-git log --oneline -10 -- src/views/community/community.jsx
+git log --oneline -10 -- src/views/community/community.tsx
 
 # Recent commit titles for a specific line range
-git blame -L 20,35 src/views/community/community.jsx
+git blame -L 20,35 src/views/community/community.tsx
 ```
 
 2. Inspect only relevant commits with scoped diffs:
 
 ```bash
 # Show commit message + diff for one file
-git show <commit-hash> -- path/to/file.jsx
+git show <commit-hash> -- path/to/file.tsx
 ```
 
 3. Continue with reproduction and fix after understanding the history context.

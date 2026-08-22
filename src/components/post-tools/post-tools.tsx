@@ -1,13 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ChangeEvent, type ReactNode } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './post-tools.module.css';
 import { useSubscribe, useBlock, useAccount, useCommunity, usePublishCommentModeration } from '@bitsocial/bitsocial-react-hooks';
+import type { Challenge, Comment, PublishCommentModerationOptions } from '@bitsocial/bitsocial-react-hooks';
 import { alertChallengeVerificationFailed } from '../../lib/utils';
 import challengesStore from '../../hooks/use-challenges';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 const { addChallenge } = challengesStore.getState();
 
-const Menu = ({ post, closeModal }) => {
+interface MenuProps {
+  post?: Comment;
+  closeModal?: () => void;
+}
+
+const Menu = ({ post, closeModal }: MenuProps) => {
   const { subscribed, subscribe, unsubscribe } = useSubscribe({ communityAddress: post?.communityAddress });
   const { blocked: hidden, block: hide, unblock: unhide } = useBlock({ cid: post?.cid });
   const { blocked: communityBlocked, block: blockCommunity, unblock: unblockCommunity } = useBlock({ address: post?.communityAddress });
@@ -52,8 +58,16 @@ const Menu = ({ post, closeModal }) => {
   );
 };
 
-const ModTools = ({ post, closeModal }) => {
-  const defaultPublishOptions = {
+interface ModToolsProps {
+  post?: Comment;
+  closeModal?: () => void;
+}
+
+const ModTools = ({ post, closeModal }: ModToolsProps) => {
+  // typed as the library's loose PublishCommentModerationOptions bag: UsePublishCommentModerationOptions
+  // declares onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
+  // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+  const defaultPublishOptions: PublishCommentModerationOptions = {
     commentModeration: {
       removed: post?.removed,
       locked: post?.locked,
@@ -62,9 +76,9 @@ const ModTools = ({ post, closeModal }) => {
     },
     commentCid: post?.cid,
     communityAddress: post?.communityAddress,
-    onChallenge: (...args) => addChallenge([...args, post]),
+    onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, post]),
     onChallengeVerification: alertChallengeVerificationFailed,
-    onError: (error) => {
+    onError: (error: Error) => {
       console.warn(error);
       alert(error);
     },
@@ -79,29 +93,31 @@ const ModTools = ({ post, closeModal }) => {
     }
   }, [state, closeModal]);
 
-  const onCheckbox = (e) =>
+  const onCheckbox = (e: ChangeEvent<HTMLInputElement>) =>
     setPublishCommentModerationOptions((state) => ({ ...state, commentModeration: { ...state.commentModeration, [e.target.id]: e.target.checked } }));
 
-  const onReason = (e) =>
+  const onReason = (e: ChangeEvent<HTMLInputElement>) =>
     setPublishCommentModerationOptions((state) => ({ ...state, commentModeration: { ...state.commentModeration, reason: e.target.value ? e.target.value : undefined } }));
 
+  // `for` is not the prop name React types, and it is left as-is here on purpose: this is a
+  // types-only migration, so the wrong attribute name is spread through instead of being renamed
   return (
     <div className={styles.modTools}>
       <div className={styles.menuItem}>
         <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.removed} type='checkbox' id='removed' />
-        <label for='removed'>removed</label>
+        <label {...{ for: 'removed' }}>removed</label>
       </div>
       <div className={styles.menuItem}>
         <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.locked} type='checkbox' id='locked' />
-        <label for='locked'>locked</label>
+        <label {...{ for: 'locked' }}>locked</label>
       </div>
       <div className={styles.menuItem}>
         <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.spoiler} type='checkbox' id='spoiler' />
-        <label for='spoiler'>spoiler</label>
+        <label {...{ for: 'spoiler' }}>spoiler</label>
       </div>
       <div className={styles.menuItem}>
         <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.pinned} type='checkbox' id='pinned' />
-        <label for='pinned'>pinned</label>
+        <label {...{ for: 'pinned' }}>pinned</label>
       </div>
       <div className={styles.menuItem}>
         <input onChange={onReason} defaultValue={post?.reason} size={14} placeholder='reason' />
@@ -111,7 +127,12 @@ const ModTools = ({ post, closeModal }) => {
   );
 };
 
-function PostTools({ children, post }) {
+interface PostToolsProps {
+  children?: ReactNode;
+  post?: Comment;
+}
+
+function PostTools({ children, post }: PostToolsProps) {
   // modal stuff
   const [isOpen, setIsOpen] = useState(false);
 

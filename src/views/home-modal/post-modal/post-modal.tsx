@@ -4,8 +4,17 @@ import Post from '../post';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useComment } from '@bitsocial/bitsocial-react-hooks';
 import { useEffect } from 'react';
+import type { ReactNode } from 'react';
 
-function PostModal({ children }) {
+// CSSOM exposes the dashed aliases ('overflow-y') next to the camelCase properties, but lib.dom
+// only types the camelCase ones
+type StyleWithOverflowY = CSSStyleDeclaration & Record<'overflow-y', string>;
+
+interface PostModalProps {
+  children?: ReactNode;
+}
+
+function PostModal({ children }: PostModalProps) {
   const params = useParams();
   const post = useComment({ commentCid: params.commentCid });
 
@@ -31,12 +40,12 @@ function PostModal({ children }) {
   // turn off virtuoso scrolling
   useEffect(() => {
     if (isOpen) {
-      document.documentElement.style['overflow-y'] = 'hidden';
+      (document.documentElement.style as StyleWithOverflowY)['overflow-y'] = 'hidden';
     } else {
-      document.documentElement.style['overflow-y'] = 'visible';
+      (document.documentElement.style as StyleWithOverflowY)['overflow-y'] = 'visible';
     }
     return () => {
-      document.documentElement.style['overflow-y'] = 'visible';
+      (document.documentElement.style as StyleWithOverflowY)['overflow-y'] = 'visible';
     };
   }, [isOpen]);
 

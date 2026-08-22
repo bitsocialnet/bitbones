@@ -26,9 +26,9 @@ case "$file_path" in
   /*) exit 0 ;;
 esac
 
-# bitbones is plain JavaScript: .js/.jsx/.cjs/.mjs only, no TypeScript.
+# src/ is TypeScript (.ts/.tsx); electron/ and scripts/ stay .js/.cjs/.mjs.
 case "$file_path" in
-  *.js|*.jsx|*.cjs|*.mjs)
+  *.ts|*.tsx|*.js|*.jsx|*.cjs|*.mjs)
     dir_part="${file_path%/*}"
     base_name="${file_path##*/}"
     if [ "$dir_part" = "$file_path" ]; then

@@ -1,4 +1,18 @@
-export const getPublicationType = (publication) => {
+// the library types every publication as an open record, so name the fields the previews below read
+export type ChallengePublication = {
+  commentCid?: string;
+  communityEdit?: unknown;
+  content?: string;
+  link?: string;
+  parentCid?: string;
+  shortCommunityAddress?: string;
+  title?: string;
+  vote?: number;
+};
+
+type PublicationType = 'vote' | 'reply' | 'edit' | 'community edit' | 'post';
+
+export const getPublicationType = (publication: ChallengePublication | undefined): PublicationType | undefined => {
   if (!publication) {
     return;
   }
@@ -17,7 +31,7 @@ export const getPublicationType = (publication) => {
   return 'post';
 };
 
-export const getVotePreview = (publication) => {
+export const getVotePreview = (publication: ChallengePublication | undefined): string => {
   if (typeof publication?.vote !== 'number') {
     return '';
   }
@@ -30,7 +44,7 @@ export const getVotePreview = (publication) => {
   return votePreview;
 };
 
-export const getPublicationPreview = (publication) => {
+export const getPublicationPreview = (publication: ChallengePublication | undefined): string => {
   if (!publication) {
     return '';
   }

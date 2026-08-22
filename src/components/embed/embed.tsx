@@ -1,6 +1,21 @@
 import styles from './embed.module.css';
 
-const Embed = ({ parsedUrl }) => {
+declare module 'react' {
+  // lowercase iframe attributes React renders verbatim; they are absent from React's own typings
+  interface IframeHTMLAttributes<T> extends HTMLAttributes<T> {
+    allowfullscreen?: boolean;
+    credentialless?: boolean;
+    frameborder?: string;
+    referrerpolicy?: string;
+    srcdoc?: string;
+  }
+}
+
+interface EmbedProps {
+  parsedUrl: URL;
+}
+
+const Embed = ({ parsedUrl }: EmbedProps) => {
   if (youtubeHosts.has(parsedUrl.host)) {
     return <YoutubeEmbed parsedUrl={parsedUrl} />;
   }
@@ -38,7 +53,7 @@ const Embed = ({ parsedUrl }) => {
 
 const youtubeHosts = new Set(['youtube.com', 'www.youtube.com', 'youtu.be', 'www.youtu.be']);
 
-const YoutubeEmbed = ({ parsedUrl }) => {
+const YoutubeEmbed = ({ parsedUrl }: EmbedProps) => {
   let youtubeId;
   if (parsedUrl.host.endsWith('youtu.be')) {
     youtubeId = parsedUrl.pathname.replaceAll('/', '');
@@ -63,7 +78,7 @@ const YoutubeEmbed = ({ parsedUrl }) => {
 
 const twitterHosts = new Set(['twitter.com', 'www.twitter.com', 'x.com', 'www.x.com']);
 
-const TwitterEmbed = ({ parsedUrl }) => {
+const TwitterEmbed = ({ parsedUrl }: EmbedProps) => {
   return (
     <iframe
       className={styles.embed}
@@ -86,7 +101,7 @@ const TwitterEmbed = ({ parsedUrl }) => {
 
 const redditHosts = new Set(['reddit.com', 'www.reddit.com', 'old.reddit.com']);
 
-const RedditEmbed = ({ parsedUrl }) => {
+const RedditEmbed = ({ parsedUrl }: EmbedProps) => {
   return (
     <iframe
       className={styles.embed}
@@ -115,7 +130,7 @@ const RedditEmbed = ({ parsedUrl }) => {
 
 const twitchHosts = new Set(['twitch.tv', 'www.twitch.tv']);
 
-const TwitchEmbed = ({ parsedUrl }) => {
+const TwitchEmbed = ({ parsedUrl }: EmbedProps) => {
   let iframeUrl;
   if (parsedUrl.pathname.startsWith('/videos/')) {
     const videoId = parsedUrl.pathname.replace('/videos/', '');
@@ -142,7 +157,7 @@ const TwitchEmbed = ({ parsedUrl }) => {
 
 const tiktokHosts = new Set(['tiktok.com', 'www.tiktok.com']);
 
-const TiktokEmbed = ({ parsedUrl }) => {
+const TiktokEmbed = ({ parsedUrl }: EmbedProps) => {
   const videoId = parsedUrl.pathname.replace(/.+\/video\//, '').replaceAll('/', '');
   return (
     <iframe
@@ -166,7 +181,7 @@ const TiktokEmbed = ({ parsedUrl }) => {
 
 const instagramHosts = new Set(['instagram.com', 'www.instagram.com']);
 
-const InstagramEmbed = ({ parsedUrl }) => {
+const InstagramEmbed = ({ parsedUrl }: EmbedProps) => {
   const pathNames = parsedUrl.pathname.replace(/\/+$/, '').split('/');
   const id = pathNames[pathNames.length - 1];
   return (
@@ -191,7 +206,7 @@ const InstagramEmbed = ({ parsedUrl }) => {
 
 const odyseeHosts = new Set(['odysee.com', 'www.odysee.com']);
 
-const OdyseeEmbed = ({ parsedUrl }) => {
+const OdyseeEmbed = ({ parsedUrl }: EmbedProps) => {
   const iframeUrl = `https://odysee.com/$/embed${parsedUrl.pathname}`;
   return (
     <iframe
@@ -211,7 +226,7 @@ const OdyseeEmbed = ({ parsedUrl }) => {
 
 const bitchuteHosts = new Set(['bitchute.com', 'www.bitchute.com']);
 
-const BitchuteEmbed = ({ parsedUrl }) => {
+const BitchuteEmbed = ({ parsedUrl }: EmbedProps) => {
   const videoId = parsedUrl.pathname.replace(/\/video\//, '').replaceAll('/', '');
   return (
     <iframe
@@ -231,7 +246,7 @@ const BitchuteEmbed = ({ parsedUrl }) => {
 
 const streamableHosts = new Set(['streamable.com', 'www.streamable.com']);
 
-const StreamableEmbed = ({ parsedUrl }) => {
+const StreamableEmbed = ({ parsedUrl }: EmbedProps) => {
   const videoId = parsedUrl.pathname.replaceAll('/', '');
   return (
     <iframe
@@ -251,7 +266,7 @@ const StreamableEmbed = ({ parsedUrl }) => {
 
 const spotifyHosts = new Set(['spotify.com', 'www.spotify.com', 'open.spotify.com']);
 
-const SpotifyEmbed = ({ parsedUrl }) => {
+const SpotifyEmbed = ({ parsedUrl }: EmbedProps) => {
   const iframeUrl = `https://open.spotify.com/embed${parsedUrl.pathname}?theme=0`;
   return (
     <iframe
@@ -272,7 +287,7 @@ const SpotifyEmbed = ({ parsedUrl }) => {
 const soundcloudHosts = new Set(['soundcloud.com', 'www.soundcloud.com', 'on.soundcloud.com', 'api.soundcloud.com', 'w.soundcloud.com']);
 
 // not officially documented https://stackoverflow.com/questions/20870270/how-to-get-soundcloud-embed-code-by-soundcloud-com-url
-const SoundcloudEmbed = ({ parsedUrl }) => {
+const SoundcloudEmbed = ({ parsedUrl }: EmbedProps) => {
   return (
     <iframe
       className={styles.soundcloudEmbed}
@@ -303,6 +318,6 @@ const canEmbedHosts = new Set([
   ...soundcloudHosts,
 ]);
 
-export const canEmbed = (parsedUrl) => canEmbedHosts.has(parsedUrl.host);
+export const canEmbed = (parsedUrl: URL): boolean => canEmbedHosts.has(parsedUrl.host);
 
 export default Embed;

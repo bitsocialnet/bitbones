@@ -8,19 +8,24 @@ const DEFAULT_LISTS = ['seedit', '5chan'];
 const FALLBACK = 'seedit';
 const STORAGE_KEY = 'bitbonesDefaultList';
 
-const readStoredList = () => {
+const readStoredList = (): string => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return DEFAULT_LISTS.includes(stored) ? stored : FALLBACK;
+    return stored !== null && DEFAULT_LISTS.includes(stored) ? stored : FALLBACK;
   } catch (e) {
     // safari private mode throws on storage access
     return FALLBACK;
   }
 };
 
+interface DefaultListState {
+  defaultList: string;
+  setDefaultList: (defaultList: string) => void;
+}
+
 // read synchronously at module init so the first render already has the right list and the feed
 // never mounts against one client's communities and then remounts against the other's
-const useDefaultListStore = createStore((setState) => ({
+const useDefaultListStore = createStore<DefaultListState>((setState) => ({
   defaultList: readStoredList(),
   setDefaultList: (defaultList) => {
     if (!DEFAULT_LISTS.includes(defaultList)) {
@@ -35,7 +40,7 @@ const useDefaultListStore = createStore((setState) => ({
   },
 }));
 
-const useDefaultList = () => {
+const useDefaultList = (): [string, (defaultList: string) => void] => {
   const { defaultList, setDefaultList } = useDefaultListStore();
   return [defaultList, setDefaultList];
 };

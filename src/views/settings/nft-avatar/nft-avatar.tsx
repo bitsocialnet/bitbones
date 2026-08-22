@@ -1,8 +1,13 @@
 import { useMemo, useState } from 'react';
 import styles from './nft-avatar.module.css';
 import { useAccount, setAccount, useAuthorAvatar } from '@bitsocial/bitsocial-react-hooks';
+import type { Account, Nft } from '@bitsocial/bitsocial-react-hooks';
 
-const NftAvatarPreview = ({ avatar }) => {
+interface NftAvatarPreviewProps {
+  avatar?: Nft;
+}
+
+const NftAvatarPreview = ({ avatar }: NftAvatarPreviewProps) => {
   const account = useAccount();
   let author = useMemo(() => ({ ...account?.author, avatar }), [account, avatar]);
 
@@ -28,23 +33,27 @@ const NftAvatarPreview = ({ avatar }) => {
   );
 };
 
-const getNftMessageToSign = (authorAddress, timestamp, tokenAddress, tokenId) => {
+const getNftMessageToSign = (authorAddress: string, timestamp: number, tokenAddress: string, tokenId: string) => {
   // use plain JSON so the user can read what he's signing
   // property names must always be in this order for signature to match so don't use JSON.stringify
   return `{"domainSeparator":"pkc-author-avatar","authorAddress":"${authorAddress}","timestamp":${timestamp},"tokenAddress":"${tokenAddress}","tokenId":"${tokenId}"}`;
 };
 
-const NftAvatarForm = ({ account }) => {
+interface NftAvatarFormProps {
+  account?: Account;
+}
+
+const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
   // force account to be defined to be able to use account as default values
   if (!account) {
     throw Error('NftAvatarForm account prop must be defined');
   }
   const authorAddress = account?.author?.address;
-  const [chainTicker, setChainTicker] = useState(account?.author?.avatar?.chainTicker);
-  const [tokenAddress, setTokenAddress] = useState(account?.author?.avatar?.address);
-  const [tokenId, setTokenId] = useState(account?.author?.avatar?.id);
-  const [timestamp, setTimestamp] = useState(account?.author?.avatar?.timestamp);
-  const [signature, setSignature] = useState(account?.author?.avatar?.signature?.signature);
+  const [chainTicker, setChainTicker] = useState<string | undefined>(account?.author?.avatar?.chainTicker);
+  const [tokenAddress, setTokenAddress] = useState<string | undefined>(account?.author?.avatar?.address);
+  const [tokenId, setTokenId] = useState<string | undefined>(account?.author?.avatar?.id);
+  const [timestamp, setTimestamp] = useState<number | undefined>(account?.author?.avatar?.timestamp);
+  const [signature, setSignature] = useState<string | undefined>(account?.author?.avatar?.signature?.signature);
 
   const copyMessageToSign = () => {
     if (!chainTicker) {
@@ -65,7 +74,7 @@ const NftAvatarForm = ({ account }) => {
   };
 
   // how to resolve and verify NFT signatures https://github.com/pkcprotocol/pkc-js/blob/master/docs/nft.md
-  const avatar = {
+  const avatar: Nft = {
     chainTicker: chainTicker?.toLowerCase() || account?.author?.avatar?.chainTicker,
     timestamp,
     address: tokenAddress || account?.author?.avatar?.address,

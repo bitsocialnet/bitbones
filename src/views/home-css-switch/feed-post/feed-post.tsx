@@ -4,8 +4,14 @@ import styles from './feed-post.module.css';
 import Arrow from '../../../components/icons/arrow';
 import PostTools from '../../../components/post-tools';
 import { useBlock } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
-const FeedPostMedia = ({ mediaType, mediaUrl }) => {
+interface FeedPostMediaProps {
+  mediaType?: string;
+  mediaUrl?: string;
+}
+
+const FeedPostMedia = ({ mediaType, mediaUrl }: FeedPostMediaProps) => {
   if (!mediaType) {
     return <div className={styles.noMedia}></div>;
   }
@@ -29,7 +35,14 @@ const FeedPostMedia = ({ mediaType, mediaUrl }) => {
   return <div className={styles.noMedia}></div>;
 };
 
-const FeedPost = ({ post, index }) => {
+interface FeedPostProps {
+  post?: Comment;
+  index?: number;
+  // this variant ignores updatedPost, but the feed still passes it
+  updatedPost?: Comment;
+}
+
+const FeedPost = ({ post, index }: FeedPostProps) => {
   let hostname;
   try {
     hostname = new URL(post?.link).hostname.replace(/^www\./, '');
@@ -81,7 +94,7 @@ const FeedPost = ({ post, index }) => {
           </div>
         </div>
       </div>
-      <Link className={hidden && styles.hidden} to={internalLink}>
+      <Link className={hidden ? styles.hidden : undefined} to={internalLink}>
         <FeedPostMedia mediaType={mediaType} mediaUrl={post?.link} />
       </Link>
     </div>

@@ -23,8 +23,8 @@ disable-model-invocation: true
    If diffs are unrelated, split into multiple commits. Each commit should cover one logical unit of work.
 
    Example — two unrelated changes in the working tree:
-   - Modified `src/components/post-tools/post-tools.jsx` (UI fix)
-   - Modified `src/hooks/use-theme.js` (new setting)
+   - Modified `src/components/post-tools/post-tools.tsx` (UI fix)
+   - Modified `src/hooks/use-theme.ts` (new setting)
 
    These should be two separate commits, not one.
 

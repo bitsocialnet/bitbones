@@ -3,9 +3,13 @@ import useDefaultList from '../../../hooks/use-default-list';
 import { useDefaultCommunitiesState } from '../../../hooks/use-default-communities';
 import icons from './icons';
 
+interface DefaultListSwitchProps {
+  className?: string;
+}
+
 // switches which client's default community list the feed is built from.
 // both marks are always visible so it reads as a choice rather than a mystery button.
-const DefaultListSwitch = ({ className }) => {
+const DefaultListSwitch = ({ className }: DefaultListSwitchProps) => {
   const [defaultList, setDefaultList] = useDefaultList();
   const { communities, error } = useDefaultCommunitiesState();
   const next = defaultList === '5chan' ? 'seedit' : '5chan';

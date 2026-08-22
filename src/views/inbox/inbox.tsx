@@ -1,10 +1,11 @@
 import { useNotifications, useAccount } from '@bitsocial/bitsocial-react-hooks';
 import { useRef, useEffect } from 'react';
 import { Virtuoso } from 'react-virtuoso';
+import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
 import styles from './inbox.module.css';
 
-let lastVirtuosoState;
+let lastVirtuosoState: StateSnapshot | undefined;
 
 function Inbox() {
   const { notifications, markAsRead } = useNotifications();
@@ -12,7 +13,7 @@ function Inbox() {
   const unreadNotificationCount = account?.unreadNotificationCount;
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef();
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {

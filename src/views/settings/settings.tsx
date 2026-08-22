@@ -1,6 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import styles from './settings.module.css';
 import { useAccount, setAccount, deleteAccount, useResolvedAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
+import type { Account } from '@bitsocial/bitsocial-react-hooks';
 import stringify from 'json-stringify-pretty-compact';
 import useTheme from '../../hooks/use-theme';
 import NftAvatar from './nft-avatar';
@@ -30,7 +31,7 @@ const BitbonesSettings = () => {
 const AuthorAddress = () => {
   const account = useAccount();
   const { resolvedAddress, state, error } = useResolvedAuthorAddress({ author: account?.author, cache: false });
-  let helpText = '';
+  let helpText: string | undefined = '';
   if (resolvedAddress) {
     if (resolvedAddress === account?.signer?.address) {
       helpText = 'crypto name set correctly';
@@ -56,7 +57,7 @@ const AuthorAddress = () => {
     helpText = undefined;
   }
 
-  const [inputValue, setInputValue] = useState();
+  const [inputValue, setInputValue] = useState<string>();
 
   const save = () => {
     if (!inputValue) {
@@ -89,7 +90,7 @@ const AccountSettings = () => {
   const saveAccount = async () => {
     try {
       const oldAccount = account;
-      const newAccount = JSON.parse(text).account;
+      const newAccount: Account = JSON.parse(text).account;
       // force keeping the same id, makes it easier to copy paste
       await setAccount({ ...newAccount, id: account?.id });
       alert(`saved`);
@@ -100,11 +101,12 @@ const AccountSettings = () => {
       }
     } catch (e) {
       console.warn(e);
-      alert(`failed editing account: ${e.message}`);
+      // catch clause variables are typed unknown, JSON.parse and setAccount only reject with an Error here
+      alert(`failed editing account: ${(e as Error).message}`);
     }
   };
 
-  const _deleteAccount = (accountName) => {
+  const _deleteAccount = (accountName?: string) => {
     if (!accountName) {
       return;
     }
@@ -115,7 +117,7 @@ const AccountSettings = () => {
   return (
     <div>
       <div>account:</div>
-      <textarea onChange={(e) => setText(e.target.value)} autoCorrect='off' rows='32' value={text} />
+      <textarea onChange={(e) => setText(e.target.value)} autoCorrect='off' rows={32} value={text} />
       <button onClick={saveAccount}>save</button>
       <button onClick={() => _deleteAccount(account?.name)}>delete account u/{account?.author?.shortAddress?.toLowerCase?.().substring(0, 8) || ''}</button>
     </div>

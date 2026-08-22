@@ -1,10 +1,12 @@
 import styles from './about.module.css';
 import { useTranslation } from 'react-i18next';
+import type { ChangeEvent } from 'react';
 
 function About() {
   const { t, i18n } = useTranslation();
   const { changeLanguage, language } = i18n;
-  const { supportedLngs } = i18n.options;
+  // i18next types supportedLngs as 'false | readonly string[] | undefined', src/lib/init-translations.ts always sets it to the language list
+  const supportedLngs = i18n.options.supportedLngs as readonly string[];
 
   // some language codes have more than 2 chars, like 'ckb' and 'cimode' (the CI test mode, which shows the key, e.g. about_bitsocial)
   const languageOptions = supportedLngs.map((language) => (
@@ -12,7 +14,7 @@ function About() {
       {language.substring(0, 2)}
     </option>
   ));
-  const onSelectLanguage = (e) => changeLanguage(e.target.value);
+  const onSelectLanguage = (e: ChangeEvent<HTMLSelectElement>) => changeLanguage(e.target.value);
 
   return (
     <div className={styles.about}>

@@ -48,6 +48,8 @@ jobs:
           fi
       - name: Lint
         run: yarn lint
+      - name: Type check
+        run: yarn type-check
       - name: Knip
         run: yarn knip
       - name: Build web app

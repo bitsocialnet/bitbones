@@ -5,10 +5,15 @@ import { Link } from 'react-router-dom';
 import Arrow from '../../components/icons/arrow';
 import styles from '../post/post.module.css';
 import { useAccountComment, useAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, UseAccountCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import useStateString from '../../hooks/use-state-string';
 import Embed, { canEmbed } from '../../components/embed';
 
-const PostMedia = ({ post }) => {
+interface PostMediaProps {
+  post?: Comment;
+}
+
+const PostMedia = ({ post }: PostMediaProps) => {
   if (!post?.link) {
     return <div className={styles.noMedia}></div>;
   }
@@ -42,7 +47,9 @@ const PostMedia = ({ post }) => {
 function Post() {
   const { accountCommentIndex: commentIndex } = useParams();
   const navigate = useNavigate();
-  const post = useAccountComment({ commentIndex });
+  // commentIndex is typed number-only, but useAccountComment normalizes it with Number() at
+  // runtime, so the string route param it is given here is what the hook expects
+  const post = useAccountComment({ commentIndex } as UseAccountCommentOptions);
   const { shortAuthorAddress } = useAuthorAddress({ comment: post });
 
   let hostname;

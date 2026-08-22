@@ -1,4 +1,5 @@
 import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
+import type { Challenge, ChallengeVerification, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { useMemo } from 'react';
 import createStore from 'zustand';
 import challengesStore from './use-challenges';
@@ -7,26 +8,43 @@ import { incrementReadReplyCount } from './use-unread-reply-count';
 
 const { addChallenge } = challengesStore.getState();
 
-const useReplyStore = createStore((setState, getState) => ({
+interface SetReplyStoreOptions {
+  communityAddress?: string;
+  parentCid: string;
+  content?: string;
+  comment?: Comment;
+}
+
+interface ReplyState {
+  content: Record<string, string | undefined>;
+  publishCommentOptions: Record<string, PublishCommentOptions | undefined>;
+  setReplyStore: (options: SetReplyStoreOptions) => void;
+  resetReplyStore: (parentCid: string) => void;
+}
+
+const useReplyStore = createStore<ReplyState>((setState, getState) => ({
   content: {},
   publishCommentOptions: {},
   setReplyStore: ({ communityAddress, parentCid, content, comment }) =>
     setState((state) => {
       const parsedContent = parseContent(content);
-      const publishCommentOptions = {
+      // typed as the library's loose PublishCommentOptions bag: UsePublishCommentOptions declares
+      // onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
+      // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+      const publishCommentOptions: PublishCommentOptions = {
         communityAddress,
         parentCid,
         postCid: comment?.postCid || parentCid,
         content: parsedContent.content,
         link: parsedContent.link,
-        onChallenge: (...args) => addChallenge([...args, comment]),
-        onChallengeVerification: (challengeVerification, comment) => {
+        onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, comment]),
+        onChallengeVerification: (challengeVerification: ChallengeVerification, comment?: Comment) => {
           if (challengeVerification?.challengeSuccess === true && comment?.postCid) {
             incrementReadReplyCount(comment.postCid);
           }
           alertChallengeVerificationFailed(challengeVerification, comment);
         },
-        onError: (error) => {
+        onError: (error: Error) => {
           console.warn(error);
           alert(error);
         },
@@ -43,7 +61,15 @@ const useReplyStore = createStore((setState, getState) => ({
     })),
 }));
 
-const useReply = (comment) => {
+interface Reply {
+  content: string | undefined;
+  setContent: (content: string) => void;
+  resetContent: () => void;
+  replyIndex: number | undefined;
+  publishReply: () => Promise<void>;
+}
+
+const useReply = (comment?: Comment): Reply => {
   const communityAddress = comment?.communityAddress;
   const parentCid = comment?.cid;
   const content = useReplyStore((state) => state.content[parentCid]);
@@ -51,7 +77,10 @@ const useReply = (comment) => {
   const setReplyStore = useReplyStore((state) => state.setReplyStore);
   const resetReplyStore = useReplyStore((state) => state.resetReplyStore);
 
-  const setContent = useMemo(() => (content) => setReplyStore({ communityAddress, parentCid, content, comment }), [communityAddress, parentCid, setReplyStore, comment]);
+  const setContent = useMemo(
+    () => (content: string) => setReplyStore({ communityAddress, parentCid, content, comment }),
+    [communityAddress, parentCid, setReplyStore, comment],
+  );
 
   const resetContent = useMemo(() => () => resetReplyStore(parentCid), [parentCid, resetReplyStore]);
 
@@ -62,8 +91,13 @@ const useReply = (comment) => {
 
 export default useReply;
 
-const parseContent = (content) => {
-  const parsed = {};
+interface ParsedContent {
+  content?: string;
+  link?: string;
+}
+
+const parseContent = (content?: string): ParsedContent => {
+  const parsed: ParsedContent = {};
   if (!content) {
     return parsed;
   }

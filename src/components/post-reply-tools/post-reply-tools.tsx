@@ -1,16 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { useFloating, autoUpdate, offset, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './post-reply-tools.module.css';
 import useReply from '../../hooks/use-reply';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
 const getQuote = () => {
-  const selection = window.getSelection().toString();
+  const selection = window.getSelection()!.toString();
   if (selection) {
     return `>${selection}\n\n`;
   }
 };
 
-const Menu = ({ reply, onPublished }) => {
+interface MenuProps {
+  reply?: Comment;
+  onPublished?: () => void;
+}
+
+const Menu = ({ reply, onPublished }: MenuProps) => {
   const { content, setContent, resetContent, replyIndex, publishReply } = useReply(reply);
 
   const onPublish = () => {
@@ -29,10 +35,10 @@ const Menu = ({ reply, onPublished }) => {
     }
   }, [replyIndex, onPublished, resetContent]);
 
-  const textareaRef = useRef();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     // set cursor at end of text
-    textareaRef.current.selectionStart = textareaRef.current.value.length;
+    textareaRef.current!.selectionStart = textareaRef.current!.value.length;
   }, []);
 
   return (
@@ -56,7 +62,12 @@ const Menu = ({ reply, onPublished }) => {
   );
 };
 
-function ReplyTools({ children, reply }) {
+interface ReplyToolsProps {
+  children?: ReactNode;
+  reply?: Comment;
+}
+
+function ReplyTools({ children, reply }: ReplyToolsProps) {
   // modal stuff
   const [isOpen, setIsOpen] = useState(false);
 

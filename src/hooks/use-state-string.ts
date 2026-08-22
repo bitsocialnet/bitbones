@@ -1,8 +1,9 @@
 import { useMemo } from 'react';
 import { useClientsStates } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, Community } from '@bitsocial/bitsocial-react-hooks';
 
-const clientHosts = {};
-const getClientHost = (clientUrl) => {
+const clientHosts: Record<string, string> = {};
+const getClientHost = (clientUrl: string): string => {
   if (!clientHosts[clientUrl]) {
     try {
       clientHosts[clientUrl] = new URL(clientUrl).hostname || clientUrl;
@@ -13,7 +14,8 @@ const getClientHost = (clientUrl) => {
   return clientHosts[clientUrl];
 };
 
-const useStateString = (commentOrCommunity) => {
+// `false` is part of the argument type on purpose, see the comment below
+const useStateString = (commentOrCommunity?: Comment | Community | false): string | undefined => {
   // callers pass falsy non-null values (post.jsx hands us `state === 'pending' && accountReply`,
   // i.e. the boolean false). useClientsStates asserts its argument is null/undefined or an object,
   // so normalize before branching or it throws mid-render.
