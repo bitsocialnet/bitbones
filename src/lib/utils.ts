@@ -39,10 +39,16 @@ export const catalogFilter = (comment?: Comment): boolean => {
 
 TimeAgo.addDefaultLocale(en);
 const timeAgo = new TimeAgo('en-US');
-export const getFormattedTime = (timestamp: number): string | undefined => {
+// TimeAgo throws a RangeError when timestamp * 1000 is not a finite number, which happens whenever a
+// protocol object arrives without a usable timestamp. Return '' rather than undefined so no caller can
+// dereference the result of a failed format.
+export const getFormattedTime = (timestamp: number): string => {
   try {
     return timeAgo.format(timestamp * 1000);
-  } catch (e) {}
+  } catch (e) {
+    console.warn(e, timestamp);
+    return '';
+  }
 };
 
 export const alertChallengeVerificationFailed = (challengeVerification?: ChallengeVerification, publication?: Comment | Vote): void => {
