@@ -1,44 +1,44 @@
-import {useFloating, useDismiss, useInteractions, FloatingFocusManager, FloatingOverlay, useId} from '@floating-ui/react'
-import styles from './post-modal.module.css'
-import Post from '../post'
-import {useParams, useNavigate} from 'react-router-dom'
-import {useComment} from '@plebbit/plebbit-react-hooks'
-import {useEffect} from 'react'
+import { useFloating, useDismiss, useInteractions, FloatingFocusManager, FloatingOverlay, useId } from '@floating-ui/react';
+import styles from './post-modal.module.css';
+import Post from '../post';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useComment } from '@bitsocial/bitsocial-react-hooks';
+import { useEffect } from 'react';
 
-function PostModal({children}) {
-  const params = useParams()
-  const post = useComment({commentCid: params.commentCid})
+function PostModal({ children }) {
+  const params = useParams();
+  const post = useComment({ commentCid: params.commentCid });
 
   // modal stuff
-  const isOpen = !!params.commentCid
-  const navigate = useNavigate()
-  const setIsOpen = () => navigate(-1)
+  const isOpen = !!params.commentCid;
+  const navigate = useNavigate();
+  const setIsOpen = () => navigate(-1);
 
-  const {refs, context} = useFloating({
+  const { refs, context } = useFloating({
     open: isOpen,
     onOpenChange: setIsOpen,
-  })
+  });
 
   const dismiss = useDismiss(context, {
     // don't close modal when user clicks outside
     outsidePress: false,
-  })
+  });
 
-  const {getFloatingProps} = useInteractions([dismiss])
+  const { getFloatingProps } = useInteractions([dismiss]);
 
-  const headingId = useId()
+  const headingId = useId();
 
   // turn off virtuoso scrolling
   useEffect(() => {
     if (isOpen) {
-      document.documentElement.style['overflow-y'] = 'hidden'
+      document.documentElement.style['overflow-y'] = 'hidden';
     } else {
-      document.documentElement.style['overflow-y'] = 'visible'
+      document.documentElement.style['overflow-y'] = 'visible';
     }
     return () => {
-      document.documentElement.style['overflow-y'] = 'visible'
-    }
-  }, [isOpen])
+      document.documentElement.style['overflow-y'] = 'visible';
+    };
+  }, [isOpen]);
 
   return (
     <FloatingOverlay className={[styles.overlay, !isOpen ? styles.closed : undefined].join(' ')} lockScroll>
@@ -48,7 +48,7 @@ function PostModal({children}) {
         </div>
       </FloatingFocusManager>
     </FloatingOverlay>
-  )
+  );
 }
 
-export default PostModal
+export default PostModal;

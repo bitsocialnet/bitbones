@@ -1,97 +1,97 @@
-import {useComment, useEditedComment, useAccountComment, useAuthorAvatar, useReplies} from '@plebbit/plebbit-react-hooks'
-import utils from '../../lib/utils'
-import {useEffect, useState} from 'react'
-import {Link, useNavigate, useParams} from 'react-router-dom'
-import Arrow from '../../components/icons/arrow'
-import styles from './post.module.css'
-import PostTools from '../../components/post-tools'
-import PostReplyTools from '../../components/post-reply-tools'
-import ReplyTools from '../../components/reply-tools'
-import {useBlock, useAuthorAddress} from '@plebbit/plebbit-react-hooks'
-import useUnreadReplyCount from '../../hooks/use-unread-reply-count'
-import useUpvote from '../../hooks/use-upvote'
-import useDownvote from '../../hooks/use-downvote'
-import useRepliesSortType from '../../hooks/use-replies-sort-type'
-import useCommentLabels from '../../hooks/use-comment-labels'
-import useStateString from '../../hooks/use-state-string'
-import ReplyMedia from './reply-media'
-import Embed, {canEmbed} from '../../components/embed'
+import { useComment, useEditedComment, useAccountComment, useAuthorAvatar, useReplies } from '@bitsocial/bitsocial-react-hooks';
+import utils from '../../lib/utils';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import Arrow from '../../components/icons/arrow';
+import styles from './post.module.css';
+import PostTools from '../../components/post-tools';
+import PostReplyTools from '../../components/post-reply-tools';
+import ReplyTools from '../../components/reply-tools';
+import { useBlock, useAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
+import useUnreadReplyCount from '../../hooks/use-unread-reply-count';
+import useUpvote from '../../hooks/use-upvote';
+import useDownvote from '../../hooks/use-downvote';
+import useRepliesSortType from '../../hooks/use-replies-sort-type';
+import useCommentLabels from '../../hooks/use-comment-labels';
+import useStateString from '../../hooks/use-state-string';
+import ReplyMedia from './reply-media';
+import Embed, { canEmbed } from '../../components/embed';
 
-const AuthorAvatar = ({comment}) => {
-  const {imageUrl} = useAuthorAvatar({author: comment?.author})
+const AuthorAvatar = ({ comment }) => {
+  const { imageUrl } = useAuthorAvatar({ author: comment?.author });
   // if comment.author.avatar is defined, load empty space even without imageUrl
   // to not displace the feed after image loads
   if (!comment?.author?.avatar) {
-    return
+    return;
   }
   return (
     <span className={styles.authorAvatarWrapper}>
-      <img className={styles.authorAvatar} alt="" src={imageUrl} />
+      <img className={styles.authorAvatar} alt='' src={imageUrl} />
     </span>
-  )
-}
+  );
+};
 
-const PostMedia = ({post}) => {
+const PostMedia = ({ post }) => {
   if (!post?.link) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
-  const mediaType = utils.getCommentMediaType(post)
+  const mediaType = utils.getCommentMediaType(post);
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
-        <img className={styles.media} src={post?.link} alt="" />
+        <img className={styles.media} src={post?.link} alt='' />
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
-    return <video className={styles.media} controls={true} autoPlay={false} src={post?.link} />
+    return <video className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
   }
   if (mediaType === 'audio') {
-    return <audio className={styles.media} controls={true} autoPlay={false} src={post?.link} />
+    return <audio className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
   }
   try {
-    const parsedUrl = new URL(post?.link)
+    const parsedUrl = new URL(post?.link);
     if (canEmbed(parsedUrl)) {
       return (
         <div className={styles.mediaWrapper}>
           <Embed parsedUrl={parsedUrl} />
         </div>
-      )
+      );
     }
   } catch (e) {}
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
-const Reply = ({reply, updatedReply, depth, isLast}) => {
+const Reply = ({ reply, updatedReply, depth, isLast }) => {
   // handle pending mod or author edit
-  const {state: editedReplyState, editedComment: editedReply} = useEditedComment({comment: reply})
+  const { state: editedReplyState, editedComment: editedReply } = useEditedComment({ comment: reply });
   if (editedReply) {
-    reply = editedReply
+    reply = editedReply;
   }
 
   // show the unverified author address for a few ms until the verified arrives
-  const {shortAuthorAddress} = useAuthorAddress({comment: reply})
-  const {useRepliesOptions} = useRepliesSortType()
-  const {replies, bufferedReplies, updatedReplies, loadMore, hasMore} = useReplies({...useRepliesOptions, comment: reply})
-  const replyDepthEven = depth % 2 === 0
+  const { shortAuthorAddress } = useAuthorAddress({ comment: reply });
+  const { useRepliesOptions } = useRepliesSortType();
+  const { replies, bufferedReplies, updatedReplies, loadMore, hasMore } = useReplies({ ...useRepliesOptions, comment: reply });
+  const replyDepthEven = depth % 2 === 0;
 
   // publishing states exist only on account comment
-  const accountReply = useAccountComment({commentIndex: reply.index})
-  const state = accountReply?.state === 'pending' || accountReply?.state === 'failed' ? accountReply?.state : undefined
-  const publishingStateString = useStateString(state === 'pending' && accountReply)
+  const accountReply = useAccountComment({ commentIndex: reply.index });
+  const state = accountReply?.state === 'pending' || accountReply?.state === 'failed' ? accountReply?.state : undefined;
+  const publishingStateString = useStateString(state === 'pending' && accountReply);
 
-  const labels = useCommentLabels(reply, editedReplyState)
+  const labels = useCommentLabels(reply, editedReplyState);
 
   const _loadMore = (event) => {
-    event.stopPropagation() // don't trigger the reply typing modal
-    loadMore()
-  }
+    event.stopPropagation(); // don't trigger the reply typing modal
+    loadMore();
+  };
 
-  let score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0)
+  let score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
   if (score === 0) {
-    score = ''
+    score = '';
   } else if (score > 0) {
-    score = `+${score}`
+    score = `+${score}`;
   }
 
   return (
@@ -149,33 +149,33 @@ const Reply = ({reply, updatedReply, depth, isLast}) => {
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
-const ReplyQuote = ({commentCid}) => {
-  const comment = useComment({commentCid, onlyIfCached: true})
+const ReplyQuote = ({ commentCid }) => {
+  const comment = useComment({ commentCid, onlyIfCached: true });
   // show the unverified author address for a few ms until the verified arrives
-  const {shortAuthorAddress} = useAuthorAddress({comment})
-  const [isOpen, setIsOpen] = useState(false)
+  const { shortAuthorAddress } = useAuthorAddress({ comment });
+  const [isOpen, setIsOpen] = useState(false);
 
-  let content = comment?.content?.trim?.()
+  let content = comment?.content?.trim?.();
   if (!content) {
-    return ''
+    return '';
   }
-  let ellipsis = ''
+  let ellipsis = '';
 
-  const tooLong = content.length > 60
+  const tooLong = content.length > 60;
   if (!isOpen && tooLong) {
-    content = content.substring(0, 60).trim()
-    ellipsis = <span className={styles.quoteEllipsis}>..... [+]</span>
+    content = content.substring(0, 60).trim();
+    ellipsis = <span className={styles.quoteEllipsis}>..... [+]</span>;
   }
   const open = (event) => {
     if (isOpen || !tooLong) {
-      return
+      return;
     }
-    event.stopPropagation() // don't trigger the reply typing modal
-    setIsOpen(true)
-  }
+    event.stopPropagation(); // don't trigger the reply typing modal
+    setIsOpen(true);
+  };
 
   return (
     <div onClick={open} className={styles.quote}>
@@ -191,66 +191,66 @@ const ReplyQuote = ({commentCid}) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
 function Post() {
-  const {commentCid, subplebbitAddress} = useParams()
-  let post = useComment({commentCid})
+  const { commentCid, communityAddress } = useParams();
+  let post = useComment({ commentCid });
 
   // handle pending mod or author edit
-  const {state: editedPostState, editedComment: editedPost} = useEditedComment({comment: post})
+  const { state: editedPostState, editedComment: editedPost } = useEditedComment({ comment: post });
   if (editedPost) {
-    post = editedPost
+    post = editedPost;
   }
 
-  let hostname
+  let hostname;
   try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '')
+    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const {repliesSortType, repliesSortTypes, setRepliesSortType, useRepliesOptions} = useRepliesSortType()
-  let {replies, bufferedReplies, updatedReplies, hasMore, loadMore} = useReplies({...useRepliesOptions, comment: post})
+  const { repliesSortType, repliesSortTypes, setRepliesSortType, useRepliesOptions } = useRepliesSortType();
+  let { replies, bufferedReplies, updatedReplies, hasMore, loadMore } = useReplies({ ...useRepliesOptions, comment: post });
   const replyComponents =
-    replies.map((reply, index) => <Reply key={reply?.index || reply?.cid} reply={reply} updatedReply={updatedReplies[index]} isLast={reply?.replyCount === 0} />) || ''
+    replies.map((reply, index) => <Reply key={reply?.index || reply?.cid} reply={reply} updatedReply={updatedReplies[index]} isLast={reply?.replyCount === 0} />) || '';
 
-  const {blocked: hidden} = useBlock({cid: post?.cid})
+  const { blocked: hidden } = useBlock({ cid: post?.cid });
 
-  const [upvoted, upvote] = useUpvote(post)
-  const [downvoted, downvote] = useDownvote(post)
+  const [upvoted, upvote] = useUpvote(post);
+  const [downvoted, downvote] = useDownvote(post);
 
   // show the unverified author address for a few ms until the verified arrives
-  const {shortAuthorAddress} = useAuthorAddress({comment: post})
+  const { shortAuthorAddress } = useAuthorAddress({ comment: post });
 
   // keep track of unread reply counts
-  const [, setRepliesToRead] = useUnreadReplyCount(post)
-  useEffect(() => setRepliesToRead(), [post?.replyCount, setRepliesToRead])
+  const [, setRepliesToRead] = useUnreadReplyCount(post);
+  useEffect(() => setRepliesToRead(), [post?.replyCount, setRepliesToRead]);
 
   // scroll to top on first load
-  useEffect(() => window.scrollTo(0, 0), [])
+  useEffect(() => window.scrollTo(0, 0), []);
 
-  let scoreNumber = post?.upvoteCount - post?.downvoteCount
-  const negativeScoreNumber = scoreNumber < 0
-  const largeScoreNumber = String(scoreNumber).length > 3
+  let scoreNumber = post?.upvoteCount - post?.downvoteCount;
+  const negativeScoreNumber = scoreNumber < 0;
+  const largeScoreNumber = String(scoreNumber).length > 3;
   if (isNaN(scoreNumber)) {
-    scoreNumber = '-'
+    scoreNumber = '-';
   }
 
-  const labels = useCommentLabels(post, editedPostState)
+  const labels = useCommentLabels(post, editedPostState);
 
-  const stateString = useStateString(post)
+  const stateString = useStateString(post);
 
   // redirect to parent post if any
-  const navigate = useNavigate()
+  const navigate = useNavigate();
   useEffect(() => {
     if (post?.postCid && post?.postCid !== post?.cid) {
-      navigate(`/p/${post?.subplebbitAddress}/c/${post?.postCid}`, {replace: true})
+      navigate(`/p/${post?.communityAddress}/c/${post?.postCid}`, { replace: true });
     }
-  }, [post?.postCid, post?.subplebbitAddress, post?.cid, navigate])
+  }, [post?.postCid, post?.communityAddress, post?.cid, navigate]);
 
-  // invalid subplebbit
-  if (post?.subplebbitAddress && subplebbitAddress !== post?.subplebbitAddress) {
-    return 'wrong subplebbit address'
+  // invalid community
+  if (post?.communityAddress && communityAddress !== post?.communityAddress) {
+    return 'wrong community address';
   }
 
   return (
@@ -279,7 +279,7 @@ function Post() {
         </div>
         <div className={[styles.column, hidden ? styles.hidden : undefined].join(' ')}>
           <div className={styles.header}>
-            <Link to={post?.link} target={post?.link ? '_blank' : undefined} rel="noreferrer" className={styles.title}>
+            <Link to={post?.link} target={post?.link ? '_blank' : undefined} rel='noreferrer' className={styles.title}>
               {post?.title?.trim?.() || '-'}
             </Link>
             {labels.map((label) => (
@@ -291,7 +291,7 @@ function Post() {
               </>
             ))}
             {hostname && (
-              <Link to={post?.link} target="_blank" rel="noreferrer">
+              <Link to={post?.link} target='_blank' rel='noreferrer'>
                 {' '}
                 {hostname}
               </Link>
@@ -304,8 +304,8 @@ function Post() {
               by <AuthorAvatar comment={post} />
               <Link to={`/u/${post?.author?.address}/c/${post?.cid}`}>{shortAuthorAddress}</Link> to{' '}
             </span>
-            <Link to={`/p/${post?.subplebbitAddress}`} className={styles.subplebbit}>
-              {post?.subplebbitAddress}
+            <Link to={`/p/${post?.communityAddress}`} className={styles.community}>
+              {post?.communityAddress}
             </Link>
           </div>
           <div className={styles.footer}>
@@ -337,7 +337,7 @@ function Post() {
         </div>
       )}
     </div>
-  )
+  );
 }
 
-export default Post
+export default Post;

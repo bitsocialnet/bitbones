@@ -1,58 +1,58 @@
-import {useState, useEffect, useRef} from 'react'
-import {useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId} from '@floating-ui/react'
-import styles from './reply-tools.module.css'
-import {useBlock} from '@plebbit/plebbit-react-hooks'
-import Arrow from '../icons/arrow'
-import useUpvote from '../../hooks/use-upvote'
-import useDownvote from '../../hooks/use-downvote'
-import useReply from '../../hooks/use-reply'
-import {Link} from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react';
+import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
+import styles from './reply-tools.module.css';
+import { useBlock } from '@bitsocial/bitsocial-react-hooks';
+import Arrow from '../icons/arrow';
+import useUpvote from '../../hooks/use-upvote';
+import useDownvote from '../../hooks/use-downvote';
+import useReply from '../../hooks/use-reply';
+import { Link } from 'react-router-dom';
 
 const getQuote = () => {
-  const selection = window.getSelection().toString()
+  const selection = window.getSelection().toString();
   if (selection) {
-    return `>${selection}\n\n`
+    return `>${selection}\n\n`;
   }
-}
+};
 
-const Menu = ({reply, onPublished}) => {
-  const {blocked: hidden, block: hide, unblock: unhide} = useBlock({cid: reply?.cid})
-  const {blocked: authorBlocked, block: blockAuthor, unblock: unblockAuthor} = useBlock({address: reply?.author?.address})
-  const toggleHide = () => (!hidden ? hide() : unhide())
-  const toggleBlockAuthor = () => (!authorBlocked ? blockAuthor() : unblockAuthor())
+const Menu = ({ reply, onPublished }) => {
+  const { blocked: hidden, block: hide, unblock: unhide } = useBlock({ cid: reply?.cid });
+  const { blocked: authorBlocked, block: blockAuthor, unblock: unblockAuthor } = useBlock({ address: reply?.author?.address });
+  const toggleHide = () => (!hidden ? hide() : unhide());
+  const toggleBlockAuthor = () => (!authorBlocked ? blockAuthor() : unblockAuthor());
 
-  const [upvoted, upvote] = useUpvote(reply)
-  const [downvoted, downvote] = useDownvote(reply)
+  const [upvoted, upvote] = useUpvote(reply);
+  const [downvoted, downvote] = useDownvote(reply);
 
-  const scoreNumber = reply?.upvoteCount - reply?.downvoteCount || 0
-  const largeScoreNumber = String(scoreNumber).length > 3
-  const negativeScoreNumber = scoreNumber < 0
+  const scoreNumber = reply?.upvoteCount - reply?.downvoteCount || 0;
+  const largeScoreNumber = String(scoreNumber).length > 3;
+  const negativeScoreNumber = scoreNumber < 0;
 
-  const {content, setContent, resetContent, replyIndex, publishReply} = useReply(reply)
+  const { content, setContent, resetContent, replyIndex, publishReply } = useReply(reply);
 
   const onPublish = () => {
     if (!content) {
-      alert(`missing content`)
-      return
+      alert(`missing content`);
+      return;
     }
-    publishReply()
-  }
+    publishReply();
+  };
 
   // close and reset modal after publishing
   useEffect(() => {
     if (typeof replyIndex === 'number') {
-      onPublished?.()
-      resetContent()
+      onPublished?.();
+      resetContent();
     }
-  }, [replyIndex, onPublished, resetContent])
+  }, [replyIndex, onPublished, resetContent]);
 
   // autofocus textarea without scrolling
-  const textareaRef = useRef()
+  const textareaRef = useRef();
   useEffect(() => {
-    textareaRef.current.focus({preventScroll: true})
+    textareaRef.current.focus({ preventScroll: true });
     // set cursor at end of text
-    textareaRef.current.selectionStart = textareaRef.current.value.length
-  }, [])
+    textareaRef.current.selectionStart = textareaRef.current.value.length;
+  }, []);
 
   return (
     <div className={styles.replyToolsMenu}>
@@ -63,7 +63,7 @@ const Menu = ({reply, onPublished}) => {
           </div>
           <div
             className={[styles.scoreNumber, largeScoreNumber ? styles.largeScoreNumber : undefined, negativeScoreNumber ? styles.negativeScoreNumber : undefined].join(
-              ' '
+              ' ',
             )}
           >
             {scoreNumber}
@@ -87,7 +87,7 @@ const Menu = ({reply, onPublished}) => {
           ref={textareaRef}
           className={styles.submitContent}
           rows={3}
-          placeholder="content"
+          placeholder='content'
           defaultValue={content || getQuote()}
           onChange={(e) => setContent(e.target.value)}
         />
@@ -98,29 +98,29 @@ const Menu = ({reply, onPublished}) => {
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
-function ReplyTools({children, reply}) {
+function ReplyTools({ children, reply }) {
   // modal stuff
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false);
 
-  const {refs, floatingStyles, context} = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     placement: 'bottom-start',
     open: isOpen,
     /* don't open undefined or pending replies */
     onOpenChange: reply?.cid ? setIsOpen : undefined,
-    middleware: [offset(2), flip({fallbackAxisSideDirection: 'end'}), shift()],
+    middleware: [offset(2), flip({ fallbackAxisSideDirection: 'end' }), shift()],
     whileElementsMounted: autoUpdate,
-  })
+  });
 
-  const click = useClick(context)
-  const dismiss = useDismiss(context)
-  const role = useRole(context)
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context);
 
-  const {getReferenceProps, getFloatingProps} = useInteractions([click, dismiss, role])
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
-  const headingId = useId()
+  const headingId = useId();
 
   return (
     <>
@@ -135,7 +135,7 @@ function ReplyTools({children, reply}) {
         </FloatingFocusManager>
       )}
     </>
-  )
+  );
 }
 
-export default ReplyTools
+export default ReplyTools;

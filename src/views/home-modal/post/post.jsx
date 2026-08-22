@@ -1,33 +1,33 @@
-import utils from '../../../lib/utils'
-import {Link} from 'react-router-dom'
-import Arrow from '../../../components/icons/arrow'
-import styles from './post.module.css'
-import PostTools from '../../../components/post-tools'
-import {useBlock} from '@plebbit/plebbit-react-hooks'
+import utils from '../../../lib/utils';
+import { Link } from 'react-router-dom';
+import Arrow from '../../../components/icons/arrow';
+import styles from './post.module.css';
+import PostTools from '../../../components/post-tools';
+import { useBlock } from '@bitsocial/bitsocial-react-hooks';
 
-const PostMedia = ({post}) => {
-  const mediaType = utils.getCommentMediaType(post)
+const PostMedia = ({ post }) => {
+  const mediaType = utils.getCommentMediaType(post);
   if (!mediaType) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
-        <img className={styles.media} src={post?.link} alt="" />
+        <img className={styles.media} src={post?.link} alt='' />
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
-    return <video className={styles.media} controls={true} autoPlay={false} src={post?.link} />
+    return <video className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
   }
   if (mediaType === 'audio') {
-    return <audio className={styles.media} controls={true} autoPlay={false} src={post?.link} />
+    return <audio className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
   }
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
-const Reply = ({reply}) => {
-  const replies = reply?.replies?.pages?.topAll?.comments || ''
+const Reply = ({ reply }) => {
+  const replies = reply?.replies?.pages?.topAll?.comments || '';
   return (
     <div className={styles.reply}>
       <div className={styles.replyWrapper}>
@@ -45,18 +45,18 @@ const Reply = ({reply}) => {
         ))}
       </div>
     </div>
-  )
-}
+  );
+};
 
-function Post({post}) {
-  let hostname
+function Post({ post }) {
+  let hostname;
   try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '')
+    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const replies = post?.replies?.pages?.topAll?.comments?.map?.((reply) => <Reply key={reply?.cid} reply={reply} />) || ''
+  const replies = post?.replies?.pages?.topAll?.comments?.map?.((reply) => <Reply key={reply?.cid} reply={reply} />) || '';
 
-  const {blocked: hidden} = useBlock({cid: post?.cid})
+  const { blocked: hidden } = useBlock({ cid: post?.cid });
 
   return (
     <div className={styles.post}>
@@ -76,11 +76,11 @@ function Post({post}) {
         </div>
         <div className={[styles.column, hidden && styles.hidden].join(' ')}>
           <div className={styles.header}>
-            <Link to={post?.link} target={post?.link ? '_blank' : undefined} rel="noreferrer" className={styles.title}>
+            <Link to={post?.link} target={post?.link ? '_blank' : undefined} rel='noreferrer' className={styles.title}>
               {post?.title || post?.content || '-'}
             </Link>
             {hostname && (
-              <Link to={post?.link} target="_blank" rel="noreferrer">
+              <Link to={post?.link} target='_blank' rel='noreferrer'>
                 {' '}
                 {hostname}
               </Link>
@@ -89,7 +89,7 @@ function Post({post}) {
           <div className={styles.content}>
             <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
             <span className={styles.author}> by {post?.author?.shortAddress}</span>
-            <span className={styles.subplebbit}> to {post?.subplebbitAddress}</span>
+            <span className={styles.community}> to {post?.communityAddress}</span>
           </div>
           <div className={styles.footer}>
             <span className={[styles.replyCount, styles.button].join(' ')}>{post?.replyCount} comments</span>
@@ -102,7 +102,7 @@ function Post({post}) {
       </div>
       <div className={styles.replies}>{replies}</div>
     </div>
-  )
+  );
 }
 
-export default Post
+export default Post;

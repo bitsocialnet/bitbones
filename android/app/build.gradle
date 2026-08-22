@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace "plebones.android"
+    namespace "bitbones.android"
     compileSdkVersion rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "plebones.android"
+        applicationId "bitbones.android"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 5

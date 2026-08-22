@@ -1,31 +1,31 @@
-import utils from '../../lib/utils'
-import {Link} from 'react-router-dom'
-import {flattenCommentsPages} from '@plebbit/plebbit-react-hooks/dist/lib/utils'
-import {useMemo} from 'react'
-import styles from './board-post.module.css'
+import utils from '../../lib/utils';
+import { Link } from 'react-router-dom';
+import { flattenCommentsPages } from '@bitsocial/bitsocial-react-hooks/dist/lib/utils/index.js';
+import { useMemo } from 'react';
+import styles from './board-post.module.css';
 
-const BoardPostMedia = ({mediaType, mediaUrl}) => {
+const BoardPostMedia = ({ mediaType, mediaUrl }) => {
   if (!mediaType) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
-        <img className={styles.media} src={mediaUrl} alt="" />
+        <img className={styles.media} src={mediaUrl} alt='' />
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
     return (
       <div className={styles.mediaWrapper}>
         <video className={styles.media} controls={true} autoPlay={false} src={mediaUrl} />
       </div>
-    )
+    );
   }
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
-const Reply = ({reply}) => {
+const Reply = ({ reply }) => {
   return (
     <div className={styles.reply}>
       <div className={styles.replyHeaderWrapper}>
@@ -37,22 +37,22 @@ const Reply = ({reply}) => {
 
       <div className={styles.replyContent}>{reply.content}</div>
     </div>
-  )
-}
+  );
+};
 
-const BoardPost = ({post, index}) => {
-  const mediaType = utils.getCommentMediaType(post)
+const BoardPost = ({ post, index }) => {
+  const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = `/p/${post.subplebbitAddress}/c/${post.cid}`
-  const externalLink = !mediaType && post?.link && <Link to={post?.link}>{post?.link}</Link>
+  const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
+  const externalLink = !mediaType && post?.link && <Link to={post?.link}>{post?.link}</Link>;
 
   const replies = useMemo(
     () =>
       flattenCommentsPages(post.replies)
         .splice(0, 5)
         .map((reply) => <Reply reply={reply} />),
-    [post.replies]
-  )
+    [post.replies],
+  );
 
   return (
     <div className={styles.post}>
@@ -66,7 +66,7 @@ const BoardPost = ({post, index}) => {
           </Link>
           <span className={styles.timestamp}> {utils.getFormattedTime(post?.timestamp)}</span>
           <span className={styles.author}> by {post?.author?.shortAddress}</span>
-          <span className={styles.subplebbit}> to {post?.shortSubplebbitAddress}</span>
+          <span className={styles.community}> to {post?.shortCommunityAddress}</span>
         </div>
         <div className={styles.content}>
           {externalLink}
@@ -80,7 +80,7 @@ const BoardPost = ({post, index}) => {
       </div>
       {replies}
     </div>
-  )
-}
+  );
+};
 
-export default BoardPost
+export default BoardPost;

@@ -1,56 +1,61 @@
-import {useMemo} from 'react'
-import {useClientsStates} from '@plebbit/plebbit-react-hooks'
+import { useMemo } from 'react';
+import { useClientsStates } from '@bitsocial/bitsocial-react-hooks';
 
-const clientHosts = {}
+const clientHosts = {};
 const getClientHost = (clientUrl) => {
   if (!clientHosts[clientUrl]) {
     try {
-      clientHosts[clientUrl] = new URL(clientUrl).hostname || clientUrl
+      clientHosts[clientUrl] = new URL(clientUrl).hostname || clientUrl;
     } catch (e) {
-      clientHosts[clientUrl] = clientUrl
+      clientHosts[clientUrl] = clientUrl;
     }
   }
-  return clientHosts[clientUrl]
-}
+  return clientHosts[clientUrl];
+};
 
-const useStateString = (commentOrSubplebbit) => {
-  const {states} = useClientsStates({comment: commentOrSubplebbit})
+const useStateString = (commentOrCommunity) => {
+  // useClientsStates asserts comment and community are never both set. only a community has an
+  // `address` without a `communityAddress`, so that is the discriminator.
+  const isCommunity = !!commentOrCommunity?.address && !commentOrCommunity?.communityAddress;
+  const { states } = useClientsStates(isCommunity ? { community: commentOrCommunity } : { comment: commentOrCommunity });
   return useMemo(() => {
-    let stateString = ''
+    let stateString = '';
     for (const state in states) {
-      const clientUrls = states[state]
-      const clientHosts = clientUrls.map((clientUrl) => getClientHost(clientUrl))
+      const clientUrls = states[state];
+      const clientHosts = clientUrls.map((clientUrl) => getClientHost(clientUrl));
 
       // if there are no valid hosts, skip this state
       if (clientHosts.length === 0) {
-        continue
+        continue;
       }
 
       // separate 2 different states using ' '
       if (stateString) {
-        stateString += ' '
+        stateString += ' ';
       }
 
       // e.g. 'cloudflare-ipfs.com/ipfs.io: fetching-ipfs'
-      stateString += `${clientHosts.join('/')}: ${state}`
+      stateString += `${clientHosts.join('/')}: ${state}`;
     }
 
-    // fallback to comment or subplebbit state when possible
-    if (!stateString && commentOrSubplebbit?.state !== 'succeeded') {
-      if (commentOrSubplebbit?.publishingState && commentOrSubplebbit?.publishingState !== 'stopped' && commentOrSubplebbit?.publishingState !== 'succeeded') {
-        stateString = commentOrSubplebbit.publishingState
-      } else if (commentOrSubplebbit?.updatingState !== 'stopped' && commentOrSubplebbit?.updatingState !== 'succeeded') {
-        stateString = commentOrSubplebbit.updatingState
+    // fallback to comment or community state when possible. a community's `state` stays 'succeeded'
+    // while cached data exists, so its refresh lifecycle lives on `syncState` instead.
+    const lifecycleState = isCommunity ? commentOrCommunity?.syncState : commentOrCommunity?.state;
+    if (!stateString && lifecycleState !== 'succeeded') {
+      if (commentOrCommunity?.publishingState && commentOrCommunity?.publishingState !== 'stopped' && commentOrCommunity?.publishingState !== 'succeeded') {
+        stateString = commentOrCommunity.publishingState;
+      } else if (commentOrCommunity?.updatingState !== 'stopped' && commentOrCommunity?.updatingState !== 'succeeded') {
+        stateString = commentOrCommunity.updatingState;
       }
     }
 
     if (stateString) {
-      stateString += '...'
+      stateString += '...';
     }
 
     // if string is empty, return undefined instead
-    return stateString === '' ? undefined : stateString
-  }, [states, commentOrSubplebbit])
-}
+    return stateString === '' ? undefined : stateString;
+  }, [states, commentOrCommunity, isCommunity]);
+};
 
-export default useStateString
+export default useStateString;

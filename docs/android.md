@@ -12,4 +12,4 @@ npx cap sync
 yarn android:build:icons
 ```
 
-3. Copy keystore to android/plebbit.keystore
+3. Copy keystore to android/bitbones.keystore

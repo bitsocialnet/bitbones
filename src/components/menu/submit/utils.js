@@ -1,54 +1,54 @@
-import {useAccount} from '@plebbit/plebbit-react-hooks'
-import useDefaultSubplebbits from '../../../hooks/use-default-subplebbits.js'
-import Plebbit from '@plebbit/plebbit-js'
-import {useMemo} from 'react'
-import {useParams} from 'react-router-dom'
-const {getShortAddress} = Plebbit
+import { useAccount } from '@bitsocial/bitsocial-react-hooks';
+import useDefaultCommunities from '../../../hooks/use-default-communities.js';
+import PKC from '@pkcprotocol/pkc-js';
+import { useMemo } from 'react';
+import { useParams } from 'react-router-dom';
+const { getShortAddress } = PKC;
 
 export const isLink = (content) => {
   if (!content) {
-    return false
+    return false;
   }
-  content = content.trim()
+  content = content.trim();
   if (
     // starts with https://
     /^https:\/\//i.test(content) &&
     // doesn't contain spaces or line breaks
     !/[ \n]/.test(content)
   ) {
-    return true
+    return true;
   }
-  return false
-}
+  return false;
+};
 
-export const useDefaultAndSubscriptionsSubplebbits = () => {
-  const {subplebbitAddress: subplebbitAddressParam} = useParams()
-  const account = useAccount()
-  const defaultSubplebbits = useDefaultSubplebbits()
+export const useDefaultAndSubscriptionsCommunities = () => {
+  const { communityAddress: communityAddressParam } = useParams();
+  const account = useAccount();
+  const defaultCommunities = useDefaultCommunities();
   return useMemo(() => {
-    const subplebbits = {}
-    // add subplebbit from params first so easily visible
-    if (subplebbitAddressParam) {
-      subplebbits[subplebbitAddressParam] = {address: subplebbitAddressParam, displayAddress: subplebbitAddressParam}
+    const communities = {};
+    // add community from params first so easily visible
+    if (communityAddressParam) {
+      communities[communityAddressParam] = { address: communityAddressParam, displayAddress: communityAddressParam };
     }
     for (const address of account.subscriptions) {
-      subplebbits[address] = {address, displayAddress: getShortAddress({address})}
+      communities[address] = { address, displayAddress: getShortAddress({ address }) };
     }
-    for (const subplebbit of defaultSubplebbits) {
-      if (!subplebbit.address) {
-        continue
+    for (const community of defaultCommunities) {
+      if (!community.address) {
+        continue;
       }
-      subplebbits[subplebbit.address] = {address: subplebbit.address, displayAddress: subplebbit.address}
-      if (!subplebbit.address.includes('.')) {
-        subplebbits[subplebbit.address].displayAddress = getShortAddress({address: subplebbit.address})
-        if (subplebbit.title) {
-          subplebbits[subplebbit.address].displayAddress += ` ${subplebbit.title}`
+      communities[community.address] = { address: community.address, displayAddress: community.address };
+      if (!community.address.includes('.')) {
+        communities[community.address].displayAddress = getShortAddress({ address: community.address });
+        if (community.title) {
+          communities[community.address].displayAddress += ` ${community.title}`;
         }
-        if (subplebbits[subplebbit.address].displayAddress.length > 40) {
-          subplebbits[subplebbit.address].displayAddress = subplebbits[subplebbit.address].displayAddress.substring(0, 40) + '...'
+        if (communities[community.address].displayAddress.length > 40) {
+          communities[community.address].displayAddress = communities[community.address].displayAddress.substring(0, 40) + '...';
         }
       }
     }
-    return Object.values(subplebbits)
-  }, [account.subscriptions, defaultSubplebbits, subplebbitAddressParam])
-}
+    return Object.values(communities);
+  }, [account.subscriptions, defaultCommunities, communityAddressParam]);
+};

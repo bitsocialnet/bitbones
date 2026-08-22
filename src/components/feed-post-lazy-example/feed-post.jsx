@@ -1,58 +1,58 @@
-import utils from '../../lib/utils'
-import {Link} from 'react-router-dom'
-import styles from './feed-post.module.css'
-import {useState, useEffect} from 'react'
-import useIsMounted from '../../hooks/use-is-mounted'
+import utils from '../../lib/utils';
+import { Link } from 'react-router-dom';
+import styles from './feed-post.module.css';
+import { useState, useEffect } from 'react';
+import useIsMounted from '../../hooks/use-is-mounted';
 
-const FeedPostMedia = ({mediaType, mediaUrl, show}) => {
+const FeedPostMedia = ({ mediaType, mediaUrl, show }) => {
   if (!mediaType) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
   // only show low priority components after high priority components have mounted
   if (!show) {
-    return <div className={styles.mediaWrapper}></div>
+    return <div className={styles.mediaWrapper}></div>;
   }
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
         <Media />
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
     return (
       <div className={styles.mediaWrapper}>
         <Media />
       </div>
-    )
+    );
   }
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
 // fake slow media
-const Media = ({mediaType}) => {
-  let i = 50000000
-  let a = 0
+const Media = ({ mediaType }) => {
+  let i = 50000000;
+  let a = 0;
   while (i--) {
-    a++
+    a++;
   }
 
-  return <div style={{height: 300, width: 400, backgroundColor: 'red'}}></div>
-}
+  return <div style={{ height: 300, width: 400, backgroundColor: 'red' }}></div>;
+};
 
-const FeedPost = ({post, index}) => {
-  let hostname
+const FeedPost = ({ post, index }) => {
+  let hostname;
   try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '')
+    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const mediaType = utils.getCommentMediaType(post)
+  const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = `/p/${post.subplebbitAddress}/c/${post.cid}`
-  const externalLink = !mediaType && post?.link
+  const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
+  const externalLink = !mediaType && post?.link;
 
   // FeedPost is mounted, only show low priority components after has mounted
-  let isMounted = useIsMounted()
+  let isMounted = useIsMounted();
   // isMounted = true
 
   return (
@@ -67,7 +67,7 @@ const FeedPost = ({post, index}) => {
         </div>
         <div className={styles.column}>
           <div className={styles.header}>
-            <Link to={externalLink || internalLink} target={externalLink ? '_blank' : undefined} rel="noreferrer" className={styles.title}>
+            <Link to={externalLink || internalLink} target={externalLink ? '_blank' : undefined} rel='noreferrer' className={styles.title}>
               {post?.title || post?.content || '-'}
             </Link>
             {hostname && <span className={styles.header}> {hostname}</span>}
@@ -75,7 +75,7 @@ const FeedPost = ({post, index}) => {
           <div className={styles.content}>
             <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
             <span className={styles.author}> by {post?.author?.shortAddress}</span>
-            <span className={styles.subplebbit}> to {post?.shortSubplebbitAddress}</span>
+            <span className={styles.community}> to {post?.shortCommunityAddress}</span>
           </div>
           <div className={styles.footer}>
             <Link to={internalLink} className={styles.replyCount}>
@@ -88,7 +88,7 @@ const FeedPost = ({post, index}) => {
         <FeedPostMedia mediaType={mediaType} mediaUrl={post?.link} show={isMounted} />
       </Link>
     </div>
-  )
-}
+  );
+};
 
-export default FeedPost
+export default FeedPost;

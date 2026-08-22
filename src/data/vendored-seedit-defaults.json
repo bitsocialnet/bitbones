@@ -1,0 +1,46 @@
+{
+  "source": "seedit",
+  "revision": 2,
+  "communities": [
+    {
+      "address": "askseedit.bso",
+      "title": "AskSeedit"
+    },
+    {
+      "address": "memes-posting.bso",
+      "title": "Memes"
+    },
+    {
+      "address": "news-posting.bso",
+      "title": "News"
+    },
+    {
+      "address": "pics-posting.bso",
+      "title": "Pics"
+    },
+    {
+      "address": "til-posting.bso",
+      "title": "Today I Learned"
+    },
+    {
+      "address": "interestingasfuck.bso",
+      "title": "Interesting As Fuck"
+    },
+    {
+      "address": "gaming-posting.bso",
+      "title": "Gaming"
+    },
+    {
+      "address": "videos-posting.bso",
+      "title": "Videos"
+    },
+    {
+      "address": "funny-posting.bso",
+      "title": "Funny"
+    },
+    {
+      "address": "aww-posting.bso",
+      "title": "Aww"
+    }
+  ]
+}

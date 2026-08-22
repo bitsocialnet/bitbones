@@ -1,96 +1,99 @@
-import {useMemo} from 'react'
-import useStateString from './use-state-string.js'
-import {useSubplebbit, useSubplebbitsStates} from '@plebbit/plebbit-react-hooks'
+import { useMemo } from 'react';
+import useStateString from './use-state-string.js';
+import { useCommunity, useCommunitiesStates } from '@bitsocial/bitsocial-react-hooks';
+import { useCommunityIdentifier, useCommunityIdentifiers } from './use-community-identifier.js';
 
-const clientHosts = {}
+const clientHosts = {};
 const getClientHost = (clientUrl) => {
   if (!clientHosts[clientUrl]) {
     try {
-      clientHosts[clientUrl] = new URL(clientUrl).hostname || clientUrl
+      clientHosts[clientUrl] = new URL(clientUrl).hostname || clientUrl;
     } catch (e) {
-      clientHosts[clientUrl] = clientUrl
+      clientHosts[clientUrl] = clientUrl;
     }
   }
-  return clientHosts[clientUrl]
-}
+  return clientHosts[clientUrl];
+};
 
-const useFeedStateString = (subplebbitAddresses) => {
-  // single subplebbit feed state string
-  const subplebbitAddress = subplebbitAddresses?.length === 1 ? subplebbitAddresses[0] : undefined
-  const subplebbit = useSubplebbit({subplebbitAddress})
-  const singleSubplebbitFeedStateString = useStateString(subplebbit)
+const useFeedStateString = (communityAddresses) => {
+  // single community feed state string
+  const communityAddress = communityAddresses?.length === 1 ? communityAddresses[0] : undefined;
+  const communityIdentifier = useCommunityIdentifier(communityAddress);
+  const community = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined);
+  const singleCommunityFeedStateString = useStateString(community);
 
-  // multiple subplebbit feed state string
-  const {states} = useSubplebbitsStates({subplebbitAddresses})
+  // multiple community feed state string
+  const communities = useCommunityIdentifiers(communityAddresses);
+  const { states } = useCommunitiesStates({ communities });
 
-  const multipleSubplebbitsFeedStateString = useMemo(() => {
-    if (subplebbitAddress) {
-      return
+  const multipleCommunitiesFeedStateString = useMemo(() => {
+    if (communityAddress) {
+      return;
     }
 
     // e.g. infura.io: 2 resolving-address, cloudflare-ipfs.com/ipfs.io: 2 fetching-ipns 1 fetching-ipfs
-    let stateString = ''
+    let stateString = '';
 
     if (states['resolving-address']) {
-      const {subplebbitAddresses, clientUrls} = states['resolving-address']
-      if (subplebbitAddresses.length && clientUrls.length) {
-        stateString += `${clientUrls.map(getClientHost).join('/')}: ${subplebbitAddresses.length} resolving-address`
+      const { communityAddresses, clientUrls } = states['resolving-address'];
+      if (communityAddresses.length && clientUrls.length) {
+        stateString += `${clientUrls.map(getClientHost).join('/')}: ${communityAddresses.length} resolving-address`;
       }
     }
 
     // find all page client and sub addresses
-    const pagesStatesClientHosts = new Set()
-    const pagesStatesSubplebbitAddresses = new Set()
+    const pagesStatesClientHosts = new Set();
+    const pagesStatesCommunityAddresses = new Set();
     for (const state in states) {
       if (state.match('page')) {
-        states[state].clientUrls.forEach((clientUrl) => pagesStatesClientHosts.add(getClientHost(clientUrl)))
-        states[state].subplebbitAddresses.forEach((subplebbitAddress) => pagesStatesSubplebbitAddresses.add(subplebbitAddress))
+        states[state].clientUrls.forEach((clientUrl) => pagesStatesClientHosts.add(getClientHost(clientUrl)));
+        states[state].communityAddresses.forEach((communityAddress) => pagesStatesCommunityAddresses.add(communityAddress));
       }
     }
 
-    if (states['fetching-ipns'] || states['fetching-ipfs'] || pagesStatesSubplebbitAddresses.size) {
+    if (states['fetching-ipns'] || states['fetching-ipfs'] || pagesStatesCommunityAddresses.size) {
       // separate 2 different states using ' '
       if (stateString) {
-        stateString += ' '
+        stateString += ' ';
       }
 
       // find all client urls
-      const clientHosts = new Set([...pagesStatesClientHosts])
-      states['fetching-ipns']?.clientUrls.forEach((clientUrl) => clientHosts.add(getClientHost(clientUrl)))
-      states['fetching-ipfs']?.clientUrls.forEach((clientUrl) => clientHosts.add(getClientHost(clientUrl)))
+      const clientHosts = new Set([...pagesStatesClientHosts]);
+      states['fetching-ipns']?.clientUrls.forEach((clientUrl) => clientHosts.add(getClientHost(clientUrl)));
+      states['fetching-ipfs']?.clientUrls.forEach((clientUrl) => clientHosts.add(getClientHost(clientUrl)));
 
       if (clientHosts.size) {
-        stateString += `${[...clientHosts].join('/')}: `
+        stateString += `${[...clientHosts].join('/')}: `;
         if (states['fetching-ipns']) {
-          stateString += `${states['fetching-ipns'].subplebbitAddresses.length} fetching-ipns`
+          stateString += `${states['fetching-ipns'].communityAddresses.length} fetching-ipns`;
         }
         if (states['fetching-ipfs']) {
           if (states['fetching-ipns']) {
-            stateString += ' '
+            stateString += ' ';
           }
-          stateString += `${states['fetching-ipfs'].subplebbitAddresses.length} fetching-ipfs`
+          stateString += `${states['fetching-ipfs'].communityAddresses.length} fetching-ipfs`;
         }
-        if (pagesStatesSubplebbitAddresses.size) {
+        if (pagesStatesCommunityAddresses.size) {
           if (states['fetching-ipns'] || states['fetching-ipfs']) {
-            stateString += ' '
+            stateString += ' ';
           }
-          stateString += `${pagesStatesSubplebbitAddresses.size} fetching-page`
+          stateString += `${pagesStatesCommunityAddresses.size} fetching-page`;
         }
       }
     }
 
     if (stateString) {
-      stateString += '...'
+      stateString += '...';
     }
 
     // if string is empty, return undefined instead
-    return stateString === '' ? undefined : stateString
-  }, [states, subplebbitAddress])
+    return stateString === '' ? undefined : stateString;
+  }, [states, communityAddress]);
 
-  if (singleSubplebbitFeedStateString) {
-    return singleSubplebbitFeedStateString
+  if (singleCommunityFeedStateString) {
+    return singleCommunityFeedStateString;
   }
-  return multipleSubplebbitsFeedStateString
-}
+  return multipleCommunitiesFeedStateString;
+};
 
-export default useFeedStateString
+export default useFeedStateString;

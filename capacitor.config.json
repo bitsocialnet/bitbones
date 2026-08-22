@@ -1,6 +1,6 @@
 {
-  "appId": "plebones.android",
-  "appName": "plebones",
+  "appId": "bitbones.android",
+  "appName": "bitbones",
   "webDir": "build",
   "bundledWebRuntime": false
 }

@@ -1,41 +1,45 @@
-import {useState, useEffect} from 'react'
-import {useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId} from '@floating-ui/react'
-import styles from './post-tools.module.css'
-import {useSubscribe, useBlock, useAccount, useSubplebbit, usePublishCommentModeration} from '@plebbit/plebbit-react-hooks'
-import {alertChallengeVerificationFailed} from '../../lib/utils'
-import challengesStore from '../../hooks/use-challenges'
-const {addChallenge} = challengesStore.getState()
+import { useState, useEffect } from 'react';
+import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
+import styles from './post-tools.module.css';
+import { useSubscribe, useBlock, useAccount, useCommunity, usePublishCommentModeration } from '@bitsocial/bitsocial-react-hooks';
+import { alertChallengeVerificationFailed } from '../../lib/utils';
+import challengesStore from '../../hooks/use-challenges';
+import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
+const { addChallenge } = challengesStore.getState();
 
-const Menu = ({post, closeModal}) => {
-  const {subscribed, subscribe, unsubscribe} = useSubscribe({subplebbitAddress: post?.subplebbitAddress})
-  const {blocked: hidden, block: hide, unblock: unhide} = useBlock({cid: post?.cid})
-  const {blocked: subplebbitBlocked, block: blockSubplebbit, unblock: unblockSubplebbit} = useBlock({address: post?.subplebbitAddress})
-  const {blocked: authorBlocked, block: blockAuthor, unblock: unblockAuthor} = useBlock({address: post?.author?.address})
-  const toggleSubscribe = () => (!subscribed ? subscribe() : unsubscribe())
-  const toggleHide = () => (!hidden ? hide() : unhide())
-  const toggleBlockSubplebbit = () => (!subplebbitBlocked ? blockSubplebbit() : unblockSubplebbit())
-  const toggleBlockAuthor = () => (!authorBlocked ? blockAuthor() : unblockAuthor())
+const Menu = ({ post, closeModal }) => {
+  const { subscribed, subscribe, unsubscribe } = useSubscribe({ communityAddress: post?.communityAddress });
+  const { blocked: hidden, block: hide, unblock: unhide } = useBlock({ cid: post?.cid });
+  const { blocked: communityBlocked, block: blockCommunity, unblock: unblockCommunity } = useBlock({ address: post?.communityAddress });
+  const { blocked: authorBlocked, block: blockAuthor, unblock: unblockAuthor } = useBlock({ address: post?.author?.address });
+  const toggleSubscribe = () => (!subscribed ? subscribe() : unsubscribe());
+  const toggleHide = () => (!hidden ? hide() : unhide());
+  const toggleBlockCommunity = () => (!communityBlocked ? blockCommunity() : unblockCommunity());
+  const toggleBlockAuthor = () => (!authorBlocked ? blockAuthor() : unblockAuthor());
 
-  const account = useAccount()
-  const role = useSubplebbit({subplebbitAddress: post?.subplebbitAddress})?.roles?.[account?.author?.address]?.role
-  const isMod = role === 'admin' || role === 'owner' || role === 'moderator'
+  const account = useAccount();
+  const communityIdentifier = useCommunityIdentifier(post?.communityAddress);
+  const role = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined)?.roles?.[account?.author?.address]?.role;
+  const isMod = role === 'admin' || role === 'owner' || role === 'moderator';
 
   const share = () => {
-    const shareUrl = `https://pleb.bz/p/${post?.subplebbitAddress}/c/${post?.cid}?redirect=plebones.eth.limo`
-    navigator.clipboard.writeText(shareUrl)
-    alert(shareUrl)
-  }
+    // link straight at the app. 5chan and seedit route shares through a bitsocial-previewer tenant
+    // (s.5chan.app, s.seedit.app) for link previews; bitbones has no tenant provisioned yet.
+    const shareUrl = `https://bitbones.app/#/p/${post?.communityAddress}/c/${post?.cid}`;
+    navigator.clipboard.writeText(shareUrl);
+    alert(shareUrl);
+  };
 
   return (
     <div className={styles.postToolsMenu}>
       <div onClick={toggleSubscribe} className={styles.menuItem}>
-        {!subscribed ? 'join' : 'leave'} p/{post?.shortSubplebbitAddress || ''}
+        {!subscribed ? 'join' : 'leave'} p/{post?.shortCommunityAddress || ''}
       </div>
       <div onClick={toggleHide} className={styles.menuItem}>
         {!hidden ? 'hide' : 'unhide'}
       </div>
-      <div onClick={toggleBlockSubplebbit} className={styles.menuItem}>
-        {!subplebbitBlocked ? 'block' : 'unblock'} p/{post?.shortSubplebbitAddress || ''}
+      <div onClick={toggleBlockCommunity} className={styles.menuItem}>
+        {!communityBlocked ? 'block' : 'unblock'} p/{post?.shortCommunityAddress || ''}
       </div>
       <div onClick={toggleBlockAuthor} className={styles.menuItem}>
         {!authorBlocked ? 'block' : 'unblock'} u/{post?.author?.shortAddress || ''}
@@ -45,10 +49,10 @@ const Menu = ({post, closeModal}) => {
       </div>
       {isMod && <ModTools post={post} closeModal={closeModal} />}
     </div>
-  )
-}
+  );
+};
 
-const ModTools = ({post, closeModal}) => {
+const ModTools = ({ post, closeModal }) => {
   const defaultPublishOptions = {
     commentModeration: {
       removed: post?.removed,
@@ -57,74 +61,75 @@ const ModTools = ({post, closeModal}) => {
       pinned: post?.pinned,
     },
     commentCid: post?.cid,
-    subplebbitAddress: post?.subplebbitAddress,
+    communityAddress: post?.communityAddress,
     onChallenge: (...args) => addChallenge([...args, post]),
     onChallengeVerification: alertChallengeVerificationFailed,
     onError: (error) => {
-      console.warn(error)
-      alert(error)
+      console.warn(error);
+      alert(error);
     },
-  }
-  const [publishCommentModerationOptions, setPublishCommentModerationOptions] = useState(defaultPublishOptions)
-  const {state, publishCommentModeration} = usePublishCommentModeration(publishCommentModerationOptions)
+  };
+  const [publishCommentModerationOptions, setPublishCommentModerationOptions] = useState(defaultPublishOptions);
+  const { state, publishCommentModeration } = usePublishCommentModeration(publishCommentModerationOptions);
 
   // close the modal after publishing
   useEffect(() => {
     if (state && state !== 'failed' && state !== 'initializing' && state !== 'ready') {
-      closeModal?.()
+      closeModal?.();
     }
-  }, [state, closeModal])
+  }, [state, closeModal]);
 
-  const onCheckbox = (e) => setPublishCommentModerationOptions((state) => ({...state, commentModeration: {...state.commentModeration, [e.target.id]: e.target.checked}}))
+  const onCheckbox = (e) =>
+    setPublishCommentModerationOptions((state) => ({ ...state, commentModeration: { ...state.commentModeration, [e.target.id]: e.target.checked } }));
 
   const onReason = (e) =>
-    setPublishCommentModerationOptions((state) => ({...state, commentModeration: {...state.commentModeration, reason: e.target.value ? e.target.value : undefined}}))
+    setPublishCommentModerationOptions((state) => ({ ...state, commentModeration: { ...state.commentModeration, reason: e.target.value ? e.target.value : undefined } }));
 
   return (
     <div className={styles.modTools}>
       <div className={styles.menuItem}>
-        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.removed} type="checkbox" id="removed" />
-        <label for="removed">removed</label>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.removed} type='checkbox' id='removed' />
+        <label for='removed'>removed</label>
       </div>
       <div className={styles.menuItem}>
-        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.locked} type="checkbox" id="locked" />
-        <label for="locked">locked</label>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.locked} type='checkbox' id='locked' />
+        <label for='locked'>locked</label>
       </div>
       <div className={styles.menuItem}>
-        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.spoiler} type="checkbox" id="spoiler" />
-        <label for="spoiler">spoiler</label>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.spoiler} type='checkbox' id='spoiler' />
+        <label for='spoiler'>spoiler</label>
       </div>
       <div className={styles.menuItem}>
-        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.pinned} type="checkbox" id="pinned" />
-        <label for="pinned">pinned</label>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.pinned} type='checkbox' id='pinned' />
+        <label for='pinned'>pinned</label>
       </div>
       <div className={styles.menuItem}>
-        <input onChange={onReason} defaultValue={post?.reason} size={14} placeholder="reason" />
+        <input onChange={onReason} defaultValue={post?.reason} size={14} placeholder='reason' />
         <button onClick={publishCommentModeration}>edit</button>
       </div>
     </div>
-  )
-}
+  );
+};
 
-function PostTools({children, post}) {
+function PostTools({ children, post }) {
   // modal stuff
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false);
 
-  const {refs, floatingStyles, context} = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     placement: 'bottom-start',
     open: isOpen,
     onOpenChange: setIsOpen,
-    middleware: [offset(2), flip({fallbackAxisSideDirection: 'end'}), shift()],
+    middleware: [offset(2), flip({ fallbackAxisSideDirection: 'end' }), shift()],
     whileElementsMounted: autoUpdate,
-  })
+  });
 
-  const click = useClick(context)
-  const dismiss = useDismiss(context)
-  const role = useRole(context)
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context);
 
-  const {getReferenceProps, getFloatingProps} = useInteractions([click, dismiss, role])
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
-  const headingId = useId()
+  const headingId = useId();
 
   return (
     <>
@@ -139,7 +144,7 @@ function PostTools({children, post}) {
         </FloatingFocusManager>
       )}
     </>
-  )
+  );
 }
 
-export default PostTools
+export default PostTools;

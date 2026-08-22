@@ -1,33 +1,33 @@
-import {useNotifications, useAccount} from '@plebbit/plebbit-react-hooks'
-import {useRef, useEffect} from 'react'
-import {Virtuoso} from 'react-virtuoso'
-import FeedPost from '../../components/feed-post'
-import styles from './inbox.module.css'
+import { useNotifications, useAccount } from '@bitsocial/bitsocial-react-hooks';
+import { useRef, useEffect } from 'react';
+import { Virtuoso } from 'react-virtuoso';
+import FeedPost from '../../components/feed-post';
+import styles from './inbox.module.css';
 
-let lastVirtuosoState
+let lastVirtuosoState;
 
 function Inbox() {
-  const {notifications, markAsRead} = useNotifications()
-  const account = useAccount()
-  const unreadNotificationCount = account?.unreadNotificationCount
+  const { notifications, markAsRead } = useNotifications();
+  const account = useAccount();
+  const unreadNotificationCount = account?.unreadNotificationCount;
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef()
+  const virtuosoRef = useRef();
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {
         // TODO: not sure if checking for empty snapshot.ranges works for all scenarios
         if (snapshot?.ranges?.length) {
-          lastVirtuosoState = snapshot
+          lastVirtuosoState = snapshot;
         }
-      })
-    window.addEventListener('scroll', setLastVirtuosoState)
+      });
+    window.addEventListener('scroll', setLastVirtuosoState);
     // clean listener on unmount
-    return () => window.removeEventListener('scroll', setLastVirtuosoState)
-  }, [])
+    return () => window.removeEventListener('scroll', setLastVirtuosoState);
+  }, []);
 
   if (account && !notifications.length) {
-    return 'empty'
+    return 'empty';
   }
 
   return (
@@ -36,7 +36,7 @@ function Inbox() {
         mark as read
       </button>
       <Virtuoso
-        increaseViewportBy={{bottom: 1200, top: 600}}
+        increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={notifications?.length || 0}
         data={notifications}
         itemContent={(index, notification) => (
@@ -50,7 +50,7 @@ function Inbox() {
         initialScrollTop={lastVirtuosoState?.scrollTop}
       />
     </div>
-  )
+  );
 }
 
-export default Inbox
+export default Inbox;

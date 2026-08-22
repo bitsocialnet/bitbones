@@ -1,0 +1,326 @@
+{
+  "source": "5chan",
+  "revision": 1784884468,
+  "communities": [
+    {
+      "address": "3dcg-posting.bso",
+      "title": "/3/ - 3DCG",
+      "directoryCode": "3"
+    },
+    {
+      "address": "anime-and-manga.bso",
+      "title": "/a/ - Anime & Manga",
+      "directoryCode": "a"
+    },
+    {
+      "address": "flash-posting.bso",
+      "title": "/f/ - Flash",
+      "directoryCode": "f"
+    },
+    {
+      "address": "advice-posting.bso",
+      "title": "/adv/ - Advice",
+      "directoryCode": "adv"
+    },
+    {
+      "address": "animals-and-nature.bso",
+      "title": "/an/ - Animals & Nature",
+      "directoryCode": "an"
+    },
+    {
+      "address": "random-nsfw.bso",
+      "title": "/b/ - Random",
+      "directoryCode": "b"
+    },
+    {
+      "address": "international-nsfw.bso",
+      "title": "/bant/ - International/Random",
+      "directoryCode": "bant"
+    },
+    {
+      "address": "bizraelis.bso",
+      "title": "/biz/ - Business & Finance",
+      "directoryCode": "biz"
+    },
+    {
+      "address": "anime-cute.bso",
+      "title": "/c/ - Anime/Cute",
+      "directoryCode": "c"
+    },
+    {
+      "address": "food-and-cooking.bso",
+      "title": "/ck/ - Food & Cooking",
+      "directoryCode": "ck"
+    },
+    {
+      "address": "comics-and-cartoons.bso",
+      "title": "/co/ - Comics & Cartoons",
+      "directoryCode": "co"
+    },
+    {
+      "address": "do-it-yourself.bso",
+      "title": "/diy/ - Do It Yourself",
+      "directoryCode": "diy"
+    },
+    {
+      "address": "fashion-posting.bso",
+      "title": "/fa/ - Fashion",
+      "directoryCode": "fa"
+    },
+    {
+      "address": "fitness-posting.bso",
+      "title": "/fit/ - Fitness",
+      "directoryCode": "fit"
+    },
+    {
+      "address": "technology-posting.bso",
+      "title": "/g/ - Technology",
+      "directoryCode": "g"
+    },
+    {
+      "address": "graphic-design.bso",
+      "title": "/gd/ - Graphic Design",
+      "directoryCode": "gd"
+    },
+    {
+      "address": "adult-gif.bso",
+      "title": "/gif/ - Adult GIF",
+      "directoryCode": "gif"
+    },
+    {
+      "address": "history-posting.bso",
+      "title": "/his/ - History & Humanities",
+      "directoryCode": "his"
+    },
+    {
+      "address": "oekaki-posting.bso",
+      "title": "/i/ - Oekaki",
+      "directoryCode": "i"
+    },
+    {
+      "address": "artwork-critique.bso",
+      "title": "/ic/ - Artwork/Critique",
+      "directoryCode": "ic"
+    },
+    {
+      "address": "international-sfw.bso",
+      "title": "/int/ - International",
+      "directoryCode": "int"
+    },
+    {
+      "address": "otaku-culture.bso",
+      "title": "/jp/ - Otaku Culture",
+      "directoryCode": "jp"
+    },
+    {
+      "address": "weapons-posting.bso",
+      "title": "/k/ - Weapons",
+      "directoryCode": "k"
+    },
+    {
+      "address": "literature-posting.bso",
+      "title": "/lit/ - Literature",
+      "directoryCode": "lit"
+    },
+    {
+      "address": "mecha-posting.bso",
+      "title": "/m/ - Mecha",
+      "directoryCode": "m"
+    },
+    {
+      "address": "pony-posting.bso",
+      "title": "/mlp/ - Pony",
+      "directoryCode": "mlp"
+    },
+    {
+      "address": "music-posting.bso",
+      "title": "/mu/ - Music",
+      "directoryCode": "mu"
+    },
+    {
+      "address": "transportation-posting.bso",
+      "title": "/n/ - Transportation",
+      "directoryCode": "n"
+    },
+    {
+      "address": "current-news.bso",
+      "title": "/news/ - Current News",
+      "directoryCode": "news"
+    },
+    {
+      "address": "auto-posting.bso",
+      "title": "/o/ - Auto",
+      "directoryCode": "o"
+    },
+    {
+      "address": "outdoors-posting.bso",
+      "title": "/out/ - Outdoors",
+      "directoryCode": "out"
+    },
+    {
+      "address": "photography-posting.bso",
+      "title": "/p/ - Photography",
+      "directoryCode": "p"
+    },
+    {
+      "address": "papercraft-and-origami.bso",
+      "title": "/po/ - Papercraft & Origami",
+      "directoryCode": "po"
+    },
+    {
+      "address": "nothing-is-beyond-our-reach.bso",
+      "title": "/pol/ - Politically Incorrect",
+      "directoryCode": "pol"
+    },
+    {
+      "address": "professional-wrestling.bso",
+      "title": "/pw/ - Professional Wrestling",
+      "directoryCode": "pw"
+    },
+    {
+      "address": "5chan-feedback.bso",
+      "title": "/q/ - 5chan Feedback",
+      "directoryCode": "q"
+    },
+    {
+      "address": "quests-posting.bso",
+      "title": "/qst/ - Quests",
+      "directoryCode": "qst"
+    },
+    {
+      "address": "adult-requests.bso",
+      "title": "/r/ - Adult Requests",
+      "directoryCode": "r"
+    },
+    {
+      "address": "robot9002.bso",
+      "title": "/r9k/ - ROBOT9002",
+      "directoryCode": "r9k"
+    },
+    {
+      "address": "shit-5chan-says.bso",
+      "title": "/s5s/ - Shit 5chan Says",
+      "directoryCode": "s5s"
+    },
+    {
+      "address": "science-and-math.bso",
+      "title": "/sci/ - Science & Math",
+      "directoryCode": "sci"
+    },
+    {
+      "address": "cams-and-meetups.bso",
+      "title": "/soc/ - Cams & Meetups",
+      "directoryCode": "soc"
+    },
+    {
+      "address": "sports-posting.bso",
+      "title": "/sp/ - Sports",
+      "directoryCode": "sp"
+    },
+    {
+      "address": "torrentz.bso",
+      "title": "/t/ - Torrents",
+      "directoryCode": "t"
+    },
+    {
+      "address": "traditional-games.bso",
+      "title": "/tg/ - Traditional Games",
+      "directoryCode": "tg"
+    },
+    {
+      "address": "toys-posting.bso",
+      "title": "/toy/ - Toys",
+      "directoryCode": "toy"
+    },
+    {
+      "address": "travel-posting.bso",
+      "title": "/trv/ - Travel",
+      "directoryCode": "trv"
+    },
+    {
+      "address": "television-and-film.bso",
+      "title": "/tv/ - Television & Film",
+      "directoryCode": "tv"
+    },
+    {
+      "address": "videogames-posting.bso",
+      "title": "/v/ - Video Games",
+      "directoryCode": "v"
+    },
+    {
+      "address": "videogame-generals.bso",
+      "title": "/vg/ - Video Game Generals",
+      "directoryCode": "vg"
+    },
+    {
+      "address": "very-important-posts.bso",
+      "title": "/vip/ - Very Important Posts",
+      "directoryCode": "vip"
+    },
+    {
+      "address": "videogames-multiplayer.bso",
+      "title": "/vm/ - Video Games/Multiplayer",
+      "directoryCode": "vm"
+    },
+    {
+      "address": "videogames-mobile.bso",
+      "title": "/vmg/ - Video Games/Mobile",
+      "directoryCode": "vmg"
+    },
+    {
+      "address": "pokemon-posting.bso",
+      "title": "/vp/ - Pokémon",
+      "directoryCode": "vp"
+    },
+    {
+      "address": "retro-games.bso",
+      "title": "/vr/ - Retro Games",
+      "directoryCode": "vr"
+    },
+    {
+      "address": "videogames-rpg.bso",
+      "title": "/vrpg/ - Video Games/RPG",
+      "directoryCode": "vrpg"
+    },
+    {
+      "address": "videogames-strategy.bso",
+      "title": "/vst/ - Video Games/Strategy",
+      "directoryCode": "vst"
+    },
+    {
+      "address": "virtual-youtubers.bso",
+      "title": "/vt/ - Virtual YouTubers",
+      "directoryCode": "vt"
+    },
+    {
+      "address": "anime-wallpapers.bso",
+      "title": "/w/ - Anime/Wallpapers",
+      "directoryCode": "w"
+    },
+    {
+      "address": "wallpapers-general.bso",
+      "title": "/wg/ - Wallpapers/General",
+      "directoryCode": "wg"
+    },
+    {
+      "address": "worksafe-gif.bso",
+      "title": "/wsg/ - Worksafe GIF",
+      "directoryCode": "wsg"
+    },
+    {
+      "address": "worksafe-requests.bso",
+      "title": "/wsr/ - Worksafe Requests",
+      "directoryCode": "wsr"
+    },
+    {
+      "address": "paranormal-posting.bso",
+      "title": "/x/ - Paranormal",
+      "directoryCode": "x"
+    },
+    {
+      "address": "extreme-sports.bso",
+      "title": "/xs/ - Extreme Sports",
+      "directoryCode": "xs"
+    }
+  ]
+}

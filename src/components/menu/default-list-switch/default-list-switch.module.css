@@ -1,0 +1,28 @@
+.defaultListSwitch {
+  background: none;
+  border: 1px solid var(--light2);
+  padding: 0 1px;
+  margin: -1px 0 0 0;
+  line-height: 0;
+  cursor: pointer;
+  vertical-align: middle;
+}
+
+.icon {
+  display: inline-block;
+  vertical-align: middle;
+  /* the sources are 16px drawn at 12px */
+  image-rendering: pixelated;
+}
+
+.active {
+  opacity: 1;
+}
+
+.inactive {
+  opacity: 0.3;
+}
+
+.failed .active {
+  opacity: 0.5;
+}

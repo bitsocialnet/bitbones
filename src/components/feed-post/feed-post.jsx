@@ -1,26 +1,27 @@
-import utils from '../../lib/utils'
-import {Link} from 'react-router-dom'
-import styles from './feed-post.module.css'
-import Arrow from '../icons/arrow'
-import PostTools from '../post-tools'
-import {useBlock, useAuthorAddress, useEditedComment, useSubplebbit, useAuthorAvatar} from '@plebbit/plebbit-react-hooks'
-import useUnreadReplyCount from '../../hooks/use-unread-reply-count'
-import useUpvote from '../../hooks/use-upvote'
-import useDownvote from '../../hooks/use-downvote'
-import useCommentLabels from '../../hooks/use-comment-labels'
+import utils from '../../lib/utils';
+import { Link } from 'react-router-dom';
+import styles from './feed-post.module.css';
+import Arrow from '../icons/arrow';
+import PostTools from '../post-tools';
+import { useBlock, useAuthorAddress, useEditedComment, useCommunity, useAuthorAvatar } from '@bitsocial/bitsocial-react-hooks';
+import useUnreadReplyCount from '../../hooks/use-unread-reply-count';
+import useUpvote from '../../hooks/use-upvote';
+import useDownvote from '../../hooks/use-downvote';
+import useCommentLabels from '../../hooks/use-comment-labels';
+import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 
-const FeedPostMedia = ({mediaType, mediaUrl, link}) => {
+const FeedPostMedia = ({ mediaType, mediaUrl, link }) => {
   if (!mediaType) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
         <Link to={link}>
-          <img className={styles.media} src={mediaUrl} alt="" />
+          <img className={styles.media} src={mediaUrl} alt='' />
         </Link>
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
     return (
@@ -29,21 +30,21 @@ const FeedPostMedia = ({mediaType, mediaUrl, link}) => {
           <video className={styles.media} controls={true} autoPlay={false} src={mediaUrl} />
         </Link>
       </div>
-    )
+    );
   }
   if (mediaType === 'audio') {
     return (
       <Link to={link}>
         <audio controls={true} autoPlay={false} src={mediaUrl} />
       </Link>
-    )
+    );
   }
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
-const FeedPostAuthorAddress = ({post}) => {
+const FeedPostAuthorAddress = ({ post }) => {
   // show the public key author address for a few ms until the crypto name verification loads
-  const {shortAuthorAddress, authorAddressChanged} = useAuthorAddress({comment: post})
+  const { shortAuthorAddress, authorAddressChanged } = useAuthorAddress({ comment: post });
 
   return (
     <Link className={styles.authorAddressWrapper} to={`/u/${post?.author?.address}/c/${post?.cid}`}>
@@ -52,72 +53,73 @@ const FeedPostAuthorAddress = ({post}) => {
       {/* add css animation if the author address changed */}
       <span className={[styles.authorAddressVisible, authorAddressChanged ? styles.authorAddressChanged : undefined].join(' ')}>{shortAuthorAddress}</span>
     </Link>
-  )
-}
+  );
+};
 
-const FeedPostAuthorAvatar = ({post}) => {
-  const {imageUrl} = useAuthorAvatar({author: post?.author})
+const FeedPostAuthorAvatar = ({ post }) => {
+  const { imageUrl } = useAuthorAvatar({ author: post?.author });
   // if comment.author.avatar is defined, load empty space even without imageUrl
   // to not displace the feed after image loads
   if (!post?.author?.avatar) {
-    return
+    return;
   }
   return (
     <span className={styles.authorAvatarWrapper}>
-      <img className={styles.authorAvatar} alt="" src={imageUrl} />
+      <img className={styles.authorAvatar} alt='' src={imageUrl} />
     </span>
-  )
-}
+  );
+};
 
-const FeedPost = ({post, updatedPost, index}) => {
+const FeedPost = ({ post, updatedPost, index }) => {
   if (!updatedPost) {
-    updatedPost = post
+    updatedPost = post;
   }
 
   // handle pending mod or author edit
-  const {state: editedPostState, editedComment: editedPost} = useEditedComment({comment: post})
+  const { state: editedPostState, editedComment: editedPost } = useEditedComment({ comment: post });
   if (editedPost) {
-    post = editedPost
+    post = editedPost;
   }
 
-  let hostname
+  let hostname;
   try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '')
+    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const mediaType = utils.getCommentMediaType(post)
+  const mediaType = utils.getCommentMediaType(post);
 
-  let internalLink = `/p/${post?.subplebbitAddress}/c/${post?.cid}`
+  let internalLink = `/p/${post?.communityAddress}/c/${post?.cid}`;
   // post is pending
   if (!post?.cid && post?.index !== undefined) {
-    internalLink = `/profile/${post?.index}`
+    internalLink = `/profile/${post?.index}`;
   }
 
-  const {blocked: hidden} = useBlock({cid: post?.cid})
+  const { blocked: hidden } = useBlock({ cid: post?.cid });
 
-  const [unreadReplyCount] = useUnreadReplyCount(updatedPost)
-  const unreadReplyCountText = typeof unreadReplyCount === 'number' ? `+${unreadReplyCount}` : ''
+  const [unreadReplyCount] = useUnreadReplyCount(updatedPost);
+  const unreadReplyCountText = typeof unreadReplyCount === 'number' ? `+${unreadReplyCount}` : '';
 
-  const [upvoted, upvote] = useUpvote(post)
-  const [downvoted, downvote] = useDownvote(post)
+  const [upvoted, upvote] = useUpvote(post);
+  const [downvoted, downvote] = useDownvote(post);
 
-  let scoreNumber = updatedPost?.upvoteCount - updatedPost?.downvoteCount
-  const negativeScoreNumber = scoreNumber < 0
-  const largeScoreNumber = String(scoreNumber).length > 3
+  let scoreNumber = updatedPost?.upvoteCount - updatedPost?.downvoteCount;
+  const negativeScoreNumber = scoreNumber < 0;
+  const largeScoreNumber = String(scoreNumber).length > 3;
   if (isNaN(scoreNumber)) {
-    scoreNumber = '-'
+    scoreNumber = '-';
   }
 
-  const labels = useCommentLabels(updatedPost, editedPostState)
+  const labels = useCommentLabels(updatedPost, editedPostState);
 
-  const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-'
+  const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-';
 
   // if sub address is not a domain, add sub title hint to address
-  const subplebbitAddressIsDomain = post?.shortSubplebbitAddress && post?.shortSubplebbitAddress?.includes('.')
-  const subplebbit = useSubplebbit({subplebbitAddress: !subplebbitAddressIsDomain ? post?.subplebbitAddress : undefined})
-  const subplebbitAddress = subplebbit?.title
-    ? `${post?.shortSubplebbitAddress.substring(0, 8)}-${subplebbit?.title?.replaceAll(' ', '').substring(0, 8).toLowerCase()}`
-    : post?.shortSubplebbitAddress
+  const communityAddressIsDomain = post?.shortCommunityAddress && post?.shortCommunityAddress?.includes('.');
+  const communityIdentifier = useCommunityIdentifier(!communityAddressIsDomain ? post?.communityAddress : undefined);
+  const community = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined);
+  const communityAddress = community?.title
+    ? `${post?.shortCommunityAddress.substring(0, 8)}-${community?.title?.replaceAll(' ', '').substring(0, 8).toLowerCase()}`
+    : post?.shortCommunityAddress;
 
   return (
     <div className={styles.feedPost}>
@@ -157,7 +159,7 @@ const FeedPost = ({post, updatedPost, index}) => {
               </>
             ))}
             {hostname && (
-              <Link to={post?.link} target="_blank" rel="noreferrer">
+              <Link to={post?.link} target='_blank' rel='noreferrer'>
                 {' '}
                 {hostname}
               </Link>
@@ -170,8 +172,8 @@ const FeedPost = ({post, updatedPost, index}) => {
               by <FeedPostAuthorAvatar post={post} />
               <FeedPostAuthorAddress post={post} /> to{' '}
             </span>
-            <Link to={`/p/${post?.subplebbitAddress}`} className={styles.subplebbit}>
-              {subplebbitAddress}
+            <Link to={`/p/${post?.communityAddress}`} className={styles.community}>
+              {communityAddress}
             </Link>
           </div>
           <div className={styles.footer}>
@@ -185,7 +187,7 @@ const FeedPost = ({post, updatedPost, index}) => {
         <FeedPostMedia mediaType={mediaType} mediaUrl={post?.link} link={internalLink} />
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default FeedPost
+export default FeedPost;

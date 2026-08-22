@@ -19,9 +19,9 @@ function findNativeModules(dir = 'node_modules', prefix = '') {
 
 export default {
   packagerConfig: {
-    name: 'plebones',
-    executableName: 'plebones',
-    appBundleId: 'plebones.desktop',
+    name: 'bitbones',
+    executableName: 'bitbones',
+    appBundleId: 'bitbones.desktop',
 
     // Unpack native modules and kubo binary from ASAR so they can be executed
     asar: {
@@ -34,7 +34,7 @@ export default {
       /^\/android$/,
       /^\/public$/,
       /^\/config$/,
-      /^\/\.plebbit$/,
+      /^\/\.pkc$/,
       /^\/dist$/,
       /^\/bin$/,
       /^\/out$/,
@@ -97,7 +97,7 @@ export default {
       const packageJson = JSON.parse(fs.readFileSync('./package.json', 'utf8'));
 
       const buildFolder = path.resolve('.', 'build');
-      const folderName = `plebones-html-${packageJson.version}`;
+      const folderName = `bitbones-html-${packageJson.version}`;
       const tempFolder = path.resolve('.', 'out', 'make', folderName);
       const outputFile = path.resolve('.', 'out', 'make', `${folderName}.zip`);
 
@@ -127,7 +127,7 @@ export default {
     {
       name: '@electron-forge/maker-squirrel',
       platforms: ['win32'],
-      config: { name: 'plebones' }
+      config: { name: 'bitbones' }
     },
     {
       name: '@electron-forge/maker-zip',
@@ -152,7 +152,7 @@ export default {
       config: {
         options: {
           categories: ['Network'],
-          genericName: 'Plebbit Client'
+          genericName: 'Bitsocial Client'
         }
       }
     }

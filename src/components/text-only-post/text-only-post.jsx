@@ -1,10 +1,10 @@
-import utils from '../../lib/utils'
-import {Link} from 'react-router-dom'
-import styles from './text-only-post.module.css'
+import utils from '../../lib/utils';
+import { Link } from 'react-router-dom';
+import styles from './text-only-post.module.css';
 
-const TextOnlyPost = ({post, index}) => {
-  const internalLink = `/p/${post.subplebbitAddress}/c/${post.cid}`
-  const externalLink = post?.link
+const TextOnlyPost = ({ post, index }) => {
+  const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
+  const externalLink = post?.link;
 
   return (
     <div className={styles.post}>
@@ -18,14 +18,14 @@ const TextOnlyPost = ({post, index}) => {
         </div>
         <div className={styles.column}>
           <div className={styles.header}>
-            <Link to={externalLink || internalLink} target={externalLink ? '_blank' : undefined} rel="noreferrer" className={styles.title}>
+            <Link to={externalLink || internalLink} target={externalLink ? '_blank' : undefined} rel='noreferrer' className={styles.title}>
               {post?.title || post?.content || '-'}
             </Link>
           </div>
           <div className={styles.content}>
             <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
             <span className={styles.author}> by {post?.author?.shortAddress}</span>
-            <span className={styles.subplebbit}> to {post?.shortSubplebbitAddress}</span>
+            <span className={styles.community}> to {post?.shortCommunityAddress}</span>
           </div>
           <div className={styles.footer}>
             <Link to={internalLink} className={styles.replyCount}>
@@ -35,7 +35,7 @@ const TextOnlyPost = ({post, index}) => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default TextOnlyPost
+export default TextOnlyPost;

@@ -25,12 +25,12 @@
   text-align: right;
 }
 
-.submitTitle, .submitContent, .submitSelectSubplebbit {
+.submitTitle, .submitContent, .submitSelectCommunity {
   width: 100%;
   box-sizing: border-box;
 }
 
-.submitTitle, .submitContent, .submitSelectSubplebbit, .submitButton {
+.submitTitle, .submitContent, .submitSelectCommunity, .submitButton {
   /* must redefine for some reason */
   font-size: 13px;
   background-color: var(--dark1);

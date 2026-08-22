@@ -14,7 +14,7 @@ dockerfile='
 FROM electronuserland/builder:16
 
 # install node_modules
-WORKDIR /usr/src/plebones
+WORKDIR /usr/src/bitbones
 COPY ./package.json .
 COPY ./yarn.lock .
 RUN yarn
@@ -41,22 +41,22 @@ RUN yarn build
 echo $'node_modules\ndist' > .dockerignore
 echo "$dockerfile" | sudo docker build \
   . \
-  --tag plebones-electron-builder \
+  --tag bitbones-electron-builder \
   --file -
 rm .dockerignore
 
 # build linux binary
 sudo docker run \
-  --name plebones-electron-builder \
-  --volume "$root_path"/dist:/usr/src/plebones/dist \
+  --name bitbones-electron-builder \
+  --volume "$root_path"/dist:/usr/src/bitbones/dist \
   --rm \
-  plebones-electron-builder \
+  bitbones-electron-builder \
   yarn electron:build:linux
 
 # build windows binary
 sudo docker run \
-  --name plebones-electron-builder \
-  --volume "$root_path"/dist:/usr/src/plebones/dist \
+  --name bitbones-electron-builder \
+  --volume "$root_path"/dist:/usr/src/bitbones/dist \
   --rm \
-  plebones-electron-builder \
+  bitbones-electron-builder \
   yarn electron:build:windows

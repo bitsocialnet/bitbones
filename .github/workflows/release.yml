@@ -27,10 +27,11 @@ jobs:
         uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
       - name: Install squashfs-tools for AppImage
         run: sudo apt-get update && sudo apt-get install -y squashfs-tools
-      - run: yarn install --frozen-lockfile
+      - run: corepack enable
+      - run: yarn install --immutable
       - run: yarn electron:make:linux
       - run: ls -la out/make/AppImage/x64/
 
@@ -39,9 +40,9 @@ jobs:
         run: sudo apt-get install -y xvfb
       - name: Verify AppImage executable
         run: |
-          chmod +x out/make/AppImage/x64/plebones-*.AppImage
+          chmod +x out/make/AppImage/x64/bitbones-*.AppImage
           xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
-            node scripts/verify-executable.js "$(ls out/make/AppImage/x64/plebones-*.AppImage | head -1)"
+            node scripts/verify-executable.js "$(ls out/make/AppImage/x64/bitbones-*.AppImage | head -1)"
         timeout-minutes: 5
 
       # publish version release
@@ -49,7 +50,7 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.previoustag.outputs.tag }}
-          artifacts: 'out/make/AppImage/x64/plebones*.AppImage,out/make/plebones-html-*.zip'
+          artifacts: 'out/make/AppImage/x64/bitbones*.AppImage,out/make/bitbones-html-*.zip'
           token: ${{ secrets.GITHUB_TOKEN }}
           replacesArtifacts: true
           bodyFile: "release-body.txt"
@@ -72,7 +73,7 @@ jobs:
         uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -80,7 +81,8 @@ jobs:
       # install missing dep for sqlite
       - run: pip install setuptools
 
-      - run: yarn install --frozen-lockfile
+      - run: corepack enable
+      - run: yarn install --immutable
       - run: yarn electron:make:mac
       - run: ls -la out/make/
 
@@ -89,9 +91,9 @@ jobs:
         run: |
           DMG_FILE=$(ls out/make/*.dmg | head -1)
           hdiutil attach "$DMG_FILE" -nobrowse -quiet
-          APP_PATH="/Volumes/plebones/plebones.app/Contents/MacOS/plebones"
+          APP_PATH="/Volumes/bitbones/bitbones.app/Contents/MacOS/bitbones"
           node scripts/verify-executable.js "$APP_PATH" || EXIT_CODE=$?
-          hdiutil detach "/Volumes/plebones" -quiet || true
+          hdiutil detach "/Volumes/bitbones" -quiet || true
           exit ${EXIT_CODE:-0}
         timeout-minutes: 5
 
@@ -123,8 +125,9 @@ jobs:
         uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: yarn install --frozen-lockfile
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: yarn install --immutable
       - run: yarn electron:make:windows
       - run: Get-ChildItem -Path out/make -Recurse
         shell: pwsh
@@ -173,11 +176,12 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
       - run: sudo apt install -y apksigner zipalign
 
       # build react app
-      - run: yarn install --frozen-lockfile
+      - run: corepack enable
+      - run: yarn install --immutable
       - run: CI='' yarn build
       # set android versionCode and versionName
       - run: sed -i "s/versionCode 1/versionCode $(git tag | wc -l)/" ./android/app/build.gradle
@@ -191,10 +195,10 @@ jobs:
       # optimize apk
       - run: cd android/app/build/outputs/apk/release && zipalign 4 app-release-unsigned.apk app-release-unsigned-zip.apk
       # sign apk
-      # to create keystore: keytool -genkey -v -keystore plebbit.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias release
-      - run: cd android/app/build/outputs/apk/release && apksigner sign --ks ../../../../../plebbit.keystore --ks-pass pass:${{ secrets.PLEBBIT_REACT_KEYSTORE_PASSWORD }} --ks-key-alias release --out app-release-signed.apk app-release-unsigned-zip.apk
+      # to create keystore: keytool -genkey -v -keystore bitbones.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias release
+      - run: cd android/app/build/outputs/apk/release && apksigner sign --ks ../../../../../bitbones.keystore --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} --ks-key-alias release --out app-release-signed.apk app-release-unsigned-zip.apk
       # move apk to dist folder
-      - run: mkdir -p dist && mv android/app/build/outputs/apk/release/app-release-signed.apk dist/plebones-$(node -e "console.log(require('./package.json').version)").apk
+      - run: mkdir -p dist && mv android/app/build/outputs/apk/release/app-release-signed.apk dist/bitbones-$(node -e "console.log(require('./package.json').version)").apk
       - run: ls dist
 
       # publish version release
@@ -202,7 +206,7 @@ jobs:
       - uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.previoustag.outputs.tag }}
-          artifacts: 'dist/plebones*.apk'
+          artifacts: 'dist/bitbones*.apk'
           token: ${{ secrets.GITHUB_TOKEN }}
           replacesArtifacts: true
           bodyFile: "release-body.txt"

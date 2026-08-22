@@ -1,24 +1,24 @@
-import utils from '../../../lib/utils'
-import {Link} from 'react-router-dom'
-import styles from './feed-post.module.css'
-import Arrow from '../../../components/icons/arrow'
-import PostTools from '../../../components/post-tools'
-import {useAuthorAddress, useEditedComment} from '@plebbit/plebbit-react-hooks'
-import useUnreadReplyCount from '../../../hooks/use-unread-reply-count'
-import useCommentLabels from '../../../hooks/use-comment-labels'
+import utils from '../../../lib/utils';
+import { Link } from 'react-router-dom';
+import styles from './feed-post.module.css';
+import Arrow from '../../../components/icons/arrow';
+import PostTools from '../../../components/post-tools';
+import { useAuthorAddress, useEditedComment } from '@bitsocial/bitsocial-react-hooks';
+import useUnreadReplyCount from '../../../hooks/use-unread-reply-count';
+import useCommentLabels from '../../../hooks/use-comment-labels';
 
-const FeedPostMedia = ({mediaType, mediaUrl, link}) => {
+const FeedPostMedia = ({ mediaType, mediaUrl, link }) => {
   if (!mediaType) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
         <Link to={link}>
-          <img className={styles.media} src={mediaUrl} alt="" />
+          <img className={styles.media} src={mediaUrl} alt='' />
         </Link>
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
     return (
@@ -27,60 +27,60 @@ const FeedPostMedia = ({mediaType, mediaUrl, link}) => {
           <video className={styles.media} controls={true} autoPlay={false} src={mediaUrl} />
         </Link>
       </div>
-    )
+    );
   }
   if (mediaType === 'audio') {
     return (
       <Link to={link}>
         <audio controls={true} autoPlay={false} src={mediaUrl} />
       </Link>
-    )
+    );
   }
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
-const FeedPost = ({post, index}) => {
+const FeedPost = ({ post, index }) => {
   // handle pending mod or author edit
-  const {state: editedPostState, editedComment: editedPost} = useEditedComment({comment: post})
+  const { state: editedPostState, editedComment: editedPost } = useEditedComment({ comment: post });
   if (editedPost) {
-    post = editedPost
+    post = editedPost;
   }
 
-  let hostname
+  let hostname;
   try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '')
+    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const mediaType = utils.getCommentMediaType(post)
+  const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = post?.cid ? `/p/${post?.subplebbitAddress}/c/${post?.cid}` : `/profile/${post?.index}`
+  const internalLink = post?.cid ? `/p/${post?.communityAddress}/c/${post?.cid}` : `/profile/${post?.index}`;
 
-  const [unreadReplyCount] = useUnreadReplyCount(post)
-  const unreadReplyCountText = typeof unreadReplyCount === 'number' ? `+${unreadReplyCount}` : ''
+  const [unreadReplyCount] = useUnreadReplyCount(post);
+  const unreadReplyCountText = typeof unreadReplyCount === 'number' ? `+${unreadReplyCount}` : '';
 
   // show the unverified author address for a few ms until the verified arrives
-  const {shortAuthorAddress} = useAuthorAddress({comment: post})
+  const { shortAuthorAddress } = useAuthorAddress({ comment: post });
 
-  const scoreNumber = post?.upvoteCount - post?.downvoteCount || 0
-  const largeScoreNumber = String(scoreNumber).length > 3
-  const negativeScoreNumber = scoreNumber < 0
+  const scoreNumber = post?.upvoteCount - post?.downvoteCount || 0;
+  const largeScoreNumber = String(scoreNumber).length > 3;
+  const negativeScoreNumber = scoreNumber < 0;
 
-  let labels = useCommentLabels(post, editedPostState)
-  let labelStyle = styles.label
+  let labels = useCommentLabels(post, editedPostState);
+  let labelStyle = styles.label;
 
-  let state
+  let state;
   if (!post?.cid && post?.timestamp) {
     // if older than 20 minutes without receiving post.cid, consider pending comment failed
     if (post.timestamp > Date.now() / 1000 - 20 * 60) {
-      state = 'pending'
+      state = 'pending';
     } else {
-      state = 'failed'
+      state = 'failed';
     }
-    labels = [state]
-    labelStyle = styles[`${state}Label`]
+    labels = [state];
+    labelStyle = styles[`${state}Label`];
   }
 
-  const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-'
+  const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-';
 
   return (
     <div className={styles.feedPost}>
@@ -120,7 +120,7 @@ const FeedPost = ({post, index}) => {
               </>
             ))}
             {hostname && (
-              <Link to={post?.link} target="_blank" rel="noreferrer">
+              <Link to={post?.link} target='_blank' rel='noreferrer'>
                 {' '}
                 {hostname}
               </Link>
@@ -129,8 +129,8 @@ const FeedPost = ({post, index}) => {
           <div className={styles.content}>
             <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
             <span className={styles.author}> by {shortAuthorAddress || post?.author?.shortAddress} to </span>
-            <Link to={`/p/${post?.subplebbitAddress}`} className={styles.subplebbit}>
-              {post?.subplebbitAddress}
+            <Link to={`/p/${post?.communityAddress}`} className={styles.community}>
+              {post?.communityAddress}
             </Link>
           </div>
           <div className={styles.footer}>
@@ -144,7 +144,7 @@ const FeedPost = ({post, index}) => {
         <FeedPostMedia mediaType={mediaType} mediaUrl={post?.link} link={internalLink} />
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default FeedPost
+export default FeedPost;

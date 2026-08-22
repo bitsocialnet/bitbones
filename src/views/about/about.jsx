@@ -1,93 +1,91 @@
-import styles from './about.module.css'
-import {useTranslation} from 'react-i18next'
+import styles from './about.module.css';
+import { useTranslation } from 'react-i18next';
 
 function About() {
-  const {t, i18n} = useTranslation()
-  const {changeLanguage, language} = i18n
-  const {supportedLngs} = i18n.options
+  const { t, i18n } = useTranslation();
+  const { changeLanguage, language } = i18n;
+  const { supportedLngs } = i18n.options;
 
-  // some language codes have more than 2 chars, like 'ckb' and 'cimode' (the CI test mode, which shows the key, e.g. about_plebbit)
-  const languageOptions = supportedLngs.map((language) => <option value={language}>{language.substring(0, 2)}</option>)
-  const onSelectLanguage = (e) => changeLanguage(e.target.value)
+  // some language codes have more than 2 chars, like 'ckb' and 'cimode' (the CI test mode, which shows the key, e.g. about_bitsocial)
+  const languageOptions = supportedLngs.map((language) => (
+    <option key={language} value={language}>
+      {language.substring(0, 2)}
+    </option>
+  ));
+  const onSelectLanguage = (e) => changeLanguage(e.target.value);
 
   return (
     <div className={styles.about}>
-      <img alt="logo" className={styles.logo} src="/favicon.ico" />
-      <p>{t('about_plebones')}</p>
+      <img alt='logo' className={styles.logo} src='/favicon.ico' />
+      <p>{t('about_bitbones')}</p>
       <ul>
         <li>
           <span className={styles.title}>github:</span>{' '}
-          <a href="https://github.com/plebbit/plebones" target="_blank" rel="noreferrer">
-            https://github.com/plebbit/plebones
+          <a href='https://github.com/bitsocialnet/bitbones' target='_blank' rel='noreferrer'>
+            https://github.com/bitsocialnet/bitbones
           </a>
         </li>
         <li>
           <span className={styles.title}>windows/mac/linux app:</span>{' '}
-          <a href="https://github.com/plebbit/plebones/releases/latest" target="_blank" rel="noreferrer">
-            https://github.com/plebbit/plebones/releases/latest
+          <a href='https://github.com/bitsocialnet/bitbones/releases/latest' target='_blank' rel='noreferrer'>
+            https://github.com/bitsocialnet/bitbones/releases/latest
           </a>
         </li>
         <li>
           <span className={styles.title}>android app:</span>{' '}
-          <a href="https://github.com/plebbit/plebones/releases/latest" target="_blank" rel="noreferrer">
-            https://github.com/plebbit/plebones/releases/latest
+          <a href='https://github.com/bitsocialnet/bitbones/releases/latest' target='_blank' rel='noreferrer'>
+            https://github.com/bitsocialnet/bitbones/releases/latest
           </a>
         </li>
         <li>
-          <span className={styles.title}>open source license (GPL-2.0-only):</span>{' '}
-          <a href="https://github.com/plebbit/plebones/blob/master/LICENSE" target="_blank" rel="noreferrer">
-            https://github.com/plebbit/plebones/blob/master/LICENSE
+          <span className={styles.title}>open source license (GPL-3.0-or-later):</span>{' '}
+          <a href='https://github.com/bitsocialnet/bitbones/blob/master/LICENSE' target='_blank' rel='noreferrer'>
+            https://github.com/bitsocialnet/bitbones/blob/master/LICENSE
           </a>
         </li>
       </ul>
-      <p>{t('about_plebbit')}</p>
+      <p>{t('about_bitsocial')}</p>
       <ul>
         <li>
           <span className={styles.title}>website:</span>{' '}
-          <a href="https://plebbit.com" target="_blank" rel="noreferrer">
-            https://plebbit.com
+          <a href='https://bitsocial.net' target='_blank' rel='noreferrer'>
+            https://bitsocial.net
           </a>
         </li>
         <li>
           <span className={styles.title}>reddit app:</span>{' '}
-          <a href="https://plebbitapp.eth.limo" target="_blank" rel="noreferrer">
-            https://plebbitapp.eth.limo
+          <a href='https://seedit.app' target='_blank' rel='noreferrer'>
+            https://seedit.app
           </a>
         </li>
         <li>
           <span className={styles.title}>4chan app:</span>{' '}
-          <a href="https://plebchan.eth.limo" target="_blank" rel="noreferrer">
-            https://plebchan.eth.limo
+          <a href='https://5chan.app' target='_blank' rel='noreferrer'>
+            https://5chan.app
           </a>
         </li>
         <li>
-          <span className={styles.title}>whitepaper:</span>{' '}
-          <a href="https://github.com/plebbit/whitepaper/discussions/2" target="_blank" rel="noreferrer">
-            https://github.com/plebbit/whitepaper/discussions/2
+          <span className={styles.title}>docs:</span>{' '}
+          <a href='https://docs.bitsocial.net' target='_blank' rel='noreferrer'>
+            https://docs.bitsocial.net
           </a>
         </li>
         <li>
           <span className={styles.title}>github:</span>{' '}
-          <a href="https://github.com/plebbit" target="_blank" rel="noreferrer">
-            https://github.com/plebbit
+          <a href='https://github.com/bitsocialnet' target='_blank' rel='noreferrer'>
+            https://github.com/bitsocialnet
           </a>
         </li>
         <li>
-          <span className={styles.title}>twitter:</span>{' '}
-          <a href="https://twitter.com/getplebbit" target="_blank" rel="noreferrer">
-            https://twitter.com/getplebbit
+          <span className={styles.title}>x:</span>{' '}
+          <a href='https://x.com/bitsocialnet' target='_blank' rel='noreferrer'>
+            https://x.com/bitsocialnet
           </a>
         </li>
         <li>
           <span className={styles.title}>telegram:</span>{' '}
-          <a href="https://t.me/plebbit" target="_blank" rel="noreferrer">
-            https://t.me/plebbit
-          </a>
-        </li>
-        <li>
-          <span className={styles.title}>discord:</span>{' '}
-          <a href="https://discord.gg/E7ejphwzGW" target="_blank" rel="noreferrer">
-            https://discord.gg/E7ejphwzGW
+          <a href='https://t.me/bitsocialnet' target='_blank' rel='noreferrer'>
+            https://t.me/bitsocialnet
           </a>
         </li>
       </ul>
@@ -97,7 +95,7 @@ function About() {
         </select>
       </p>
     </div>
-  )
+  );
 }
 
-export default About
+export default About;

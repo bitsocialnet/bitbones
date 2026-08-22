@@ -1,70 +1,70 @@
-import {useState} from 'react'
-import {useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId} from '@floating-ui/react'
-import styles from './challenge-modal.module.css'
-import useChallenges from '../../hooks/use-challenges'
-import {getPublicationType, getVotePreview, getPublicationPreview} from './utils'
+import { useState } from 'react';
+import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
+import styles from './challenge-modal.module.css';
+import useChallenges from '../../hooks/use-challenges';
+import { getPublicationType, getVotePreview, getPublicationPreview } from './utils';
 
-const Challenge = ({challenge, closeModal}) => {
-  const challenges = challenge?.[0]?.challenges
-  const publication = challenge?.[1]
-  const publicationTarget = challenge?.[2] // the comment being voted on, replied to or edited
-  const publicationType = getPublicationType(publication)
-  const publicationPreview = publicationType === 'vote' ? getPublicationPreview(publicationTarget) : getPublicationPreview(publication)
-  const parentCommentPreview = publicationType === 'reply' ? getPublicationPreview(publicationTarget) : undefined
-  const votePreview = getVotePreview(publication)
+const Challenge = ({ challenge, closeModal }) => {
+  const challenges = challenge?.[0]?.challenges;
+  const publication = challenge?.[1];
+  const publicationTarget = challenge?.[2]; // the comment being voted on, replied to or edited
+  const publicationType = getPublicationType(publication);
+  const publicationPreview = publicationType === 'vote' ? getPublicationPreview(publicationTarget) : getPublicationPreview(publication);
+  const parentCommentPreview = publicationType === 'reply' ? getPublicationPreview(publicationTarget) : undefined;
+  const votePreview = getVotePreview(publication);
 
-  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0)
-  const defaultAnswers = challenges.map((challenge) => '') // init with empty strings for plebbit-js compatibility
-  const [answers, setAnswers] = useState(defaultAnswers)
+  const [currentChallengeIndex, setCurrentChallengeIndex] = useState(0);
+  const defaultAnswers = challenges.map((challenge) => ''); // init with empty strings for pkc-js compatibility
+  const [answers, setAnswers] = useState(defaultAnswers);
   const onAnswersChange = (e) => {
     setAnswers((prevAnswers) => {
-      const answers = [...prevAnswers]
-      answers[currentChallengeIndex] = e.target.value
-      return answers
-    })
-  }
+      const answers = [...prevAnswers];
+      answers[currentChallengeIndex] = e.target.value;
+      return answers;
+    });
+  };
   const onSubmit = () => {
-    publication.publishChallengeAnswers(answers)
-    setAnswers([])
-    closeModal()
-  }
+    publication.publishChallengeAnswers(answers);
+    setAnswers([]);
+    closeModal();
+  };
   const onEnterKey = (e) => {
-    if (e.key !== 'Enter') return
-    if (challenges[currentChallengeIndex + 1]) setCurrentChallengeIndex((prev) => prev + 1)
-    else onSubmit()
-  }
+    if (e.key !== 'Enter') return;
+    if (challenges[currentChallengeIndex + 1]) setCurrentChallengeIndex((prev) => prev + 1);
+    else onSubmit();
+  };
 
-  let challengeComponent
+  let challengeComponent;
   if (challenges[currentChallengeIndex].type === 'image/png') {
-    challengeComponent = <img alt="challenge" className={styles.challengeMedia} src={`data:image/png;base64,${challenges[currentChallengeIndex]?.challenge}`} />
+    challengeComponent = <img alt='challenge' className={styles.challengeMedia} src={`data:image/png;base64,${challenges[currentChallengeIndex]?.challenge}`} />;
   }
   // make sure iframe url starts with https:// or not secure
   else if (challenges[currentChallengeIndex].type === 'url/iframe' && challenges[currentChallengeIndex]?.challenge?.startsWith('https://')) {
     challengeComponent = (
       <iframe
-        height="100%"
-        width="100%"
-        frameborder="0"
+        height='100%'
+        width='100%'
+        frameborder='0'
         credentialless
-        referrerpolicy="no-referrer"
-        title="challenge"
+        referrerpolicy='no-referrer'
+        title='challenge'
         className={styles.challengeIframe}
         src={challenges[currentChallengeIndex]?.challenge}
       />
-    )
+    );
   } else {
     challengeComponent = (
-      <div alt="challenge" className={styles.challengeText}>
+      <div alt='challenge' className={styles.challengeText}>
         {challenges[currentChallengeIndex]?.challenge}
       </div>
-    )
+    );
   }
 
   return (
     <div className={styles.challenge}>
       <div>
         {publicationType}
-        {votePreview} in p/{publication?.shortSubplebbitAddress}
+        {votePreview} in p/{publication?.shortCommunityAddress}
       </div>
       {parentCommentPreview && <div>to: {parentCommentPreview}</div>}
       <div>{publicationPreview}</div>
@@ -85,29 +85,29 @@ const Challenge = ({challenge, closeModal}) => {
         </span>
       </div>
     </div>
-  )
-}
+  );
+};
 
 function ChallengeModal() {
-  // plebbit stuff
-  const {challenges, removeChallenge} = useChallenges()
+  // bitsocial stuff
+  const { challenges, removeChallenge } = useChallenges();
 
   // modal stuff
-  const isOpen = !!challenges.length
-  const closeModal = () => removeChallenge()
+  const isOpen = !!challenges.length;
+  const closeModal = () => removeChallenge();
 
-  const {refs, context} = useFloating({
+  const { refs, context } = useFloating({
     open: isOpen,
     onOpenChange: closeModal,
-  })
+  });
 
-  const click = useClick(context)
-  const dismiss = useDismiss(context, {outsidePress: false})
-  const role = useRole(context)
+  const click = useClick(context);
+  const dismiss = useDismiss(context, { outsidePress: false });
+  const role = useRole(context);
 
-  const {getFloatingProps} = useInteractions([click, dismiss, role])
+  const { getFloatingProps } = useInteractions([click, dismiss, role]);
 
-  const headingId = useId()
+  const headingId = useId();
 
   return (
     <>
@@ -119,7 +119,7 @@ function ChallengeModal() {
         </FloatingFocusManager>
       )}
     </>
-  )
+  );
 }
 
-export default ChallengeModal
+export default ChallengeModal;

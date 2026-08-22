@@ -1,20 +1,20 @@
-import {usePublishComment} from '@plebbit/plebbit-react-hooks'
-import {useMemo} from 'react'
-import createStore from 'zustand'
-import challengesStore from './use-challenges'
-import {alertChallengeVerificationFailed} from '../lib/utils'
-import {incrementReadReplyCount} from './use-unread-reply-count'
+import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
+import { useMemo } from 'react';
+import createStore from 'zustand';
+import challengesStore from './use-challenges';
+import { alertChallengeVerificationFailed } from '../lib/utils';
+import { incrementReadReplyCount } from './use-unread-reply-count';
 
-const {addChallenge} = challengesStore.getState()
+const { addChallenge } = challengesStore.getState();
 
 const useReplyStore = createStore((setState, getState) => ({
   content: {},
   publishCommentOptions: {},
-  setReplyStore: ({subplebbitAddress, parentCid, content, comment}) =>
+  setReplyStore: ({ communityAddress, parentCid, content, comment }) =>
     setState((state) => {
-      const parsedContent = parseContent(content)
+      const parsedContent = parseContent(content);
       const publishCommentOptions = {
-        subplebbitAddress,
+        communityAddress,
         parentCid,
         postCid: comment?.postCid || parentCid,
         content: parsedContent.content,
@@ -22,71 +22,71 @@ const useReplyStore = createStore((setState, getState) => ({
         onChallenge: (...args) => addChallenge([...args, comment]),
         onChallengeVerification: (challengeVerification, comment) => {
           if (challengeVerification?.challengeSuccess === true && comment?.postCid) {
-            incrementReadReplyCount(comment.postCid)
+            incrementReadReplyCount(comment.postCid);
           }
-          alertChallengeVerificationFailed(challengeVerification, comment)
+          alertChallengeVerificationFailed(challengeVerification, comment);
         },
         onError: (error) => {
-          console.warn(error)
-          alert(error)
+          console.warn(error);
+          alert(error);
         },
-      }
+      };
       return {
-        content: {...state.content, [parentCid]: content},
-        publishCommentOptions: {...state.publishCommentOptions, [parentCid]: publishCommentOptions},
-      }
+        content: { ...state.content, [parentCid]: content },
+        publishCommentOptions: { ...state.publishCommentOptions, [parentCid]: publishCommentOptions },
+      };
     }),
   resetReplyStore: (parentCid) =>
     setState((state) => ({
-      content: {...state.content, [parentCid]: undefined},
-      publishCommentOptions: {...state.publishCommentOptions, [parentCid]: undefined},
+      content: { ...state.content, [parentCid]: undefined },
+      publishCommentOptions: { ...state.publishCommentOptions, [parentCid]: undefined },
     })),
-}))
+}));
 
 const useReply = (comment) => {
-  const subplebbitAddress = comment?.subplebbitAddress
-  const parentCid = comment?.cid
-  const content = useReplyStore((state) => state.content[parentCid])
-  const publishCommentOptions = useReplyStore((state) => state.publishCommentOptions[parentCid])
-  const setReplyStore = useReplyStore((state) => state.setReplyStore)
-  const resetReplyStore = useReplyStore((state) => state.resetReplyStore)
+  const communityAddress = comment?.communityAddress;
+  const parentCid = comment?.cid;
+  const content = useReplyStore((state) => state.content[parentCid]);
+  const publishCommentOptions = useReplyStore((state) => state.publishCommentOptions[parentCid]);
+  const setReplyStore = useReplyStore((state) => state.setReplyStore);
+  const resetReplyStore = useReplyStore((state) => state.resetReplyStore);
 
-  const setContent = useMemo(() => (content) => setReplyStore({subplebbitAddress, parentCid, content, comment}), [subplebbitAddress, parentCid, setReplyStore, comment])
+  const setContent = useMemo(() => (content) => setReplyStore({ communityAddress, parentCid, content, comment }), [communityAddress, parentCid, setReplyStore, comment]);
 
-  const resetContent = useMemo(() => () => resetReplyStore(parentCid), [parentCid, resetReplyStore])
+  const resetContent = useMemo(() => () => resetReplyStore(parentCid), [parentCid, resetReplyStore]);
 
-  const {index, publishComment} = usePublishComment(publishCommentOptions)
+  const { index, publishComment } = usePublishComment(publishCommentOptions);
 
-  return {content, setContent, resetContent, replyIndex: index, publishReply: publishComment}
-}
+  return { content, setContent, resetContent, replyIndex: index, publishReply: publishComment };
+};
 
-export default useReply
+export default useReply;
 
 const parseContent = (content) => {
-  const parsed = {}
+  const parsed = {};
   if (!content) {
-    return parsed
+    return parsed;
   }
 
   // starts with https:// so contains link
   if (/^https:\/\//i.test(content)) {
-    const separatorIndex = content.match(/[ \n]/)?.index
+    const separatorIndex = content.match(/[ \n]/)?.index;
 
     // has both content and link
     if (separatorIndex) {
-      parsed.link = content.substring(0, separatorIndex)
-      const parsedContent = content.substring(separatorIndex)?.trim()
+      parsed.link = content.substring(0, separatorIndex);
+      const parsedContent = content.substring(separatorIndex)?.trim();
       // content isn't empty
       if (parsedContent) {
-        parsed.content = parsedContent
+        parsed.content = parsedContent;
       }
     }
     // only has link
     else {
-      parsed.link = content
+      parsed.link = content;
     }
   } else {
-    parsed.content = content
+    parsed.content = content;
   }
-  return parsed
-}
+  return parsed;
+};

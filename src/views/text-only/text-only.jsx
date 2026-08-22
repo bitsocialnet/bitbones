@@ -1,57 +1,61 @@
-import {useRef, useEffect} from 'react'
-import useDefaultSubplebbitAddresses from '../../hooks/use-default-subplebbit-addresses'
-import {useFeed} from '@plebbit/plebbit-react-hooks'
-import {Virtuoso} from 'react-virtuoso'
-import TextOnlyPost from '../../components/text-only-post'
-import {useParams} from 'react-router-dom'
+import { useRef, useEffect } from 'react';
+import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
+import useDefaultList from '../../hooks/use-default-list';
+import { useFeed } from '@bitsocial/bitsocial-react-hooks';
+import { Virtuoso } from 'react-virtuoso';
+import TextOnlyPost from '../../components/text-only-post';
+import { useParams } from 'react-router-dom';
+import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
 
-const lastVirtuosoStates = {}
+const lastVirtuosoStates = {};
 
-const Loading = () => 'loading...'
-const NoPosts = () => 'no posts'
+const Loading = () => 'loading...';
+const NoPosts = () => 'no posts';
 
 // show own pending posts at the top for 12 hours
-const accountComments = {newerThan: 60 * 60 * 12}
+const accountComments = { newerThan: 60 * 60 * 12 };
 
 function TextOnly() {
-  const params = useParams()
-  const subplebbitAddresses = useDefaultSubplebbitAddresses()
-  const sortType = params?.sortType || 'hot'
-  const {feed, hasMore, loadMore} = useFeed({subplebbitAddresses, sortType, accountComments})
+  const params = useParams();
+  const communityAddresses = useDefaultCommunityAddresses();
+  const [listSource] = useDefaultList();
+  const sortType = params?.sortType || 'hot';
+  const communities = useCommunityIdentifiers(communityAddresses);
+  const { feed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments });
 
-  let Footer
+  let Footer;
   if (feed?.length === 0) {
-    Footer = NoPosts
+    Footer = NoPosts;
   }
   if (hasMore) {
-    Footer = Loading
+    Footer = Loading;
   }
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef()
+  const virtuosoRef = useRef();
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {
         // TODO: not sure if checking for empty snapshot.ranges works for all scenarios
         if (snapshot?.ranges?.length) {
-          lastVirtuosoStates[sortType] = snapshot
+          lastVirtuosoStates[listSource + sortType] = snapshot;
         }
-      })
-    window.addEventListener('scroll', setLastVirtuosoState)
+      });
+    window.addEventListener('scroll', setLastVirtuosoState);
     // clean listener on unmount
-    return () => window.removeEventListener('scroll', setLastVirtuosoState)
-  }, [sortType])
-  const lastVirtuosoState = lastVirtuosoStates?.[sortType]
+    return () => window.removeEventListener('scroll', setLastVirtuosoState);
+  }, [sortType, listSource]);
+  const lastVirtuosoState = lastVirtuosoStates?.[listSource + sortType];
 
   return (
     <div>
       <Virtuoso
-        increaseViewportBy={{bottom: 1200, top: 600}}
+        increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={feed?.length || 0}
         data={feed}
         itemContent={(index, post) => <TextOnlyPost index={index} post={post} />}
         useWindowScroll={true}
-        components={{Footer}}
+        components={{ Footer }}
         endReached={loadMore}
         ref={virtuosoRef}
         restoreStateFrom={lastVirtuosoState}
@@ -60,7 +64,7 @@ function TextOnly() {
         fixedItemHeight={42}
       />
     </div>
-  )
+  );
 }
 
-export default TextOnly
+export default TextOnly;

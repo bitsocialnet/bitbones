@@ -114,7 +114,7 @@ select.sortType, select.feedName {
   color: var(--light2);
 }
 
-.goToSubplebbitModal {
+.goToCommunityModal {
   /* dialog element must have 0 padding/border to be able to detect outside clicks */
   padding: 0;
   border: none;

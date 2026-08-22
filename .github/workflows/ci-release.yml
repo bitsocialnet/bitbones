@@ -19,8 +19,9 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
-      - run: yarn install --frozen-lockfile
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - run: yarn install --immutable
       - name: Set up Git
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"

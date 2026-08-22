@@ -1,25 +1,25 @@
-import {useRef, useEffect} from 'react'
-import {useAccountComments, useAccount, useAuthorAvatar} from '@plebbit/plebbit-react-hooks'
-import {Virtuoso} from 'react-virtuoso'
-import FeedPost from './feed-post'
-import styles from './profile.module.css'
+import { useRef, useEffect } from 'react';
+import { useAccountComments, useAccount, useAuthorAvatar } from '@bitsocial/bitsocial-react-hooks';
+import { Virtuoso } from 'react-virtuoso';
+import FeedPost from './feed-post';
+import styles from './profile.module.css';
 
 const ProfileInfo = () => {
-  const account = useAccount()
-  const author = account.author
-  const adddress = author?.adddress
-  const description = author?.displayName
-  const postScore = account?.karma?.postScore
-  const replyScore = account?.karma?.replyScore
+  const account = useAccount();
+  const author = account.author;
+  const adddress = author?.adddress;
+  const description = author?.displayName;
+  const postScore = account?.karma?.postScore;
+  const replyScore = account?.karma?.replyScore;
 
-  const {imageUrl: avatarUrl} = useAuthorAvatar({author})
+  const { imageUrl: avatarUrl } = useAuthorAvatar({ author });
 
   return (
     <div className={styles.info}>
       <div className={styles.header}>
         <div className={styles.title}>
           u/{account.author.address}
-          <img alt="" className={styles.avatar} src={avatarUrl} />
+          <img alt='' className={styles.avatar} src={avatarUrl} />
         </div>
       </div>
       {description && <div className={styles.description}>{description}</div>}
@@ -32,40 +32,40 @@ const ProfileInfo = () => {
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-let lastVirtuosoState
+let lastVirtuosoState;
 
 function Profile() {
-  const account = useAccount()
-  let {accountComments} = useAccountComments()
-  accountComments = [...accountComments].reverse()
+  const account = useAccount();
+  let { accountComments } = useAccountComments();
+  accountComments = [...accountComments].reverse();
 
   // save last virtuoso state on each scroll
-  const virtuosoRef = useRef()
+  const virtuosoRef = useRef();
   useEffect(() => {
     const setLastVirtuosoState = () =>
       virtuosoRef.current?.getState((snapshot) => {
         // TODO: not sure if checking for empty snapshot.ranges works for all scenarios
         if (snapshot?.ranges?.length) {
-          lastVirtuosoState = snapshot
+          lastVirtuosoState = snapshot;
         }
-      })
-    window.addEventListener('scroll', setLastVirtuosoState)
+      });
+    window.addEventListener('scroll', setLastVirtuosoState);
     // clean listener on unmount
-    return () => window.removeEventListener('scroll', setLastVirtuosoState)
-  }, [])
+    return () => window.removeEventListener('scroll', setLastVirtuosoState);
+  }, []);
 
   if (account && !accountComments.length) {
-    return 'no posts'
+    return 'no posts';
   }
 
   return (
     <div>
       <ProfileInfo />
       <Virtuoso
-        increaseViewportBy={{bottom: 1200, top: 600}}
+        increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={accountComments?.length || 0}
         data={accountComments}
         itemContent={(index, post) => <FeedPost index={index} post={post} />}
@@ -75,7 +75,7 @@ function Profile() {
         initialScrollTop={lastVirtuosoState?.scrollTop}
       />
     </div>
-  )
+  );
 }
 
-export default Profile
+export default Profile;

@@ -1,16 +1,16 @@
-import createStore from 'zustand'
+import createStore from 'zustand';
 
 const useThemeStore = createStore((setState, getState) => ({
-  theme: localStorage.getItem('plebonesTheme') || 'dark',
+  theme: localStorage.getItem('bitbonesTheme') || 'dark',
   setTheme: (theme) => {
-    localStorage.setItem('plebonesTheme', theme)
-    setState((state) => ({theme}))
+    localStorage.setItem('bitbonesTheme', theme);
+    setState((state) => ({ theme }));
   },
-}))
+}));
 
 const useTheme = () => {
-  const {theme, setTheme} = useThemeStore()
-  return [theme, setTheme]
-}
+  const { theme, setTheme } = useThemeStore();
+  return [theme, setTheme];
+};
 
-export default useTheme
+export default useTheme;

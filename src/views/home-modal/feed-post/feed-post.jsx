@@ -1,45 +1,45 @@
-import utils from '../../../lib/utils'
-import {Link} from 'react-router-dom'
-import styles from './feed-post.module.css'
-import Arrow from '../../../components/icons/arrow'
-import PostTools from '../../../components/post-tools'
-import {useBlock} from '@plebbit/plebbit-react-hooks'
+import utils from '../../../lib/utils';
+import { Link } from 'react-router-dom';
+import styles from './feed-post.module.css';
+import Arrow from '../../../components/icons/arrow';
+import PostTools from '../../../components/post-tools';
+import { useBlock } from '@bitsocial/bitsocial-react-hooks';
 
-const FeedPostMedia = ({mediaType, mediaUrl}) => {
+const FeedPostMedia = ({ mediaType, mediaUrl }) => {
   if (!mediaType) {
-    return <div className={styles.noMedia}></div>
+    return <div className={styles.noMedia}></div>;
   }
   if (mediaType === 'image') {
     return (
       <div className={styles.mediaWrapper}>
-        <img className={styles.media} src={mediaUrl} alt="" />
+        <img className={styles.media} src={mediaUrl} alt='' />
       </div>
-    )
+    );
   }
   if (mediaType === 'video') {
     return (
       <div className={styles.mediaWrapper}>
         <video className={styles.media} controls={true} autoPlay={false} src={mediaUrl} />
       </div>
-    )
+    );
   }
   if (mediaType === 'audio') {
-    return <audio className={styles.media} controls={true} autoPlay={false} src={mediaUrl} />
+    return <audio className={styles.media} controls={true} autoPlay={false} src={mediaUrl} />;
   }
-  return <div className={styles.noMedia}></div>
-}
+  return <div className={styles.noMedia}></div>;
+};
 
-const FeedPost = ({post, index}) => {
-  let hostname
+const FeedPost = ({ post, index }) => {
+  let hostname;
   try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '')
+    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
   } catch (e) {}
 
-  const mediaType = utils.getCommentMediaType(post)
+  const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = `/modal/p/${post?.subplebbitAddress}/c/${post?.cid}`
+  const internalLink = `/modal/p/${post?.communityAddress}/c/${post?.cid}`;
 
-  const {blocked: hidden} = useBlock({cid: post?.cid})
+  const { blocked: hidden } = useBlock({ cid: post?.cid });
 
   return (
     <div className={styles.feedPost}>
@@ -63,7 +63,7 @@ const FeedPost = ({post, index}) => {
               {post?.title || post?.content || '-'}
             </Link>
             {hostname && (
-              <Link to={post?.link} target="_blank" rel="noreferrer">
+              <Link to={post?.link} target='_blank' rel='noreferrer'>
                 {' '}
                 {hostname}
               </Link>
@@ -72,7 +72,7 @@ const FeedPost = ({post, index}) => {
           <div className={styles.content}>
             <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
             <span className={styles.author}> by {post?.author?.shortAddress}</span>
-            <span className={styles.subplebbit}> to {post?.shortSubplebbitAddress}</span>
+            <span className={styles.community}> to {post?.shortCommunityAddress}</span>
           </div>
           <div className={styles.footer}>
             <Link to={internalLink} className={[styles.button, styles.replyCount].join(' ')}>
@@ -85,7 +85,7 @@ const FeedPost = ({post, index}) => {
         <FeedPostMedia mediaType={mediaType} mediaUrl={post?.link} />
       </Link>
     </div>
-  )
-}
+  );
+};
 
-export default FeedPost
+export default FeedPost;

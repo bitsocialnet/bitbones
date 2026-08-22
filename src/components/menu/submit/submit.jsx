@@ -1,105 +1,105 @@
-import {useState, useEffect, memo} from 'react'
-import {useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId} from '@floating-ui/react'
-import styles from './submit.module.css'
-import {usePublishComment} from '@plebbit/plebbit-react-hooks'
-import createStore from 'zustand'
-import challengesStore from '../../../hooks/use-challenges'
-import {useNavigate, useParams} from 'react-router-dom'
-import {isLink, useDefaultAndSubscriptionsSubplebbits} from './utils'
-import {alertChallengeVerificationFailed} from '../../../lib/utils'
+import { useState, useEffect, memo } from 'react';
+import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
+import styles from './submit.module.css';
+import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
+import createStore from 'zustand';
+import challengesStore from '../../../hooks/use-challenges';
+import { useNavigate, useParams } from 'react-router-dom';
+import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
+import { alertChallengeVerificationFailed } from '../../../lib/utils';
 
-const {addChallenge} = challengesStore.getState()
+const { addChallenge } = challengesStore.getState();
 
 const useSubmitStore = createStore((setState, getState) => ({
-  subplebbitAddress: undefined,
+  communityAddress: undefined,
   title: undefined,
   content: undefined,
   publishCommentOptions: undefined,
-  setSubmitStore: ({subplebbitAddress, title, content}) =>
+  setSubmitStore: ({ communityAddress, title, content }) =>
     setState((state) => {
-      const nextState = {...state}
-      if (subplebbitAddress !== undefined) {
-        nextState.subplebbitAddress = subplebbitAddress
+      const nextState = { ...state };
+      if (communityAddress !== undefined) {
+        nextState.communityAddress = communityAddress;
       }
       if (title !== undefined) {
-        nextState.title = title
+        nextState.title = title;
       }
       if (content !== undefined) {
-        nextState.content = content
+        nextState.content = content;
       }
       nextState.publishCommentOptions = {
-        subplebbitAddress: nextState.subplebbitAddress,
+        communityAddress: nextState.communityAddress,
         title: nextState.title,
         content: nextState.content,
         onChallenge: (...args) => addChallenge(args),
         onChallengeVerification: alertChallengeVerificationFailed,
         onError: (error) => {
-          console.warn(error)
-          alert(error)
+          console.warn(error);
+          alert(error);
         },
-      }
-      // plebones only has 1 input for link or content, detect if is link before publishing
+      };
+      // bitbones only has 1 input for link or content, detect if is link before publishing
       if (isLink(nextState.publishCommentOptions.content)) {
-        nextState.publishCommentOptions.link = nextState.publishCommentOptions.content
-        delete nextState.publishCommentOptions.content
+        nextState.publishCommentOptions.link = nextState.publishCommentOptions.content;
+        delete nextState.publishCommentOptions.content;
       }
-      return nextState
+      return nextState;
     }),
-  resetSubmitStore: () => setState((state) => ({subplebbitAddress: undefined, title: undefined, content: undefined, publishCommentOptions: undefined})),
-}))
+  resetSubmitStore: () => setState((state) => ({ communityAddress: undefined, title: undefined, content: undefined, publishCommentOptions: undefined })),
+}));
 
-const Submit = ({onSubmit}) => {
-  const params = useParams()
-  const subplebbits = useDefaultAndSubscriptionsSubplebbits()
-  const {subplebbitAddress, title, content, publishCommentOptions, setSubmitStore, resetSubmitStore} = useSubmitStore()
-  const {index, publishComment} = usePublishComment(publishCommentOptions)
+const Submit = ({ onSubmit }) => {
+  const params = useParams();
+  const communities = useDefaultAndSubscriptionsCommunities();
+  const { communityAddress, title, content, publishCommentOptions, setSubmitStore, resetSubmitStore } = useSubmitStore();
+  const { index, publishComment } = usePublishComment(publishCommentOptions);
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
 
   const onPublish = () => {
     if (!title) {
-      alert(`missing title`)
-      return
+      alert(`missing title`);
+      return;
     }
     if (!content) {
-      alert(`missing link`)
-      return
+      alert(`missing link`);
+      return;
     }
-    if (!subplebbitAddress) {
-      alert(`missing subplebbit`)
-      return
+    if (!communityAddress) {
+      alert(`missing community`);
+      return;
     }
-    publishComment()
-  }
+    publishComment();
+  };
 
   // redirect to pending post after submitting
   useEffect(() => {
     if (typeof index === 'number') {
-      onSubmit?.()
-      resetSubmitStore({})
-      navigate(`/profile/${index}`)
+      onSubmit?.();
+      resetSubmitStore({});
+      navigate(`/profile/${index}`);
     }
-  }, [index, onSubmit, resetSubmitStore, navigate])
+  }, [index, onSubmit, resetSubmitStore, navigate]);
 
   return (
     <div className={styles.submit}>
-      <SubplebbitSelect subplebbits={subplebbits} subplebbitAddress={subplebbitAddress || params.subplebbitAddress} setSubmitStore={setSubmitStore} />
+      <CommunitySelect communities={communities} communityAddress={communityAddress || params.communityAddress} setSubmitStore={setSubmitStore} />
       <div>
-        {/* set params.subplebbitAddress as default if subplebbitAddress is not yet defined */}
+        {/* set params.communityAddress as default if communityAddress is not yet defined */}
         <input
-          onChange={(e) => setSubmitStore({title: e.target.value, subplebbitAddress: !subplebbitAddress ? params.subplebbitAddress : undefined})}
+          onChange={(e) => setSubmitStore({ title: e.target.value, communityAddress: !communityAddress ? params.communityAddress : undefined })}
           defaultValue={title}
           className={styles.submitTitle}
-          placeholder="title"
+          placeholder='title'
         />
       </div>
       <div>
         <textarea
-          onChange={(e) => setSubmitStore({content: e.target.value, subplebbitAddress: !subplebbitAddress ? params.subplebbitAddress : undefined})}
+          onChange={(e) => setSubmitStore({ content: e.target.value, communityAddress: !communityAddress ? params.communityAddress : undefined })}
           defaultValue={content}
           rows={6}
           className={styles.submitContent}
-          placeholder="link"
+          placeholder='link'
         />
       </div>
       <div className={styles.submitButtonWrapper}>
@@ -108,56 +108,56 @@ const Submit = ({onSubmit}) => {
         </button>
       </div>
     </div>
-  )
-}
+  );
+};
 
-const SubplebbitSelect = memo(({subplebbits, subplebbitAddress, setSubmitStore}) => {
-  const subplebbitsOptions = subplebbits.map((subplebbit) => (
-    <option key={subplebbit.address} value={subplebbit.address}>
-      p/{subplebbit.displayAddress}
+const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore }) => {
+  const communitiesOptions = communities.map((community) => (
+    <option key={community.address} value={community.address}>
+      p/{community.displayAddress}
     </option>
-  ))
-  subplebbitsOptions.unshift(
-    <option key="p/" value="">
+  ));
+  communitiesOptions.unshift(
+    <option key='p/' value=''>
       p/
-    </option>
-  )
+    </option>,
+  );
   return (
     <div>
       <select
-        onChange={(e) => setSubmitStore({subplebbitAddress: e.target.value})}
-        // NOTE: using 'defaultValue' instead of 'value' sometimes causes a bug to render 'p/' even when subplebbitAddress
+        onChange={(e) => setSubmitStore({ communityAddress: e.target.value })}
+        // NOTE: using 'defaultValue' instead of 'value' sometimes causes a bug to render 'p/' even when communityAddress
         // is defined, but it seems to improve performance and the bug doesn't affect UX much
-        defaultValue={subplebbitAddress || 'p/'}
-        className={styles.submitSelectSubplebbit}
+        defaultValue={communityAddress || 'p/'}
+        className={styles.submitSelectCommunity}
       >
-        {subplebbitsOptions}
+        {communitiesOptions}
       </select>
     </div>
-  )
-})
+  );
+});
 
-function SubmitModal({className}) {
+function SubmitModal({ className }) {
   // modal stuff
-  const [isOpen, setIsOpen] = useState(false)
+  const [isOpen, setIsOpen] = useState(false);
 
-  const {refs, floatingStyles, context} = useFloating({
+  const { refs, floatingStyles, context } = useFloating({
     placement: 'bottom',
     open: isOpen,
     onOpenChange: setIsOpen,
-    middleware: [offset(2), flip({fallbackAxisSideDirection: 'end'}), shift()],
+    middleware: [offset(2), flip({ fallbackAxisSideDirection: 'end' }), shift()],
     whileElementsMounted: autoUpdate,
-  })
+  });
 
-  const click = useClick(context)
-  const dismiss = useDismiss(context)
-  const role = useRole(context)
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context);
 
-  const {getReferenceProps, getFloatingProps} = useInteractions([click, dismiss, role])
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
 
-  const headingId = useId()
+  const headingId = useId();
 
-  const onSubmit = () => setIsOpen(false)
+  const onSubmit = () => setIsOpen(false);
 
   return (
     <>
@@ -172,7 +172,7 @@ function SubmitModal({className}) {
         </FloatingFocusManager>
       )}
     </>
-  )
+  );
 }
 
-export default SubmitModal
+export default SubmitModal;

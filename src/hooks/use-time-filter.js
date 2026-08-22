@@ -1,12 +1,12 @@
-import {useParams} from 'react-router-dom'
+import { useParams } from 'react-router-dom';
 
 // the timestamp the last time the user visited
-const lastVisitTimestamp = localStorage.getItem('plebonesLastVisitTimestamp')
+const lastVisitTimestamp = localStorage.getItem('bitbonesLastVisitTimestamp');
 
 // update the last visited timestamp every n seconds
 setInterval(() => {
-  localStorage.setItem('plebonesLastVisitTimestamp', Date.now())
-}, 60 * 1000)
+  localStorage.setItem('bitbonesLastVisitTimestamp', Date.now());
+}, 60 * 1000);
 
 const timeFilterNamesToSeconds = {
   '1h': 60 * 60,
@@ -17,47 +17,47 @@ const timeFilterNamesToSeconds = {
   month: 60 * 60 * 24 * 30,
   year: 60 * 60 * 24 * 365,
   all: undefined,
-}
+};
 
 // calculate the last visit timeFilterNamesToSeconds
-const secondsSinceLastVisit = lastVisitTimestamp ? (Date.now() - lastVisitTimestamp) / 1000 : Infinity
-const day = 24 * 60 * 60
-let lastVisitTimeFilterName
+const secondsSinceLastVisit = lastVisitTimestamp ? (Date.now() - lastVisitTimestamp) / 1000 : Infinity;
+const day = 24 * 60 * 60;
+let lastVisitTimeFilterName;
 if (secondsSinceLastVisit > 30 * day) {
-  lastVisitTimeFilterName = 'month'
-  timeFilterNamesToSeconds[lastVisitTimeFilterName] = timeFilterNamesToSeconds['month']
+  lastVisitTimeFilterName = 'month';
+  timeFilterNamesToSeconds[lastVisitTimeFilterName] = timeFilterNamesToSeconds['month'];
 } else if (secondsSinceLastVisit > 7 * day) {
-  const weeks = Math.ceil(secondsSinceLastVisit / day / 7)
-  lastVisitTimeFilterName = `${weeks}w`
-  timeFilterNamesToSeconds[lastVisitTimeFilterName] = 60 * 60 * 24 * 7 * weeks
+  const weeks = Math.ceil(secondsSinceLastVisit / day / 7);
+  lastVisitTimeFilterName = `${weeks}w`;
+  timeFilterNamesToSeconds[lastVisitTimeFilterName] = 60 * 60 * 24 * 7 * weeks;
 } else if (secondsSinceLastVisit > day) {
-  const days = Math.ceil(secondsSinceLastVisit / day)
-  lastVisitTimeFilterName = `${days}d`
-  timeFilterNamesToSeconds[lastVisitTimeFilterName] = 60 * 60 * 24 * days
+  const days = Math.ceil(secondsSinceLastVisit / day);
+  lastVisitTimeFilterName = `${days}d`;
+  timeFilterNamesToSeconds[lastVisitTimeFilterName] = 60 * 60 * 24 * days;
 } else {
-  lastVisitTimeFilterName = '24h'
-  timeFilterNamesToSeconds[lastVisitTimeFilterName] = timeFilterNamesToSeconds['24h']
+  lastVisitTimeFilterName = '24h';
+  timeFilterNamesToSeconds[lastVisitTimeFilterName] = timeFilterNamesToSeconds['24h'];
 }
 
-const timeFilterNames = [lastVisitTimeFilterName, '1h', '12h', '24h', '48h', 'week', 'month', 'year', 'all']
+const timeFilterNames = [lastVisitTimeFilterName, '1h', '12h', '24h', '48h', 'week', 'month', 'year', 'all'];
 
 const useTimeFilter = () => {
-  const params = useParams()
-  let timeFilterName = params.timeFilterName
+  const params = useParams();
+  let timeFilterName = params.timeFilterName;
 
   // the default time filter is the last visit time filter
   if (!timeFilterName) {
-    timeFilterName = lastVisitTimeFilterName
+    timeFilterName = lastVisitTimeFilterName;
   }
 
   if (timeFilterName && typeof timeFilterName !== 'string') {
-    throw new Error(`useTimeFilter timeFilterName argument '${timeFilterName}' not a string`)
+    throw new Error(`useTimeFilter timeFilterName argument '${timeFilterName}' not a string`);
   }
-  const timeFilterSeconds = timeFilterNamesToSeconds[timeFilterName]
+  const timeFilterSeconds = timeFilterNamesToSeconds[timeFilterName];
   if (timeFilterName && timeFilterName !== 'all' && timeFilterSeconds === undefined) {
-    throw new Error(`useTimeFilter no filter for timeFilterName '${timeFilterName}'`)
+    throw new Error(`useTimeFilter no filter for timeFilterName '${timeFilterName}'`);
   }
-  return {timeFilterSeconds, timeFilterNames}
-}
+  return { timeFilterSeconds, timeFilterNames };
+};
 
-export default useTimeFilter
+export default useTimeFilter;
