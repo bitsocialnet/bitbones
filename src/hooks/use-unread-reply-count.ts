@@ -1,4 +1,4 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 import localForageLru from '@bitsocial/bitsocial-react-hooks/dist/lib/localforage-lru/index.js';
 import { useCallback } from 'react';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
@@ -13,7 +13,7 @@ interface ReadReplyCountsState {
   setReadReplyCount: (commentCid: string, readReplyCount: number) => void;
 }
 
-const useReadReplyCountsStore = createStore<ReadReplyCountsState>((setState, getState) => ({
+const useReadReplyCountsStore = create<ReadReplyCountsState>((setState, getState) => ({
   readReplyCounts: {},
   setReadReplyCount: (commentCid, readReplyCount) => {
     setState((state) => ({

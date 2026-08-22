@@ -1,7 +1,7 @@
 import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './go-to-community-modal.module.css';
 import { useNavigate } from 'react-router-dom';
-import createStore from 'zustand';
+import { create } from 'zustand';
 import type { ChangeEvent, Dispatch, SetStateAction, SyntheticEvent } from 'react';
 
 interface CommunityAddressState {
@@ -9,7 +9,7 @@ interface CommunityAddressState {
   setCommunityAddress: (communityAddress: string) => void;
 }
 
-const useCommunityAddress = createStore<CommunityAddressState>((setState) => ({
+const useCommunityAddress = create<CommunityAddressState>((setState) => ({
   communityAddress: '',
   setCommunityAddress: (communityAddress) => setState((state) => ({ communityAddress })),
 }));

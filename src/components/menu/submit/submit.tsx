@@ -3,7 +3,7 @@ import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useC
 import styles from './submit.module.css';
 import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Challenge, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
-import createStore from 'zustand';
+import { create } from 'zustand';
 import challengesStore from '../../../hooks/use-challenges';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
@@ -31,7 +31,7 @@ interface SubmitState {
   resetSubmitStore: (options?: SetSubmitStoreOptions) => void;
 }
 
-const useSubmitStore = createStore<SubmitState>((setState, getState) => ({
+const useSubmitStore = create<SubmitState>((setState, getState) => ({
   communityAddress: undefined,
   title: undefined,
   content: undefined,

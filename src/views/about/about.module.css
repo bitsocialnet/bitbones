@@ -4,6 +4,7 @@
 }
 
 .logo {
+  image-rendering: pixelated;
 }
 
 .about ul {

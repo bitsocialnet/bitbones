@@ -1,4 +1,4 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 import type { Challenge, Comment } from '@bitsocial/bitsocial-react-hooks';
 
 // [challenge, publication, publicationTarget]: the two arguments the library's onChallenge callback
@@ -12,7 +12,7 @@ interface ChallengesState {
   removeChallenge: () => void;
 }
 
-const useChallengesStore = createStore<ChallengesState>((setState, getState) => ({
+const useChallengesStore = create<ChallengesState>((setState, getState) => ({
   challenges: [],
   addChallenge: (challenge) => {
     setState((state) => ({ challenges: [...state.challenges, challenge] }));

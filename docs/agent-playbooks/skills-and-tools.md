@@ -25,19 +25,44 @@ These live in `.claude/skills/`, `.cursor/skills/`, and `.codex/skills/` (mirror
 | `readme` | Creating/updating README.md |
 | `context7` | Fetching up-to-date library docs |
 | `find-skills` | Discovering/installing ecosystem skills |
+| `playwright-cli` | Driving a browser: navigating, snapshotting, filling forms, screenshots, tracing |
+| `inspect-elements` | Mapping a live DOM node back to the React file that rendered it |
+| `profile-browsing` | Web Vitals + react-scan rerender profiling across a batch of routes |
 
 ## Committed Subagents
 
-Defined in `.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml` (+ `.codex/config.toml` entries): `code-quality`, `plan-implementer`, `react-patterns-enforcer`, `react-doctor-fixer`, `translator`. Most are driven by the skills above; read the agent file before spawning one directly.
+Defined in `.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml` (+ `.codex/config.toml` entries): `code-quality`, `plan-implementer`, `react-patterns-enforcer`, `react-doctor-fixer`, `translator`, `browser-check`, `profiler`. Most are driven by the skills above; read the agent file before spawning one directly.
+
+`browser-check` and `profiler` are read-only and both drive a browser. Never run them concurrently, with each other or with anything else that opens a browser: `scripts/pw-session.sh` allows one Playwright browser at a time machine-wide, and competing sessions both saturate the machine and invalidate timing measurements.
+
+## Browser Automation
+
+The `playwright-cli`, `inspect-elements`, and `profile-browsing` skills, plus the `browser-check` and
+`profiler` subagents, are ported from the sibling client and adapted to bitbones. Their local
+infrastructure is:
+
+| Piece | What it does |
+|---|---|
+| `scripts/pw-session.sh` | Machine-wide single-browser resource lock around `playwright-cli open`/`close`. Exit 75 means the slot is busy — wait, do not bypass |
+| `src/lib/react-scan.ts` | Dev-only inspectors: react-scan render report (`__getReactScanReport`), element-source (`__ELEMENT_SOURCE__`), react-grab (`__REACT_GRAB__`) |
+| `index.html` | The single `import.meta.env.DEV` guard that loads the module above; nothing in `src/` may import it |
+| `playwright` (devDependency) | Browser binaries via `npx playwright install`, and raw Playwright for reproduction scripts |
+| `playwright-cli` (global) | `npm install -g @playwright/cli@latest` — not a repo dependency |
+
+Drive the **plain-port** dev server (`PORTLESS=0 yarn start`, http://localhost:5173). The default
+`yarn start` fronts Vite with portless on a hostname derived from the current git branch, behind a
+locally generated certificate that `playwright-cli open` has no flag to accept. Routing is
+`HashRouter`, so every in-app URL needs the `#` segment.
+
+CI greps `build/assets/` for `__REACT_GRAB__|__PROFILING__|__ELEMENT_SOURCE__|getReactScanReport` to
+prove the dev-only inspectors never ship. If you expose a new dev-only global, add it to that grep in
+`.github/workflows/ci.yml`.
 
 ## Deliberately Not Committed Here
 
-Sibling repos ship browser-automation and profiling workflows (`playwright-cli`, `browser-check`,
-`inspect-elements`, `profile-browsing`, `profiler`, `test-apk`). They are **not** ported to bitbones
-because the infrastructure they assume does not exist here: no `scripts/pw-session.sh` browser
-resource lock, no `react-scan` instrumentation module under `src/lib/`, and no Android
-instrumentation-test harness. Verify UI changes by hand with `yarn start` instead. If that
-infrastructure lands later, port the skills together with it rather than in isolation.
+The sibling client also ships a `test-apk` skill and agent. It is **not** ported to bitbones: it
+drives Android instrumentation tests and media-upload flows, and this repo has neither, so it would
+have nothing to exercise.
 
 There is also no test skill or test step, because there is no test runner in this repo. Do not
 fabricate `yarn test`.
@@ -72,7 +97,8 @@ npx skills add https://github.com/vercel-labs/skills --skill find-skills
 
 | Command | What it gives you |
 |---|---|
-| `yarn start` | Dev server at https://bitbones.localhost via portless (`PORTLESS=0 yarn start` for http://localhost:5173) |
+| `yarn start` | Dev server at https://bitbones.localhost via portless (`PORTLESS=0 yarn start` for http://localhost:5173, which is what browser automation should target) |
+| `./scripts/pw-session.sh status` | Who holds the machine-wide Playwright browser slot, and whether that browser is still alive |
 | `yarn lint` / `yarn type-check` / `yarn build` | The required gate, also enforced by the stop hook |
 | `yarn knip` | Manifest/import audit (strict); `yarn knip:full` is the advisory full report |
 | `yarn doctor` | react-doctor review of React UI logic; treat it as a reviewer of *new* diagnostics, not a score |
@@ -85,4 +111,5 @@ npx skills add https://github.com/vercel-labs/skills --skill find-skills
 Avoid GitHub MCP and browser MCP servers for this project because they add significant tool-schema/context overhead.
 
 - GitHub operations: use `gh` CLI.
+- Browser operations: use `playwright-cli` through `scripts/pw-session.sh`, not a browser MCP.
 - If many MCP tools are present in context, warn the user and suggest disabling unused MCPs.

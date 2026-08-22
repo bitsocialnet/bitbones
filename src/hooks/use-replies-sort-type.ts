@@ -1,4 +1,4 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 import type { UseRepliesOptions } from '@bitsocial/bitsocial-react-hooks';
 
 const repliesPerPage = 50;
@@ -15,7 +15,7 @@ interface RepliesSortTypeState {
   setRepliesSortType: (repliesSortType: string) => void;
 }
 
-const useRepliesSortTypeStore = createStore<RepliesSortTypeState>((setState, getState) => ({
+const useRepliesSortTypeStore = create<RepliesSortTypeState>((setState, getState) => ({
   repliesSortType: localStorage.getItem('bitbonesRepliesSortType') || 'nested',
   setRepliesSortType: (repliesSortType) => {
     setState((state) => ({ repliesSortType }));

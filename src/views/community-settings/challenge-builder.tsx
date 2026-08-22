@@ -1,7 +1,7 @@
 import DragAndDrop from './drag-and-drop';
 import pkcRpcSettings from './pkc-rpc-settings-mock';
 import { useState, type ChangeEvent } from 'react';
-import createStore from 'zustand';
+import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import type { Draft } from 'immer';
 import type { PkcRpcChallengeOptionInput, PkcRpcChallengeSettings } from '@bitsocial/bitsocial-react-hooks';
@@ -90,7 +90,7 @@ interface ChallengesState {
   removeChallenge: (challengesTreePath: number[]) => void;
 }
 
-export const useChallengesStore = createStore<ChallengesState>()(
+export const useChallengesStore = create<ChallengesState>()(
   immer((setState, getState) => ({
     challengesTree: {
       combinator: 'and',

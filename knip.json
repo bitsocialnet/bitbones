@@ -12,8 +12,7 @@
     "@electron-forge/maker-zip",
     "@reforged/maker-appimage",
     "cz-conventional-changelog",
-    "react-grab",
-    "react-scan"
+    "playwright"
   ],
   "ignoreBinaries": ["source-map-explorer", "cz", "taskkill"]
 }
