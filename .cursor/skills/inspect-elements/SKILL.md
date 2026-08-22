@@ -11,7 +11,7 @@ Use this skill to jump from a concrete DOM node in the running bitbones app to t
 
 - Dev server running, started with `PORTLESS=0 yarn start` (http://localhost:5173)
 - `playwright-cli` installed (`npm install -g @playwright/cli@latest`)
-- Use the local dev app, not a production build. `src/lib/react-scan.js` is loaded only behind the `import.meta.env.DEV` guard in `index.html`, so `window.__ELEMENT_SOURCE__` does not exist in `yarn build` output or on a deployed site.
+- Use the local dev app, not a production build. `src/lib/react-scan.ts` is loaded only behind the `import.meta.env.DEV` guard in `index.html`, so `window.__ELEMENT_SOURCE__` does not exist in `yarn build` output or on a deployed site.
 
 Resolve the URL rather than assuming it — `scripts/local-server-utils.mjs` walks up from 5173 when that port is taken, and `yarn start` without `PORTLESS=0` serves a branch-dependent https hostname that `playwright-cli` cannot accept the certificate for:
 
@@ -125,8 +125,8 @@ This is a complement to `react-scan`, not a replacement. `react-scan` tells you 
 
 Views are deliberately thin — one hook, one render — so `source.filePath` usually lands directly on the file you need to edit. Expect three shapes:
 
-- `src/views/<name>/<name>.jsx` — the route itself
-- `src/components/<name>/<name>.jsx` — shared UI
+- `src/views/<name>/<name>.tsx` — the route itself
+- `src/components/<name>/<name>.tsx` — shared UI
 - a file inside `node_modules/` — the node came from a library (`react-virtuoso` rows, `@floating-ui/react` wrappers). Walk up `stack` to the first bitbones frame; that is the component that owns the node.
 
 `filePath` is the reliable part. `lineNumber` comes from the JSX transform's own metadata and lands somewhere inside the owning component, not always on the exact tag — treat it as "start reading here", and `columnNumber` is usually `null`. Open the file and find the element by its props rather than trusting the line.

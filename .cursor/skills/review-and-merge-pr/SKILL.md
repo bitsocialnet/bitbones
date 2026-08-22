@@ -88,7 +88,7 @@ git push
 
 After code changes, follow repo verification rules from `AGENTS.md`:
 
-- run `yarn lint` and `yarn build`
+- run `yarn lint`, `yarn type-check`, and `yarn build`
 - run `yarn knip` when dependencies or the import graph changed
 - run `yarn doctor` after React UI logic changes
 - for UI/visual changes, open the affected route with `yarn start` and check it by hand; this repo

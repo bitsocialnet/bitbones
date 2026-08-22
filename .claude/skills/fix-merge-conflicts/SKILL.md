@@ -49,7 +49,7 @@ Open each conflicting file and remove conflict markers. Merge both sides logical
 Run all three checks. Fix any failures before proceeding.
 
 ```bash
-corepack yarn lint && corepack yarn build
+corepack yarn lint && corepack yarn type-check && corepack yarn build
 ```
 
 If `package.json` was modified, run `corepack yarn install` first.
@@ -74,11 +74,11 @@ git commit -m "chore(merge): resolve merge conflicts"
 - If a resolution is ambiguous and blocks the build, prefer the variant that builds.
 - For large refactors causing conflicts, keep consistent imports, types, and module boundaries.
 - Keep edits minimal — don't reformat unrelated code.
-- Format resolved files with `npx oxfmt <file>` if they're `.js` or `.jsx`.
+- Format resolved files with `npx oxfmt <file>` if they're `.ts` or `.tsx` under `src/`, or `.js`/`.mjs`/`.cjs` under `electron/` and `scripts/`.
 
 ## Deliverables
 
 - Clean working tree with all conflicts resolved
-- Passing `corepack yarn lint && corepack yarn build`
+- Passing `corepack yarn lint && corepack yarn type-check && corepack yarn build`
 - One local commit: `chore(merge): resolve merge conflicts`
 - Brief summary of files touched and notable resolution choices

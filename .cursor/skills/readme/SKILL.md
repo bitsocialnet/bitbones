@@ -22,18 +22,19 @@ You are an expert technical writer. Write (or update) a README.md that lets a de
 Every claim in the README must be verifiable in the repo. Check:
 
 - **Manifest and scripts**: `package.json` (name, scripts, engines, packageManager), `yarn.lock`, `.nvmrc`
-- **Entry points and build**: `index.html`, `src/main.jsx`, `src/app.jsx`, `vite.config.js`, the `src/` layout
+- **Entry points and build**: `index.html`, `src/main.tsx`, `src/app.tsx`, `tsconfig.json`, `vite.config.js`, the `src/` layout
 - **Platform targets**: `capacitor.config.json` + `android/` (mobile), `electron/` + `forge.config.js` (desktop), `vercel.json` (web hosting)
 - **CI/CD**: `.github/workflows/`
 - **Repo docs that already answer questions**: `AGENTS.md`, `CHANGELOG.md`, `docs/`
 - **Helper scripts**: `scripts/` — document the ones a contributor actually needs
 
-For this repo specifically: bitbones is a Yarn 4 (Corepack) + Vite + React 19 SPA in plain `.jsx`,
-which also ships as an Android app (Capacitor) and a desktop app (Electron Forge). It is deliberately
+For this repo specifically: bitbones is a Yarn 4 (Corepack) + Vite + React 19 SPA written in strict
+TypeScript (`.ts`/`.tsx` under `src/`; `electron/` and `scripts/` stay plain JavaScript), which also
+ships as an Android app (Capacitor) and a desktop app (Electron Forge). It is deliberately
 minimal — every view is a thin wrapper over one hook from `@bitsocial/bitsocial-react-hooks`. Say that,
 rather than describing it as a full-featured client. Package-manager commands must use `yarn`, never
-`npm`. There is no TypeScript and no test suite, so do not document `tsc`, `type-check`, or a test
-command.
+`npm`. Document `yarn type-check` (`tsc --noEmit`) as the type gate. There is no test suite, so do not
+document a test command.
 
 ### Step 2: Ask only if critical
 

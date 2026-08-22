@@ -20,13 +20,13 @@ If the parent agent did not give you a base URL, default to `http://localhost:51
 
 ## How It Works
 
-`src/lib/react-scan.js` runs react-scan in dev mode and accumulates render data via its `onRender` option. `index.html` loads it behind `import.meta.env.DEV`, so it exists on the dev server only. It exposes `window.__getReactScanReport()`, which returns a plain, JSON-serializable object of per-component render counts and times: `{ ComponentName: { count, time } }`, plus `window.__resetReactScanReport()` to zero it between phases.
+`src/lib/react-scan.ts` runs react-scan in dev mode and accumulates render data via its `onRender` option. `index.html` loads it behind `import.meta.env.DEV`, so it exists on the dev server only. It exposes `window.__getReactScanReport()`, which returns a plain, JSON-serializable object of per-component render counts and times: `{ ComponentName: { count, time } }`, plus `window.__resetReactScanReport()` to zero it between phases.
 
 Do NOT call react-scan's own `getReport()` — in 0.5.7 it reads a `Map` that is never written to, and a `Map` stringifies to `"{}"` anyway.
 
 The profiler's `addInitScript` also intercepts `__REACT_DEVTOOLS_GLOBAL_HOOK__` to count React commits independently (works even if react-scan is not loaded).
 
-`src/main.jsx` renders inside `<StrictMode>`, which double-invokes renders in development on purpose. Dev-mode component render counts are therefore roughly 2x what production would do; account for that before flagging a hotspot.
+`src/main.tsx` renders inside `<StrictMode>`, which double-invokes renders in development on purpose. Dev-mode component render counts are therefore roughly 2x what production would do; account for that before flagging a hotspot.
 
 A full-page `goto` creates a new document and resets the counters. Navigating between two `#` routes on the same origin does **not** — it is a same-document navigation, so `window.__P` and the react-scan report keep accumulating. Call `window.__resetReactScanReport()` and snapshot `window.__P` counters at the start of each route so per-route numbers stay separable, and collect **before** moving on.
 

@@ -1,9 +1,9 @@
 # Quality gate for every push and PR. This workflow NEVER publishes anything: releases are cut
 # only by pushing a v* tag, which triggers .github/workflows/release.yml.
 #
-# bitbones is plain JavaScript with no test suite, so the gate is lint + knip + build, plus a
-# packaging smoke test per platform so a broken electron/capacitor config is caught here rather
-# than in the middle of a release.
+# src/ is strict TypeScript and there is no test suite, so the gate is lint + type-check + knip +
+# build, plus a packaging smoke test per platform so a broken electron/capacitor config is caught
+# here rather than in the middle of a release.
 
 name: CI
 
@@ -44,6 +44,8 @@ jobs:
           done
       - name: Lint
         run: yarn lint
+      - name: Type check
+        run: yarn type-check
       - name: Knip
         run: yarn knip
       - name: Build web app

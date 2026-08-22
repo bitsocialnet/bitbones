@@ -34,7 +34,8 @@ For each task:
 4. Verify the change makes sense in context
 
 bitbones is deliberately minimal: a view is a thin wrapper over one hook. Prefer adding a hook call
-over adding a layer. Files are plain `.jsx`/`.js` with CSS modules — never introduce TypeScript.
+over adding a layer. `src/` is strict TypeScript: files are `.ts`/`.tsx` with CSS modules — never
+add plain JavaScript there, and never reach for `any` or `@ts-ignore`.
 
 ### Step 3: Verify
 
@@ -42,14 +43,14 @@ After implementing all assigned tasks:
 
 ```bash
 yarn lint 2>&1
+yarn type-check 2>&1
 yarn build 2>&1
 ```
 
 If errors relate to your changes, fix them and re-run. Add `yarn knip` when the task changed
 dependencies or the import graph, `yarn doctor` when it touched React UI logic, and any targeted
-verification the parent agent requested. There is no test suite and no type-check step in this
-repo — do not invent one. Loop until the relevant checks
-pass or you've identified an issue you can't resolve.
+verification the parent agent requested. There is no test suite in this repo — do not invent one.
+Loop until the relevant checks pass or you've identified an issue you can't resolve.
 
 ### Step 4: Report Back
 
@@ -64,6 +65,7 @@ pass or you've identified an issue you can't resolve.
 
 ### Verification
 - Lint: PASS/FAIL
+- Type-check: PASS/FAIL
 - Build: PASS/FAIL
 
 ### Status: SUCCESS / PARTIAL / FAILED

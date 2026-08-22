@@ -13,7 +13,7 @@ Run an advisory review of the current diff. This is a suggestion pass for the au
 - Otherwise review branch changes against `master` plus any staged, unstaged, or untracked files.
 - Read `AGENTS.md` and any nested `AGENTS.md` files that cover changed paths. It is the canonical house-rules doc for this repo.
 - Skim nearby source before judging a hunk. Do not review from the patch alone when surrounding patterns matter.
-- Do not re-run or duplicate deterministic tools such as `yarn build`, `yarn lint`, `yarn knip`, or `yarn doctor`. Mention them only when the diff suggests they are especially relevant.
+- Do not re-run or duplicate deterministic tools such as `yarn build`, `yarn lint`, `yarn type-check`, `yarn knip`, or `yarn doctor`. Mention them only when the diff suggests they are especially relevant.
 
 ## Review Process
 

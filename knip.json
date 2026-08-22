@@ -4,7 +4,7 @@
   "ignore": [
     "android/app/src/main/assets/public/**",
     "src/components/feed-post-lazy-example/**",
-    "src/hooks/use-is-mounted.js"
+    "src/hooks/use-is-mounted.ts"
   ],
   "ignoreDependencies": [
     "@electron-forge/maker-dmg",

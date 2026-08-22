@@ -15,16 +15,16 @@
       `import.meta.env.DEV`, which Vite replaces with the literal `false` in a production build, so
       the dynamic import is dead code and none of those packages reach the shipped bundle. Keep the
       guard here rather than in src/ so it stays in one obvious place; the instrumentation itself
-      lives in src/lib/react-scan.js, which the playwright-cli browser skills drive.
+      lives in src/lib/react-scan.ts, which the playwright-cli browser skills drive.
     -->
     <script type="module">
       if (import.meta.env.DEV) {
-        import('./src/lib/react-scan.js');
+        import('./src/lib/react-scan.ts');
       }
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/main.jsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

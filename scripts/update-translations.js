@@ -207,7 +207,7 @@ async function getFilesRecursive(dir, extensions) {
 async function extractUsedKeys(srcDir) {
   const usedKeys = new Set();
   const dynamicUsages = [];
-  // bitbones is plain JavaScript; .ts/.tsx stay in the list so the audit keeps working if that changes
+  // src/ is TypeScript (.ts/.tsx); .js/.jsx stay in the list so the audit keeps working either way
   const extensions = ['.ts', '.tsx', '.js', '.jsx'];
   const files = await getFilesRecursive(srcDir, extensions);
 

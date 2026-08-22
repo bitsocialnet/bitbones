@@ -14,7 +14,7 @@ Example:
 
 > **Commit title:** `fix(default lists): keep the seedit cache out of the other client's key`
 >
-> Keyed the localStorage entry per source in `default-lists.js` so switching lists cannot serve one client's list under the other's name.
+> Keyed the localStorage entry per source in `default-lists.ts` so switching lists cannot serve one client's list under the other's name.
 
 ## GitHub Issue Suggestion Format
 

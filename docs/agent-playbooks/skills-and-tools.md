@@ -44,7 +44,7 @@ infrastructure is:
 | Piece | What it does |
 |---|---|
 | `scripts/pw-session.sh` | Machine-wide single-browser resource lock around `playwright-cli open`/`close`. Exit 75 means the slot is busy — wait, do not bypass |
-| `src/lib/react-scan.js` | Dev-only inspectors: react-scan render report (`__getReactScanReport`), element-source (`__ELEMENT_SOURCE__`), react-grab (`__REACT_GRAB__`) |
+| `src/lib/react-scan.ts` | Dev-only inspectors: react-scan render report (`__getReactScanReport`), element-source (`__ELEMENT_SOURCE__`), react-grab (`__REACT_GRAB__`) |
 | `index.html` | The single `import.meta.env.DEV` guard that loads the module above; nothing in `src/` may import it |
 | `playwright` (devDependency) | Browser binaries via `npx playwright install`, and raw Playwright for reproduction scripts |
 | `playwright-cli` (global) | `npm install -g @playwright/cli@latest` — not a repo dependency |
@@ -99,7 +99,7 @@ npx skills add https://github.com/vercel-labs/skills --skill find-skills
 |---|---|
 | `yarn start` | Dev server at https://bitbones.localhost via portless (`PORTLESS=0 yarn start` for http://localhost:5173, which is what browser automation should target) |
 | `./scripts/pw-session.sh status` | Who holds the machine-wide Playwright browser slot, and whether that browser is still alive |
-| `yarn lint` / `yarn build` | The required gate, also enforced by the stop hook |
+| `yarn lint` / `yarn type-check` / `yarn build` | The required gate, also enforced by the stop hook |
 | `yarn knip` | Manifest/import audit (strict); `yarn knip:full` is the advisory full report |
 | `yarn doctor` | react-doctor review of React UI logic; treat it as a reviewer of *new* diagnostics, not a score |
 | `yarn ai-workflow:check` | Parity check across `.claude/`, `.cursor/`, `.codex/` |

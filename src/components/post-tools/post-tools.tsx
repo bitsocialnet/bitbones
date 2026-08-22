@@ -1,0 +1,171 @@
+import { useState, useEffect, type ChangeEvent, type ReactNode } from 'react';
+import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
+import styles from './post-tools.module.css';
+import { useSubscribe, useBlock, useAccount, useCommunity, usePublishCommentModeration } from '@bitsocial/bitsocial-react-hooks';
+import type { Challenge, Comment, PublishCommentModerationOptions } from '@bitsocial/bitsocial-react-hooks';
+import { alertChallengeVerificationFailed } from '../../lib/utils';
+import challengesStore from '../../hooks/use-challenges';
+import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
+const { addChallenge } = challengesStore.getState();
+
+interface MenuProps {
+  post?: Comment;
+  closeModal?: () => void;
+}
+
+const Menu = ({ post, closeModal }: MenuProps) => {
+  const { subscribed, subscribe, unsubscribe } = useSubscribe({ communityAddress: post?.communityAddress });
+  const { blocked: hidden, block: hide, unblock: unhide } = useBlock({ cid: post?.cid });
+  const { blocked: communityBlocked, block: blockCommunity, unblock: unblockCommunity } = useBlock({ address: post?.communityAddress });
+  const { blocked: authorBlocked, block: blockAuthor, unblock: unblockAuthor } = useBlock({ address: post?.author?.address });
+  const toggleSubscribe = () => (!subscribed ? subscribe() : unsubscribe());
+  const toggleHide = () => (!hidden ? hide() : unhide());
+  const toggleBlockCommunity = () => (!communityBlocked ? blockCommunity() : unblockCommunity());
+  const toggleBlockAuthor = () => (!authorBlocked ? blockAuthor() : unblockAuthor());
+
+  const account = useAccount();
+  const communityIdentifier = useCommunityIdentifier(post?.communityAddress);
+  const role = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined)?.roles?.[account?.author?.address]?.role;
+  const isMod = role === 'admin' || role === 'owner' || role === 'moderator';
+
+  const share = () => {
+    // link straight at the app. 5chan and seedit route shares through a bitsocial-previewer tenant
+    // (s.5chan.app, s.seedit.app) for link previews; bitbones has no tenant provisioned yet.
+    const shareUrl = `https://bitbones.app/#/p/${post?.communityAddress}/c/${post?.cid}`;
+    navigator.clipboard.writeText(shareUrl);
+    alert(shareUrl);
+  };
+
+  return (
+    <div className={styles.postToolsMenu}>
+      <div onClick={toggleSubscribe} className={styles.menuItem}>
+        {!subscribed ? 'join' : 'leave'} p/{post?.shortCommunityAddress || ''}
+      </div>
+      <div onClick={toggleHide} className={styles.menuItem}>
+        {!hidden ? 'hide' : 'unhide'}
+      </div>
+      <div onClick={toggleBlockCommunity} className={styles.menuItem}>
+        {!communityBlocked ? 'block' : 'unblock'} p/{post?.shortCommunityAddress || ''}
+      </div>
+      <div onClick={toggleBlockAuthor} className={styles.menuItem}>
+        {!authorBlocked ? 'block' : 'unblock'} u/{post?.author?.shortAddress || ''}
+      </div>
+      <div onClick={share} className={styles.menuItem}>
+        share
+      </div>
+      {isMod && <ModTools post={post} closeModal={closeModal} />}
+    </div>
+  );
+};
+
+interface ModToolsProps {
+  post?: Comment;
+  closeModal?: () => void;
+}
+
+const ModTools = ({ post, closeModal }: ModToolsProps) => {
+  // typed as the library's loose PublishCommentModerationOptions bag: UsePublishCommentModerationOptions
+  // declares onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
+  // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+  const defaultPublishOptions: PublishCommentModerationOptions = {
+    commentModeration: {
+      removed: post?.removed,
+      locked: post?.locked,
+      spoiler: post?.spoiler,
+      pinned: post?.pinned,
+    },
+    commentCid: post?.cid,
+    communityAddress: post?.communityAddress,
+    onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, post]),
+    onChallengeVerification: alertChallengeVerificationFailed,
+    onError: (error: Error) => {
+      console.warn(error);
+      alert(error);
+    },
+  };
+  const [publishCommentModerationOptions, setPublishCommentModerationOptions] = useState(defaultPublishOptions);
+  const { state, publishCommentModeration } = usePublishCommentModeration(publishCommentModerationOptions);
+
+  // close the modal after publishing
+  useEffect(() => {
+    if (state && state !== 'failed' && state !== 'initializing' && state !== 'ready') {
+      closeModal?.();
+    }
+  }, [state, closeModal]);
+
+  const onCheckbox = (e: ChangeEvent<HTMLInputElement>) =>
+    setPublishCommentModerationOptions((state) => ({ ...state, commentModeration: { ...state.commentModeration, [e.target.id]: e.target.checked } }));
+
+  const onReason = (e: ChangeEvent<HTMLInputElement>) =>
+    setPublishCommentModerationOptions((state) => ({ ...state, commentModeration: { ...state.commentModeration, reason: e.target.value ? e.target.value : undefined } }));
+
+  // `for` is not the prop name React types, and it is left as-is here on purpose: this is a
+  // types-only migration, so the wrong attribute name is spread through instead of being renamed
+  return (
+    <div className={styles.modTools}>
+      <div className={styles.menuItem}>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.removed} type='checkbox' id='removed' />
+        <label {...{ for: 'removed' }}>removed</label>
+      </div>
+      <div className={styles.menuItem}>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.locked} type='checkbox' id='locked' />
+        <label {...{ for: 'locked' }}>locked</label>
+      </div>
+      <div className={styles.menuItem}>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.spoiler} type='checkbox' id='spoiler' />
+        <label {...{ for: 'spoiler' }}>spoiler</label>
+      </div>
+      <div className={styles.menuItem}>
+        <input onChange={onCheckbox} checked={publishCommentModerationOptions.commentModeration.pinned} type='checkbox' id='pinned' />
+        <label {...{ for: 'pinned' }}>pinned</label>
+      </div>
+      <div className={styles.menuItem}>
+        <input onChange={onReason} defaultValue={post?.reason} size={14} placeholder='reason' />
+        <button onClick={publishCommentModeration}>edit</button>
+      </div>
+    </div>
+  );
+};
+
+interface PostToolsProps {
+  children?: ReactNode;
+  post?: Comment;
+}
+
+function PostTools({ children, post }: PostToolsProps) {
+  // modal stuff
+  const [isOpen, setIsOpen] = useState(false);
+
+  const { refs, floatingStyles, context } = useFloating({
+    placement: 'bottom-start',
+    open: isOpen,
+    onOpenChange: setIsOpen,
+    middleware: [offset(2), flip({ fallbackAxisSideDirection: 'end' }), shift()],
+    whileElementsMounted: autoUpdate,
+  });
+
+  const click = useClick(context);
+  const dismiss = useDismiss(context);
+  const role = useRole(context);
+
+  const { getReferenceProps, getFloatingProps } = useInteractions([click, dismiss, role]);
+
+  const headingId = useId();
+
+  return (
+    <>
+      <span className={styles.postToolsButton} ref={refs.setReference} {...getReferenceProps()}>
+        {children}
+      </span>
+      {isOpen && (
+        <FloatingFocusManager context={context} modal={false}>
+          <div className={styles.modal} ref={refs.setFloating} style={floatingStyles} aria-labelledby={headingId} {...getFloatingProps()}>
+            <Menu post={post} closeModal={() => setIsOpen(false)} />
+          </div>
+        </FloatingFocusManager>
+      )}
+    </>
+  );
+}
+
+export default PostTools;

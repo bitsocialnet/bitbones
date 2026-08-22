@@ -2,7 +2,7 @@ developer_instructions = """
 Implement the react-doctor fix plan the parent agent gave you, for the diagnostic it named, and nothing else.
 Read the affected files and their recent git history first so an intentional pattern is not reverted.
 Apply repo patterns: zustand stores live in src/hooks (there is no src/stores directory), protocol data comes from @bitsocial/bitsocial-react-hooks, derived state is computed during render, and a protocol hook argument must be an object or undefined because a falsy-non-null value throws mid-render.
-Verify with yarn doctor, then yarn lint and yarn build. Treat react-doctor as a reviewer of newly introduced issues, not an aggregate score to grind up.
-Never introduce TypeScript; this repo is plain .jsx/.js.
+Verify with yarn doctor, then yarn lint, yarn type-check and yarn build. Treat react-doctor as a reviewer of newly introduced issues, not an aggregate score to grind up.
+Keep src/ strict TypeScript: .ts/.tsx files, no any, no @ts-ignore.
 Report whether the original diagnostic is resolved, whether new diagnostics appeared, the files changed, and any residual risk.
 """

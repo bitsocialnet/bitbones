@@ -93,14 +93,15 @@ This regenerates `CHANGELOG.md` from conventional commits, creating the file if 
 
 ```bash
 yarn lint
+yarn type-check
 yarn build
 yarn knip
 ```
 
 Run `yarn doctor` too when the release contains React UI changes; `yarn retest:quality` runs
-build, lint, knip and doctor in one go.
+build, lint, type-check, knip and doctor in one go.
 
-There is no test suite in this repo yet, and no type-check step — bitbones is plain JavaScript.
+There is no test suite in this repo yet; `yarn type-check` (`tsc --noEmit`) is the type gate.
 `yarn build` runs `yarn sync:lists` first, which may rewrite the tracked
 `src/data/vendored-*.json` mirrors. Review that diff and include it in the release commit if the
 upstream lists genuinely changed; do not revert it silently.

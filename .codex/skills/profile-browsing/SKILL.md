@@ -20,7 +20,7 @@ Profile `yarn start` only when you want dev-mode numbers. Vite dev serves unbund
 
 ### react-scan (already configured)
 
-`src/lib/react-scan.js` runs react-scan in dev mode. `index.html` loads it behind `import.meta.env.DEV`, which Vite replaces with the literal `false` in a production build, so none of it ships. It:
+`src/lib/react-scan.ts` runs react-scan in dev mode. `index.html` loads it behind `import.meta.env.DEV`, which Vite replaces with the literal `false` in a production build, so none of it ships. It:
 - Highlights rerendering components visually (toolbar + overlay)
 - Accumulates per-component render counts and times via react-scan's `onRender` option
 - Exposes `window.__getReactScanReport()` and `window.__resetReactScanReport()` for programmatic collection
@@ -131,7 +131,7 @@ Collect structured output from each subagent and merge:
 | react-scan: component with >30 renders | Missing memoization or unstable references | `useMemo`/`useCallback`, check parent renders |
 | react-scan: component with >50ms time | Expensive render function | Split component, move work out of render |
 
-Before proposing a fix, re-read the React architecture rules in `AGENTS.md`. Views are deliberately thin wrappers over one hook, and protocol data arrives through `@bitsocial/bitsocial-react-hooks`; a rerender count that tracks incoming protocol updates is the app working, not a bug. Note that `src/main.jsx` renders inside `<StrictMode>`, which intentionally double-invokes renders in dev — halve dev-mode component counts before calling something a hotspot.
+Before proposing a fix, re-read the React architecture rules in `AGENTS.md`. Views are deliberately thin wrappers over one hook, and protocol data arrives through `@bitsocial/bitsocial-react-hooks`; a rerender count that tracks incoming protocol updates is the app working, not a bug. Note that `src/main.tsx` renders inside `<StrictMode>`, which intentionally double-invokes renders in dev — halve dev-mode component counts before calling something a hotspot.
 
 ## Element-source follow-up
 

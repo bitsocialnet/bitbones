@@ -25,7 +25,7 @@ Scan the diff against master and remove AI-generated slop introduced in this bra
 3. **Fix** each instance — remove or rewrite to match the surrounding code style
 4. **Verify** the build still passes:
    ```bash
-   yarn lint && yarn build
+   yarn lint && yarn type-check && yarn build
    ```
 5. **Report** a 1-3 sentence summary of what you changed
 
@@ -66,9 +66,9 @@ const { feed } = useFeed({ communities });
 
 ### Defensive shapes that hide the real bug
 
-bitbones is plain JavaScript, so there is no compiler to appease — but AI still reaches for
-`?? {}`, `|| []`, or `String(x)` wrappers to make a symptom go away. Remove the wrapper and fix the
-value at its source. One exception is load-bearing here: hook arguments must be an object or
+`src/` is strict TypeScript, so AI reaches for `?? {}`, `|| []`, `String(x)` wrappers, or an `any`
+cast to make a symptom — or a compiler complaint — go away. Remove the wrapper and fix the type or
+the value at its source. One exception is load-bearing here: hook arguments must be an object or
 `undefined`, never a falsy-non-null value, because the hooks library asserts on that and throws
 mid-render.
 

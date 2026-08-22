@@ -10,17 +10,16 @@ Run `yarn ai-workflow:check` after changing any of this.
 
 | Edit-time / stop | Script | Purpose |
 |---|---|---|
-| edit-time | `hooks/format.sh` | Auto-format `.js`/`.jsx`/`.cjs`/`.mjs` after AI edits (`npx oxfmt`) |
+| edit-time | `hooks/format.sh` | Auto-format `.ts`/`.tsx`/`.js`/`.jsx`/`.cjs`/`.mjs` after AI edits (`npx oxfmt`) |
 | edit-time | `hooks/yarn-install.sh` | Run `corepack yarn install` when the root `package.json` changes |
 | edit-time + stop | `hooks/react-pattern-review.sh` | When React UI source changes, remind the agent to run the React best-practice review skills; flag new `useEffect`/memo primitives, and flag protocol-hook calls so the argument traps get checked |
 | stop | `hooks/sync-git-branches.sh` | Prune stale refs and delete integrated temporary task branches |
 | stop | `hooks/code-quality-review-reminder.sh` | Remind the agent to run the advisory `code-quality-review` skill when the diff is non-trivial |
-| stop | `hooks/verify.sh` | Gate `yarn lint` and `yarn build`; keep `yarn npm audit` informational |
+| stop | `hooks/verify.sh` | Gate `yarn lint`, `yarn type-check` and `yarn build`; keep `yarn npm audit` informational |
 | session start (Claude only) | `.claude/hooks/session-start.sh` | `corepack yarn install` when `node_modules` is missing (fresh worktrees) |
 
-`verify.sh` gates lint and build only. There is no type-check step (bitbones is plain JavaScript) and
-no test suite, so nothing else belongs in the gate. `yarn doctor` and `yarn knip` stay advisory and
-are run by the agent, not the hook.
+`verify.sh` gates lint, type-check and build only. There is no test suite, so nothing else belongs in
+the gate. `yarn doctor` and `yarn knip` stay advisory and are run by the agent, not the hook.
 
 ## Entry points (harness-specific formats)
 

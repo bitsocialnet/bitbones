@@ -37,6 +37,7 @@ yarn start
 | `yarn build` | production build into `build/` |
 | `yarn sync:lists` | refresh the vendored default community lists from bitsocialnet/lists |
 | `yarn lint` | oxlint |
+| `yarn type-check` | `tsc --noEmit` over `src/` |
 | `yarn prettier` | oxfmt |
 | `yarn knip` | unused/undeclared dependency check |
 | `yarn electron:dev` | run the desktop app against the dev server |

@@ -32,7 +32,7 @@ Prefer JSON for the feature list so agents can update a small number of fields w
 2. Read `progress.md`.
 3. Read `feature-list.json`.
 4. Run `git log --oneline -20`.
-5. Confirm the baseline still builds: `corepack yarn install && yarn lint && yarn build`.
+5. Confirm the baseline still builds: `corepack yarn install && yarn lint && yarn type-check && yarn build`.
 6. Choose exactly one highest-priority item that is still `pending`, `in_progress`, or `blocked`.
 
 If the baseline check fails, fix the broken baseline before implementing a new feature slice.
@@ -61,7 +61,7 @@ Use a short structure like:
 
 - Item: F003
 - Summary: Routed the community header through useCommunityIdentifier instead of the raw address.
-- Files: `src/views/community/community.jsx`, `src/hooks/use-community-identifier.js`
-- Verification: `yarn lint`, `yarn build`, opened /p/<address> and confirmed the header renders
+- Files: `src/views/community/community.tsx`, `src/hooks/use-community-identifier.ts`
+- Verification: `yarn lint`, `yarn type-check`, `yarn build`, opened /p/<address> and confirmed the header renders
 - Next: Do the same for the catalog route.
 ```

@@ -50,10 +50,10 @@ normalize_file_path() {
   esac
 }
 
-# bitbones is plain JavaScript: no .ts/.tsx here.
+# src/ is TypeScript (.ts/.tsx); electron/ and scripts/ stay .js/.mjs/.cjs.
 is_source_file() {
   case "$1" in
-    *.js|*.jsx|*.mjs|*.cjs) return 0 ;;
+    *.ts|*.tsx|*.js|*.jsx|*.mjs|*.cjs) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -77,7 +77,7 @@ matches_scope() {
 
 is_react_ui_source_file() {
   case "$1" in
-    src/components/*|src/views/*|src/hooks/*|src/lib/*|src/app.jsx) return 0 ;;
+    src/components/*|src/views/*|src/hooks/*|src/lib/*|src/app.tsx) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -171,14 +171,14 @@ if [ -n "$file_path" ]; then
     fi
   fi
 else
-  diff_output="$(git diff --no-ext-diff --unified=0 --no-color HEAD -- '*.js' '*.jsx' '*.mjs' '*.cjs' 2>/dev/null || true)"
+  diff_output="$(git diff --no-ext-diff --unified=0 --no-color HEAD -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' 2>/dev/null || true)"
   results="$(printf '%s\n' "$diff_output" | parse_matches_from_diff "$effect_regex")"
   protocol_results="$(printf '%s\n' "$diff_output" | parse_matches_from_diff "$protocol_regex")"
 
   while IFS= read -r changed_file; do
     [ -z "$changed_file" ] && continue
     react_source_files="$(append_file_if_react_ui_source "$react_source_files" "$changed_file")"
-  done < <(git diff --name-only --diff-filter=ACMRT HEAD -- 'src/components' 'src/views' 'src/hooks' 'src/lib' 'src/app.jsx' 2>/dev/null || true)
+  done < <(git diff --name-only --diff-filter=ACMRT HEAD -- 'src/components' 'src/views' 'src/hooks' 'src/lib' 'src/app.tsx' 2>/dev/null || true)
 
   while IFS= read -r untracked_file; do
     [ -z "$untracked_file" ] && continue
@@ -187,7 +187,7 @@ else
     react_source_files="$(append_file_if_react_ui_source "$react_source_files" "$untracked_file")"
     results="$(append_results "$results" "$(scan_untracked_file "$untracked_file" "$effect_regex")")"
     protocol_results="$(append_results "$protocol_results" "$(scan_untracked_file "$untracked_file" "$protocol_regex")")"
-  done < <(git ls-files --others --exclude-standard -- '*.js' '*.jsx' '*.mjs' '*.cjs')
+  done < <(git ls-files --others --exclude-standard -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs')
 fi
 
 dedupe() {
@@ -251,7 +251,7 @@ if [ -n "$protocol_results" ]; then
   print_capped_list "Protocol hooks were called in the current diff:" "$protocol_results"
   echo "Check both hook argument traps before finishing:"
   echo "- useFeed, useCommunity, useCommunityStats and useCommunitiesStates take a CommunityIdentifier"
-  echo "  ({name} or {publicKey}), never an address string. Go through src/hooks/use-community-identifier.js."
+  echo "  ({name} or {publicKey}), never an address string. Go through src/hooks/use-community-identifier.ts."
   echo "  An address returns nothing: no throw, no console error, just an empty feed or a blank header."
   echo "- useSubscribe is the exception and still takes a plain communityAddress string."
   echo "- Hook arguments must be an object or undefined. A falsy-non-null value such as (cond && options)"

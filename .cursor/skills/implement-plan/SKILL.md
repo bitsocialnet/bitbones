@@ -65,10 +65,11 @@ When a subagent reports PARTIAL or FAILED:
 After all batches complete:
 
 1. Run `yarn lint`
-2. Run `yarn build` to confirm everything still bundles
-3. Run `yarn knip` if the plan changed dependencies or the import graph, and `yarn doctor` if it
+2. Run `yarn type-check` to confirm `src/` still type-checks
+3. Run `yarn build` to confirm everything still bundles
+4. Run `yarn knip` if the plan changed dependencies or the import graph, and `yarn doctor` if it
    touched React UI logic
-4. For UI changes, open the app with `yarn start` (https://bitbones.localhost, or
+5. For UI changes, open the app with `yarn start` (https://bitbones.localhost, or
    `PORTLESS=0 yarn start` for http://localhost:5173) and check the affected route by hand. There is
    no test suite and no committed browser-automation wrapper in this repo, so manual verification is
    the verification
