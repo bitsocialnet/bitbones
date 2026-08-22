@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.1.4](https://github.com/bitsocialnet/bitbones/compare/v0.1.3...v0.1.4) (2026-08-22)
+
+### Bug Fixes
+
+* **deps:** clear the 25 fixable dependabot alerts ([cd2fabb](https://github.com/bitsocialnet/bitbones/commit/cd2fabb7553e99f3204f55c349592fbdd310bdde))
+
 ## [0.1.3](https://github.com/bitsocialnet/bitbones/compare/v0.1.2...v0.1.3) (2026-08-22)
 
 ### Bug Fixes
