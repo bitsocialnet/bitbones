@@ -1,0 +1,25 @@
+.modal {
+  /* needs z index to be above virtuoso */
+  z-index: 1;
+
+  /* remove outline when selected */
+  outline: unset;
+
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: var(--dark1);
+}
+
+.closed {
+  display: none;
+}
+
+.overlay {
+  /* needs z index to be above virtuoso */
+  z-index: 1;
+
+  background-color: var(--dark1);
+}

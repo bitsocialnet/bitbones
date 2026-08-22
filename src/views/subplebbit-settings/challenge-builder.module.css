@@ -1,0 +1,55 @@
+.challenge {
+  padding: 10px;
+  border-width: 1px;
+  border-style: solid;
+  border-color: var(--dark3);
+  max-width: 530px;
+}
+.challenge:not(:last-child) {
+  border-bottom: none;
+}
+
+.removeButton {
+  float: right;
+}
+
+.challengeTitle {
+  font-weight: bold;
+}
+
+.challengeOptions {
+  padding: 10px;
+}
+
+.challengeInput {
+  width: 100%;
+}
+
+.challengeOption {
+  padding-bottom: 4px;
+}
+.challengeOption:last-child {
+  padding-bottom: 0
+}
+
+.challengeMoreButton {
+  /* style the button */
+  width: 10px;
+  background-color: var(--dark1);
+  color: var(--light2);
+  font-weight: bold;
+
+  /* remove icon and border */
+  appearance: unset;
+  border: none;
+
+  /* align button right */
+  float: right;
+
+  /* align select options left */
+  direction: rtl;
+  text-align: left;
+
+  /* align button text center */
+  text-align-last: center;
+}

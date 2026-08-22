@@ -1,0 +1,41 @@
+/* no theme */
+:root {
+  --dark1: black;
+  --dark1b: black;
+  --dark2: black;
+  --dark3: black;
+  --light1: white;
+  --light2: white;
+  --red1: red;
+  --red2: red;
+  --orange1: orange;
+  --orange2: orange;
+}
+
+/* dark mode theme */
+:root .dark {
+  --dark1: #181818;
+  --dark1b: #161616;
+  --dark2: #212121;
+  --dark3: #3d3d3d;
+  --light1: #f1f1f1;
+  --light2: #aaaaaa;
+  --red1: #ad3636;
+  --red2: #492121;
+  --orange1: #b2832d;
+  --orange2: #3a301d;
+}
+
+/* light mode theme */
+:root .light {
+  --dark1: #f9faf2;
+  --dark1b: #f2f4ee;
+  --dark2: #edf1eb;
+  --dark3: #cccccc;
+  --light1: #0e4861;
+  --light2: #3b3b3b;
+  --red1: darkred;
+  --red2: #a0312f;
+  --orange1: darkorange;
+  --orange2: #fda83d;
+}

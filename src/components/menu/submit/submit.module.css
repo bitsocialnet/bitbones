@@ -1,0 +1,43 @@
+.modal {
+  /* needs z index to be above virtuoso */
+  z-index: 1;
+
+  /* remove outline when selected */
+  outline: unset;
+}
+
+.submit {
+  text-align: left;
+  padding: 0 2px;
+  width: 480px;
+  /* cancel the modal 2px sides padding */
+  max-width: 98vw; /* fix ios unsupported vw inside calc() */
+  max-width: calc(100vw - 4px);
+  max-height: 50vh;
+
+  /* design */
+  font-size: 13px;
+  background-color: var(--dark1);
+  color: var(--light2);
+}
+
+.submitButtonWrapper {
+  text-align: right;
+}
+
+.submitTitle, .submitContent, .submitSelectSubplebbit {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.submitTitle, .submitContent, .submitSelectSubplebbit, .submitButton {
+  /* must redefine for some reason */
+  font-size: 13px;
+  background-color: var(--dark1);
+  color: var(--light2);
+  font-family: verdana, arial, helvetica, sans-serif;
+}
+
+.submitTitle, .submitContent {
+  font-family: monospace;
+}

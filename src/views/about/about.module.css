@@ -1,0 +1,20 @@
+.about {
+  word-break: break-word;
+  font-size: 12px;
+}
+
+.logo {
+}
+
+.about ul {
+  padding-inline-start: 20px;
+  margin: 0;
+}
+
+.about p {
+  margin: 6px 0;
+}
+
+.title {
+  font-weight: bold;
+}

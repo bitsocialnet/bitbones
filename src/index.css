@@ -1,0 +1,30 @@
+html, body {
+  /* no horizontal scrolling */
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body {
+  /* reset margin */
+  margin: 0;
+
+  /* put background color in body to fix white flash when scrolling too fast */
+  background-color: var(--dark1);
+}
+
+/* remove default link styles */
+a {
+  color: unset;
+  text-decoration: unset;
+}
+
+/* remove outlines on focus */
+select:focus, input:focus, textarea:focus, video:focus, a:focus {
+  outline: 0;
+}
+
+@supports (-webkit-overflow-scrolling: touch) {
+   input, textarea {
+     font-size: 16px!important;
+   }
+}

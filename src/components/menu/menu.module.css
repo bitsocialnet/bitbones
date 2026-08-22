@@ -1,0 +1,123 @@
+.menu {
+  /* placeholder height for sticky menu */
+  height: 15px;
+}
+
+.stickyMenu {
+  color: var(--light2);
+  background-color: var(--dark1);
+  font-size: 12px;
+
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+
+  /* menus are buttons so it's annoying to select them by accident */
+  user-select: none;
+
+  /* sticky menu */
+  position: fixed;
+  right: 0;
+  padding: 0 2px 0 0;
+  z-index: 1; /* needed to be above virtuoso */
+
+  /* sticky menu animation */
+  animation-name: stickyMenuAnimation;
+  animation-duration: 1s;
+  animation-timing-function: linear;
+  animation-iteration-count: 1;
+  animation-fill-mode: both;
+  animation-play-state: paused;
+}
+
+/* edit 100%: {top} to change how fast to appear menu on scroll up, must also edit scrollRange variable in js */
+@keyframes stickyMenuAnimation {
+  0% {
+    top: 0px;
+  }
+  100% {
+    top: -50px;
+  }
+}
+
+.aboutMenu {
+  position: fixed;
+  top: 0;
+  right: 2px;
+  color: var(--light2);
+  background-color: var(--dark1);
+  font-size: 12px;
+  /* menus are buttons so it's annoying to select them by accident */
+  user-select: none;
+}
+
+.scrollToTopButton {
+  font-size: 13px;
+  /* position bottom right */
+  opacity: 0;
+  height: 50px;
+  width: 50px;
+  cursor: pointer;
+  position: fixed;
+  bottom: 0;
+  right: 2px;
+  /* needs z index to be above virtuoso */
+  z-index: 1;
+}
+
+button:hover.scrollToTopButton {
+  opacity: 0.1;
+}
+
+.leftMenu {
+  text-align: left;
+}
+
+.rightMenu {
+  text-align: right;
+}
+
+.menuItem {
+  /* make menu cursors like links */
+  cursor: pointer;
+}
+
+select.sortType, select.feedName {
+  background-color: var(--dark1);
+  color: var(--light2);
+  text-align: left;
+
+  /* fix borders */
+  outline: unset;
+  /*  border: unset;*/
+  /* compensate for the select border */
+  margin: -1px 0 0 0;
+  /* border width is not 1px in firefox */
+  border-width: 1px;
+  /* border color isn't set in firefox */
+  border-color: var(--light2);
+
+  /* remove icon */
+  appearance: unset;
+
+  /* firefox adds padding */
+  padding: 0;
+
+  /* firefox messes the font */
+  font-family: verdana, arial, helvetica, sans-serif;
+
+  /* must specify font size of select again for some reason */
+  font-size: 12px;
+}
+
+.sortType option, .feedName option {
+  color: var(--light2);
+}
+
+.goToSubplebbitModal {
+  /* dialog element must have 0 padding/border to be able to detect outside clicks */
+  padding: 0;
+  border: none;
+  /* needs z index to be above virtuoso */
+  z-index: 1;
+}

@@ -1,0 +1,42 @@
+.info {
+  font-size: 12px;
+  margin: 0 0 2px 0;
+}
+
+.header {
+}
+
+.title {
+  font-family: arial, verdana, helvetica, sans-serif;
+  font-size: 19px;
+  font-weight: bold;
+  color: var(--light1);
+  word-break: break-word;
+}
+
+.avatar {
+  height: 15px;
+  position: absolute;
+  margin: 3px 0 0 2px;
+}
+
+.joinButton {
+  padding-top: 0;
+  padding-bottom: 0;
+  background-color: var(--light2);
+  color: var(--dark1);
+  font-size: 10px;
+  font-weight: bold;
+  width: 41px;
+}
+
+.rules {
+  margin: 0;
+  padding-inline-start: 12px;
+}
+
+.description, .rules {
+  margin: 2px 0 0 0;
+  font-size: 11px;
+  word-break: break-word;
+}

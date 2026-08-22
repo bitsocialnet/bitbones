@@ -1,0 +1,257 @@
+.textWrapper {
+  /* put score in left column */
+  display: flex; 
+  flex-direction: row;
+}
+
+.title {
+  color: var(--light1);
+  font-size: 16px;
+}
+
+.footer {
+  font-weight: bold;
+}
+
+.content {
+  font-size: 13px;
+  border: 1px solid var(--dark3);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.media {
+  max-width: 100vw;
+
+  /* undo the app post padding */
+  margin: 0 0 0 -2px;
+}
+
+/* videos can't be scrolled comfortably, so max the height */
+video.media {
+  max-height: 85vh;
+}
+
+/* make it darker so user knows a media is loading */
+.mediaWrapper {
+  background-color: var(--dark1b);
+}
+
+.score {
+  font-size: 13px;
+
+  /* fix the arrow positions */
+  text-align: center;
+  width: 24px;
+
+  /* if the number is too big */
+  overflow: hidden;
+}
+
+.largeScoreNumber {
+  letter-spacing: -1.5px;
+  margin-left: -2px;
+}
+
+.negativeScoreNumber {
+  margin-left: -2px;
+}
+
+.downvote, .upvote {
+  /* fix the arrow positions */
+  height: 12px;
+
+  /* buttons are annoying to select them by accident */
+  user-select: none;
+
+  /* votes are buttons */
+  cursor: pointer;
+}
+
+.downvote {
+  /* inverse the arrow to make it a downvote */
+  transform: scaleY(-1);
+
+  /* fix the arrow positions */
+  height: 13px;
+}
+
+.downvote svg path, .upvote svg path, .replyUpvote svg path, .replyDownvote svg path, .moreButton svg path {
+  fill: var(--light2);
+}
+
+.voteSelected svg path {
+  fill: var(--light1);
+}
+
+.button {
+  padding: 0 8px 0 0;
+
+  /* make menu cursors like links */
+  cursor: pointer;
+
+  /* buttons are annoying to select them by accident */
+  user-select: none;
+}
+
+.moreButton {
+  font-size: 16px;
+  line-height: 0;
+  display: inline-block;
+  transform: translateY(-1px);
+}
+
+.replyCount {
+  /* reply count is not a link/button in the post view */
+  cursor: auto;
+
+  /* allow selecting comment count */
+  user-select: auto;
+}
+
+.replyContent {
+  font-size: 13px;
+  word-break: break-word;
+  white-space: pre-wrap;
+
+  /* reply text can be selected to quote */
+  cursor: text;
+}
+
+.newRepliesButton {
+  font-weight: bold;
+  /* make buttons like links */
+  cursor: pointer;
+  /* position: absolute to never displace the ui */
+  position: absolute;
+  /* don't wrap, but include left space */
+  white-space: pre;
+}
+
+/* add indent to each nested reply */
+.replies {
+  padding: 0 0 0 8px;
+}
+
+/* top level replies should have no indent */
+.post > .replies {
+  padding: 0;
+}
+
+/* each top level reply should have a space after */
+.post > .replies > .reply {
+  margin: 0 0 8px 0;
+}
+
+/* use padding instead of margin so bg is continuous color */
+.replyWrapper {
+  padding: 0 0 3px 0;
+}
+
+/* use margin instead of padding if is last so bg isn't included in padding, only needed because of different bg color */
+.replyWrapper.replyIsLast {
+  padding: 0;
+  margin: 0 0 3px 0;
+}
+
+/* different bg colors for each nesting level */
+.replyDepthEven {
+  background-color: var(--dark2);
+}
+
+/* empty space between title and replies when there is no media */
+.noMedia {
+  height: 8px
+}
+
+.hidden {
+  opacity: 0;
+}
+
+.label {
+  border: 1px solid var(--dark3);
+}
+
+.pendingLabel {
+  color: var(--orange1);
+  border: 1px solid var(--orange2);
+}
+
+.failedLabel {
+  color: var(--red1);
+  border: 1px solid var(--red2);
+}
+
+.stateString {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: calc(100vw - 28px);
+  width: 100vw;
+}
+
+/* put max height to be able to see pending post states */
+.pendingMedia img, .pendingMedia video {
+  max-height: 50vh;
+}
+
+.authorAvatarWrapper {
+  width: 18px;
+  display: inline-block;
+  position: relative;
+}
+
+.authorAvatar {
+  width: 18px;
+  max-height: 18px;
+  position: absolute;
+  bottom: -2px; /* align vertically so it looks ok, not centered */
+}
+
+select.repliesSortType {
+  width: 34px;
+
+  background-color: var(--dark1);
+  color: var(--light2);
+  text-align: left;
+
+  /* fix borders */
+  outline: unset;
+  /*  border: unset;*/
+  /* compensate for the select border */
+  margin: -1px 0 0 0;
+  /* border width is not 1px in firefox */
+  border-width: 1px;
+  /* border color isn't set in firefox */
+  border-color: var(--dark3);
+
+  /* remove icon */
+  appearance: unset;
+
+  /* firefox adds padding */
+  padding: 0;
+
+  /* firefox messes the font */
+  font-family: verdana, arial, helvetica, sans-serif;
+
+  /* must specify font size and weight of select again for some reason */
+  font-size: 10px;
+  font-weight: bold;
+}
+
+.repliesSortType option {
+  color: var(--light2);
+}
+
+.quote {
+  padding: 1px 0 2px 8px;
+}
+
+.quoteClosed {
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.quoteEllipsis {
+  opacity: 0.5;
+}
