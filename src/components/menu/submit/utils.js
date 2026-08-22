@@ -1,9 +1,8 @@
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import useDefaultCommunities from '../../../hooks/use-default-communities.js';
-import PKC from '@pkcprotocol/pkc-js';
+import getShortAddress from '../../../lib/get-short-address.js';
 import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-const { getShortAddress } = PKC;
 
 export const isLink = (content) => {
   if (!content) {
@@ -32,7 +31,7 @@ export const useDefaultAndSubscriptionsCommunities = () => {
       communities[communityAddressParam] = { address: communityAddressParam, displayAddress: communityAddressParam };
     }
     for (const address of account.subscriptions) {
-      communities[address] = { address, displayAddress: getShortAddress({ address }) };
+      communities[address] = { address, displayAddress: getShortAddress(address) };
     }
     for (const community of defaultCommunities) {
       if (!community.address) {
@@ -40,7 +39,7 @@ export const useDefaultAndSubscriptionsCommunities = () => {
       }
       communities[community.address] = { address: community.address, displayAddress: community.address };
       if (!community.address.includes('.')) {
-        communities[community.address].displayAddress = getShortAddress({ address: community.address });
+        communities[community.address].displayAddress = getShortAddress(community.address);
         if (community.title) {
           communities[community.address].displayAddress += ` ${community.title}`;
         }

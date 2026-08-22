@@ -14,10 +14,14 @@ const getClientHost = (clientUrl) => {
 };
 
 const useStateString = (commentOrCommunity) => {
-  // useClientsStates asserts comment and community are never both set. only a community has an
+  // callers pass falsy non-null values (post.jsx hands us `state === 'pending' && accountReply`,
+  // i.e. the boolean false). useClientsStates asserts its argument is null/undefined or an object,
+  // so normalize before branching or it throws mid-render.
+  const target = commentOrCommunity && typeof commentOrCommunity === 'object' ? commentOrCommunity : undefined;
+  // useClientsStates also asserts comment and community are never both set. only a community has an
   // `address` without a `communityAddress`, so that is the discriminator.
-  const isCommunity = !!commentOrCommunity?.address && !commentOrCommunity?.communityAddress;
-  const { states } = useClientsStates(isCommunity ? { community: commentOrCommunity } : { comment: commentOrCommunity });
+  const isCommunity = !!target?.address && !target?.communityAddress;
+  const { states } = useClientsStates(isCommunity ? { community: target } : { comment: target });
   return useMemo(() => {
     let stateString = '';
     for (const state in states) {
@@ -40,12 +44,12 @@ const useStateString = (commentOrCommunity) => {
 
     // fallback to comment or community state when possible. a community's `state` stays 'succeeded'
     // while cached data exists, so its refresh lifecycle lives on `syncState` instead.
-    const lifecycleState = isCommunity ? commentOrCommunity?.syncState : commentOrCommunity?.state;
+    const lifecycleState = isCommunity ? target?.syncState : target?.state;
     if (!stateString && lifecycleState !== 'succeeded') {
-      if (commentOrCommunity?.publishingState && commentOrCommunity?.publishingState !== 'stopped' && commentOrCommunity?.publishingState !== 'succeeded') {
-        stateString = commentOrCommunity.publishingState;
-      } else if (commentOrCommunity?.updatingState !== 'stopped' && commentOrCommunity?.updatingState !== 'succeeded') {
-        stateString = commentOrCommunity.updatingState;
+      if (target?.publishingState && target?.publishingState !== 'stopped' && target?.publishingState !== 'succeeded') {
+        stateString = target.publishingState;
+      } else if (target?.updatingState !== 'stopped' && target?.updatingState !== 'succeeded') {
+        stateString = target.updatingState;
       }
     }
 
@@ -55,7 +59,7 @@ const useStateString = (commentOrCommunity) => {
 
     // if string is empty, return undefined instead
     return stateString === '' ? undefined : stateString;
-  }, [states, commentOrCommunity, isCommunity]);
+  }, [states, target, isCommunity]);
 };
 
 export default useStateString;
