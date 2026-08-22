@@ -45,10 +45,10 @@ const useStateString = (commentOrCommunity) => {
     // fallback to comment or community state when possible. a community's `state` stays 'succeeded'
     // while cached data exists, so its refresh lifecycle lives on `syncState` instead.
     const lifecycleState = isCommunity ? target?.syncState : target?.state;
-    if (!stateString && lifecycleState !== 'succeeded') {
-      if (target?.publishingState && target?.publishingState !== 'stopped' && target?.publishingState !== 'succeeded') {
+    if (!stateString && target && lifecycleState !== 'succeeded') {
+      if (target.publishingState && target.publishingState !== 'stopped' && target.publishingState !== 'succeeded') {
         stateString = target.publishingState;
-      } else if (target?.updatingState !== 'stopped' && target?.updatingState !== 'succeeded') {
+      } else if (target.updatingState && target.updatingState !== 'stopped' && target.updatingState !== 'succeeded') {
         stateString = target.updatingState;
       }
     }
