@@ -17,13 +17,13 @@
     "build": "yarn sync:lists && vite build",
     "sync:lists": "node scripts/sync-default-lists.js",
     "lint": "oxlint --config oxlintrc.json src",
-    "prettier": "oxfmt src/**/*.{js,jsx} electron/**/*.js scripts/**/*.{js,mjs}",
+    "prettier": "oxfmt src/**/*.{ts,tsx} electron/**/*.js scripts/**/*.{js,mjs}",
     "knip": "knip --production --include dependencies,unlisted,binaries --no-progress",
     "knip:full": "knip --no-progress --no-exit-code",
     "doctor": "react-doctor . -y",
     "doctor:score": "react-doctor . --score -y",
     "doctor:verbose": "react-doctor . --verbose -y",
-    "retest:quality": "yarn build && yarn lint && yarn knip && yarn doctor --blocking none",
+    "retest:quality": "yarn build && yarn lint && yarn type-check && yarn knip && yarn doctor --blocking none",
     "ai-workflow:check": "node scripts/validate-ai-workflow.mjs",
     "llms:generate": "node scripts/generate-llms-files.mjs",
     "i18n:update": "node scripts/update-translations.js",
@@ -44,7 +44,8 @@
     "electron:before:delete-data": "node scripts/clear-local-pkc-data.mjs",
     "android:build:icons": "cordova-res android --skip-config --copy --resources /tmp/bitbones-android-icons --icon-source ./android/icons/icon.png --splash-source ./android/icons/splash.png --icon-foreground-source ./android/icons/icon-foreground.png --icon-background-source '#000000'",
     "changelog": "conventional-changelog --preset angular --infile CHANGELOG.md --same-file --release-count 0",
-    "postinstall": "node scripts/patch-capacitor-cli-tar.cjs"
+    "postinstall": "node scripts/patch-capacitor-cli-tar.cjs",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@bitsocial/bitsocial-react-hooks": "0.1.39",
@@ -69,8 +70,8 @@
     "json-stringify-pretty-compact": "4.0.0",
     "kubo": "0.39.0",
     "memoizee": "0.4.17",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "react-i18next": "16.6.6",
     "react-router-dom": "7.18.2",
     "react-virtuoso": "4.18.5",
@@ -87,8 +88,10 @@
     "@electron-forge/maker-zip": "7.8.0",
     "@electron/rebuild": "3.7.2",
     "@reforged/maker-appimage": "5.1.1",
-    "@types/react": "19.2.16",
-    "@types/react-dom": "19.2.3",
+    "@types/memoizee": "0.4.12",
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.1.0",
     "concurrently": "8.0.1",
     "conventional-changelog-cli": "4.1.0",
@@ -105,6 +108,7 @@
     "react-doctor": "0.9.12",
     "react-grab": "0.2.0",
     "react-scan": "0.5.7",
+    "typescript": "7.0.2",
     "vite": "8.2.2",
     "vite-plugin-node-polyfills": "0.28.0",
     "vite-plugin-pwa": "1.3.0",
@@ -185,7 +189,10 @@
   },
   "main": "electron/main.js",
   "lint-staged": {
-    "{src,electron,scripts}/**/*.{js,jsx,mjs}": [
+    "{src}/**/*.{ts,tsx}": [
+      "oxfmt"
+    ],
+    "{electron,scripts}/**/*.{js,mjs}": [
       "oxfmt"
     ]
   },
