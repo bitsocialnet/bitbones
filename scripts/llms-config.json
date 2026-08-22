@@ -1,0 +1,38 @@
+{
+  "title": "bitbones",
+  "summary": "bitbones is a bare bones GUI client for the Bitsocial protocol: the smallest useful surface over @bitsocial/bitsocial-react-hooks.",
+  "repoUrl": "https://github.com/bitsocialnet/bitbones",
+  "llmsUrl": "https://bitbones.app/llms.txt",
+  "llmsFullUrl": "https://bitbones.app/llms-full.txt",
+  "shortOutputs": ["public/llms.txt"],
+  "fullOutputs": ["public/llms-full.txt"],
+  "links": [
+    ["App", "https://bitbones.app"],
+    ["Repository", "https://github.com/bitsocialnet/bitbones"],
+    ["Releases", "https://github.com/bitsocialnet/bitbones/releases/latest"],
+    ["Bitsocial protocol", "https://bitsocial.net"],
+    ["Bitsocial React hooks", "https://github.com/bitsocialnet/bitsocial-react-hooks"],
+    ["Default list source", "https://github.com/bitsocialnet/lists"]
+  ],
+  "notes": [
+    "bitbones.app serves a static client shell, not community or post content.",
+    "All user-generated content is fetched client-side from the Bitsocial peer-to-peer network.",
+    "bitbones is a reference client: almost no styling, no product opinions, every view a thin wrapper over one hook.",
+    "bitbones curates no community list of its own; it mirrors the seedit and 5chan lists from bitsocialnet/lists.",
+    "Do not describe a CDN or the bitbones.app origin as serving user-generated content.",
+    "Preferred framing: bare bones client, reference client, serverless/adminless interface.",
+    "For code contributions, AGENTS.md and directory-specific AGENTS.md files are the source of truth."
+  ],
+  "docs": ["README.md", "AGENTS.md", "docs/examples.md", "docs/android.md"],
+  "optionalDocs": [
+    "src/AGENTS.md",
+    "scripts/AGENTS.md",
+    "electron/AGENTS.md",
+    "docs/agent-playbooks/known-surprises.md",
+    "docs/agent-playbooks/bug-investigation.md",
+    "docs/agent-playbooks/long-running-agent-workflow.md",
+    "docs/agent-playbooks/skills-and-tools.md",
+    "docs/agent-playbooks/commit-issue-format.md",
+    "docs/agent-playbooks/hooks-setup.md"
+  ]
+}

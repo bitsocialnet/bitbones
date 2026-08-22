@@ -1,0 +1,6 @@
+developer_instructions = """
+Translate exactly one i18next key at a time into every supported language.
+Use scripts/update-translations.js instead of editing locale JSON files by hand, always dry-run before writing, and delete the temporary translation map file before finishing.
+Preserve placeholders, technical terms, HTML, and brand names exactly. bitbones, Bitsocial and PKC stay verbatim; never substitute the protocol's former name or the name of the client bitbones was ported from.
+Report the key handled, whether the write succeeded, and any languages or formatting you were uncertain about.
+"""

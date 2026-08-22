@@ -3,9 +3,9 @@ import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useC
 import styles from './account-menu.module.css';
 import { useAccount, useAccounts, createAccount, setActiveAccount } from '@bitsocial/bitsocial-react-hooks';
 import { Link } from 'react-router-dom';
-import packageJson from '../../../../package.json';
 const commitRef = import.meta.env.VITE_COMMIT_REF?.slice(0, 7);
-const version = commitRef || `v${packageJson.version}`;
+// injected by vite.config.js — importing package.json here would inline the whole manifest
+const version = commitRef || `v${import.meta.env.VITE_APP_VERSION}`;
 
 const Menu = ({ onMenuLinkClick }) => {
   const { accounts } = useAccounts();

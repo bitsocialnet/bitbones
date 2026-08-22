@@ -1,50 +1,50 @@
+import {readFileSync} from 'node:fs'
 import {defineConfig} from 'vite'
 import react from '@vitejs/plugin-react'
 import {nodePolyfills} from 'vite-plugin-node-polyfills'
 import {VitePWA} from 'vite-plugin-pwa'
 
-// vite 8 bundles with rolldown instead of rollup, and rolldown does not honor
-// optimizeDeps.esbuildOptions. @vitejs/plugin-react still emits its automatic-JSX config there, so
-// translate it into the rolldown equivalent. Ported from 5chan/vite.config.js.
-function adaptReactPluginForRolldown(plugin) {
-  if (!plugin?.config || plugin.name !== 'vite:react-babel') {
-    return plugin
-  }
+const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
+const commitRef = process.env.VITE_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_SHA || ''
 
+// Serve and emit /version.json, and expose the version to the app as an env value. Importing
+// package.json from src/ instead would inline the WHOLE manifest — every dependency and version —
+// into the browser bundle. vercel.json already sends no-cache headers for /version.json.
+function appVersionMetadataPlugin() {
+  const payload = `${JSON.stringify({version: appVersion, commitRef: commitRef || undefined})}\n`
   return {
-    ...plugin,
-    async config(userConfig, configEnv) {
-      const config = await plugin.config.call(this, userConfig, configEnv)
-      const optimizeDeps = config?.optimizeDeps
-
-      if (optimizeDeps?.esbuildOptions?.jsx !== 'automatic') {
-        return config
-      }
-
-      const {esbuildOptions, ...remainingOptimizeDeps} = optimizeDeps
-
-      return {
-        ...config,
-        optimizeDeps: {
-          ...remainingOptimizeDeps,
-          rolldownOptions: {
-            ...optimizeDeps.rolldownOptions,
-            transform: {
-              ...optimizeDeps.rolldownOptions?.transform,
-              jsx: optimizeDeps.rolldownOptions?.transform?.jsx ?? {runtime: 'automatic'},
-            },
-          },
-        },
-      }
+    name: 'bitbones-version-metadata',
+    configureServer(server) {
+      server.middlewares.use('/version.json', (_req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+        res.end(payload)
+      })
+    },
+    generateBundle() {
+      this.emitFile({type: 'asset', fileName: 'version.json', source: payload})
     },
   }
 }
 
+// vite 8 bundles with rolldown instead of rollup, and rolldown ignores optimizeDeps.esbuildOptions.
+// @vitejs/plugin-react used to emit its automatic-JSX config there, which needed a local shim
+// (adaptReactPluginForRolldown, ported from 5chan) to translate into optimizeDeps.rolldownOptions.
+// As of @vitejs/plugin-react 6.1.0 the plugin emits rolldownOptions.transform.jsx itself, so the
+// shim was a verified no-op and is gone. If plugin-react is ever pinned back below 6.1.0, JSX in
+// prebundled deps breaks and the shim has to come back.
+
 // https://vite.dev/config/
 export default defineConfig({
+  define: {
+    'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+  },
+
   plugins: [
+    appVersionMetadataPlugin(),
+
     // @vitejs/plugin-react 6 returns an array of plugins
-    ...react().map(adaptReactPluginForRolldown),
+    ...react(),
 
     // a lot of dependencies need node polyfills
     nodePolyfills(),

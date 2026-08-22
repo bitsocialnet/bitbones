@@ -1,93 +1,167 @@
-# docs https://github.com/marketplace/actions/create-release
 # docs https://github.com/ncipollo/release-action
-# docs https://docs.github.com/en/actions/using-jobs/choosing-the-runner-for-a-job#choosing-github-hosted-runners
+# docs https://docs.github.com/en/actions/using-jobs/choosing-the-runner-for-a-job
+#
+# Releases are cut by pushing a tag, never by pushing to master. Bump the version, update the
+# changelog, commit, then `git tag v<version> && git push --follow-tags`.
+#
+# Architecture (ported from 5chan): every build job only uploads workflow artifacts. A single
+# finalize-release job downloads them all and creates the GitHub release. If any build job fails,
+# finalize-release is skipped and no half-populated release ever appears.
 
 name: release
 
 on:
-  workflow_run:
-    workflows: ["CI Release"]
-    types: ["completed"]
+  push:
+    tags:
+      - 'v*'
 
 jobs:
-  linux:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+  preflight:
     runs-on: ubuntu-22.04
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
-      contents: write
+      contents: read
     steps:
-      # electron build
       - uses: actions/checkout@v4
         with:
-          # needed for git commit history changelog
+          # needed for the git commit history changelog and for the doctor diff
           fetch-depth: 0
-      - name: Get latest release tag
-        id: previoustag
-        uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - name: Install squashfs-tools for AppImage
-        run: sudo apt-get update && sudo apt-get install -y squashfs-tools
       - run: corepack enable
-      - run: yarn install --immutable
-      - run: yarn electron:make:linux
-      - run: ls -la out/make/AppImage/x64/
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "yarn install attempt $i"
+            yarn install --immutable && break
+            sleep 5
+            [ "$i" = "3" ] && exit 1
+          done
+      - name: Check the tag matches package.json
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -e "console.log(require('./package.json').version)")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+      - name: Lint
+        run: yarn lint
+      - name: Knip
+        run: yarn knip
+      - name: Build web app
+        run: CI='' NODE_ENV=production yarn build
+      - name: Verify build outputs
+        run: |
+          ls -la build/
+          test -f build/index.html
+      # Advisory only: React Doctor reports what changed since the previous tag, but a new finding
+      # must not block a release. Many of its diagnostics flag intentional patterns, not bugs.
+      - name: React Doctor (advisory)
+        continue-on-error: true
+        run: |
+          PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          if [ -n "$PREVIOUS_TAG" ]; then
+            yarn doctor --scope changed --base "$PREVIOUS_TAG" --blocking none
+          else
+            yarn doctor --blocking none
+          fi
 
-      # verify executable works
-      - name: Install xvfb
-        run: sudo apt-get install -y xvfb
+  linux:
+    runs-on: ubuntu-22.04
+    needs: preflight
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - name: Install squashfs-tools for AppImage
+        run: sudo apt-get update && sudo apt-get install -y squashfs-tools xvfb
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/electron
+          key: ${{ runner.os }}-electron-v1-${{ hashFiles('yarn.lock') }}
+          restore-keys: ${{ runner.os }}-electron-v1-
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "yarn install attempt $i"
+            yarn install --immutable && break
+            sleep 5
+            [ "$i" = "3" ] && exit 1
+          done
+      # forge.config.js's postMake hook also produces the static html archive on linux
+      - name: Build Electron app for Linux
+        run: yarn electron:make:linux
+      - run: ls -la out/make/AppImage/x64/ out/make/
       - name: Verify AppImage executable
+        timeout-minutes: 5
         run: |
           chmod +x out/make/AppImage/x64/bitbones-*.AppImage
           xvfb-run --auto-servernum --server-args="-screen 0 1024x768x24" \
             node scripts/verify-executable.js "$(ls out/make/AppImage/x64/bitbones-*.AppImage | head -1)"
-        timeout-minutes: 5
-
-      # publish version release
-      - run: node scripts/release-body > release-body.txt
-      - uses: ncipollo/release-action@v1
+      - name: Stage release artifacts
+        run: |
+          mkdir -p release-assets
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          APPIMAGE_PATH=$(ls out/make/AppImage/x64/bitbones-*.AppImage | head -1)
+          HTML_ZIP_PATH=$(ls out/make/bitbones-html-*.zip | head -1)
+          [ -n "$APPIMAGE_PATH" ] || exit 1
+          [ -n "$HTML_ZIP_PATH" ] || exit 1
+          cp "$APPIMAGE_PATH" "release-assets/bitbones-${VERSION}-x64.AppImage"
+          cp "$HTML_ZIP_PATH" "release-assets/bitbones-html-${VERSION}.zip"
+          ls -la release-assets
+      - uses: actions/upload-artifact@v4
         with:
-          tag: ${{ steps.previoustag.outputs.tag }}
-          artifacts: 'out/make/AppImage/x64/bitbones*.AppImage,out/make/bitbones-html-*.zip'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          replacesArtifacts: true
-          bodyFile: "release-body.txt"
-          allowUpdates: true
+          name: release-linux
+          path: release-assets/
 
   mac:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: macos-14
+    needs: preflight
     timeout-minutes: 60
     permissions:
-      contents: write
+      contents: read
     steps:
-      # electron build
       - uses: actions/checkout@v4
         with:
-          # needed for git commit history changelog
           fetch-depth: 0
-      - name: Get latest release tag
-        id: previoustag
-        uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-
-      # install missing dep for sqlite
+      # missing build dep for the sqlite native module
       - run: pip install setuptools
-
       - run: corepack enable
-      - run: yarn install --immutable
-      - run: yarn electron:make:mac
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/electron
+          key: ${{ runner.os }}-electron-v1-${{ hashFiles('yarn.lock') }}
+          restore-keys: ${{ runner.os }}-electron-v1-
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "yarn install attempt $i"
+            yarn install --immutable && break
+            sleep 5
+            [ "$i" = "3" ] && exit 1
+          done
+      - name: Build Electron app for Mac
+        run: yarn electron:make:mac
       - run: ls -la out/make/
-
-      # verify executable works
       - name: Verify macOS executable
+        timeout-minutes: 5
         run: |
           DMG_FILE=$(ls out/make/*.dmg | head -1)
           hdiutil attach "$DMG_FILE" -nobrowse -quiet
@@ -95,80 +169,89 @@ jobs:
           node scripts/verify-executable.js "$APP_PATH" || EXIT_CODE=$?
           hdiutil detach "/Volumes/bitbones" -quiet || true
           exit ${EXIT_CODE:-0}
-        timeout-minutes: 5
-
-      # publish version release
-      - run: node scripts/release-body > release-body.txt
-      - uses: ncipollo/release-action@v1
+      - name: Stage release artifacts
+        run: |
+          mkdir -p release-assets
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          DMG_PATH=$(ls out/make/*.dmg | head -1)
+          [ -n "$DMG_PATH" ] || exit 1
+          cp "$DMG_PATH" "release-assets/bitbones-${VERSION}-arm64.dmg"
+          ls -la release-assets
+      - uses: actions/upload-artifact@v4
         with:
-          tag: ${{ steps.previoustag.outputs.tag }}
-          artifacts: 'out/make/*.dmg'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          replacesArtifacts: true
-          bodyFile: "release-body.txt"
-          allowUpdates: true
+          name: release-mac
+          path: release-assets/
 
   windows:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: windows-2022
+    needs: preflight
     timeout-minutes: 60
     permissions:
-      contents: write
+      contents: read
     steps:
-      # electron build
       - uses: actions/checkout@v4
         with:
-          # needed for git commit history changelog
           fetch-depth: 0
-      - name: Get latest release tag
-        id: previoustag
-        uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
       - run: corepack enable
-      - run: yarn install --immutable
-      - run: yarn electron:make:windows
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/AppData/Local/electron/Cache
+          key: ${{ runner.os }}-electron-v1-${{ hashFiles('yarn.lock') }}
+          restore-keys: ${{ runner.os }}-electron-v1-
+      - name: Install dependencies
+        shell: bash
+        run: |
+          for i in 1 2 3; do
+            echo "yarn install attempt $i"
+            yarn install --immutable && break
+            sleep 5
+            [ "$i" = "3" ] && exit 1
+          done
+      - name: Build Electron app for Windows
+        run: yarn electron:make:windows
       - run: Get-ChildItem -Path out/make -Recurse
         shell: pwsh
-
-      # verify executable works
       - name: Verify Windows executable
+        timeout-minutes: 5
+        shell: pwsh
         run: |
           $exePath = Get-ChildItem -Path "out/make/squirrel.windows/x64" -Filter "*.exe" | Where-Object { $_.Name -notmatch "Setup" } | Select-Object -First 1 -ExpandProperty FullName
           if (-not $exePath) {
-            # Fall back to Setup.exe if no other exe found
             $exePath = Get-ChildItem -Path "out/make/squirrel.windows/x64" -Filter "*Setup*.exe" | Select-Object -First 1 -ExpandProperty FullName
           }
           node scripts/verify-executable.js $exePath
-        timeout-minutes: 5
-        shell: pwsh
-
-      # publish version release
-      - run: node scripts/release-body > release-body.txt
-      - uses: ncipollo/release-action@v1
+      - name: Stage release artifacts
+        shell: bash
+        run: |
+          mkdir -p release-assets
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          SETUP_EXE_PATH=$(find out/make/squirrel.windows -iname '*setup*.exe' | head -1)
+          [ -n "$SETUP_EXE_PATH" ] || SETUP_EXE_PATH=$(find out/make/squirrel.windows -iname '*.exe' | head -1)
+          PORTABLE_ZIP_PATH=$(find out/make/zip/win32 -iname '*.zip' | head -1)
+          [ -n "$SETUP_EXE_PATH" ] || exit 1
+          [ -n "$PORTABLE_ZIP_PATH" ] || exit 1
+          cp "$SETUP_EXE_PATH" "release-assets/bitbones-${VERSION}-x64.Setup.exe"
+          cp "$PORTABLE_ZIP_PATH" "release-assets/bitbones-${VERSION}-win32-x64.zip"
+          ls -la release-assets
+      - uses: actions/upload-artifact@v4
         with:
-          tag: ${{ steps.previoustag.outputs.tag }}
-          artifacts: 'out/make/squirrel.windows/x64/*.exe,out/make/zip/win32/x64/*.zip'
-          token: ${{ secrets.GITHUB_TOKEN }}
-          replacesArtifacts: true
-          bodyFile: "release-body.txt"
-          allowUpdates: true
+          name: release-windows
+          path: release-assets/
 
   android:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-22.04
+    needs: preflight
     timeout-minutes: 60
     permissions:
-      contents: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
         with:
-          # needed to use 'git tag' and get all tags and for git commit history changelog
           fetch-depth: 0
-      - name: Get latest release tag
-        id: previoustag
-        uses: WyriHaximus/github-action-get-previous-tag@v1
       - uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -177,37 +260,118 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-      - run: sudo apt install -y apksigner zipalign
-
-      # build react app
       - run: corepack enable
-      - run: yarn install --immutable
-      - run: CI='' yarn build
-      # set android versionCode and versionName
-      - run: sed -i "s/versionCode 1/versionCode $(git tag | wc -l)/" ./android/app/build.gradle
-      - run: sed -i "s/versionName \"1.0\"/versionName \"$(node -e "console.log(require('./package.json').version)")\"/" ./android/app/build.gradle
-      - run: cat ./android/app/build.gradle
-      # build apk
-      - run: npx cap update
-      - run: npx cap copy
-      - run: cd android && ./gradlew bundle
-      - run: cd android && ./gradlew assembleRelease
-      # optimize apk
-      - run: cd android/app/build/outputs/apk/release && zipalign 4 app-release-unsigned.apk app-release-unsigned-zip.apk
-      # sign apk
-      # to create keystore: keytool -genkey -v -keystore bitbones.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias release
-      - run: cd android/app/build/outputs/apk/release && apksigner sign --ks ../../../../../bitbones.keystore --ks-pass pass:${{ secrets.ANDROID_KEYSTORE_PASSWORD }} --ks-key-alias release --out app-release-signed.apk app-release-unsigned-zip.apk
-      # move apk to dist folder
-      - run: mkdir -p dist && mv android/app/build/outputs/apk/release/app-release-signed.apk dist/bitbones-$(node -e "console.log(require('./package.json').version)").apk
-      - run: ls dist
-
-      # publish version release
-      - run: node scripts/release-body > release-body.txt
-      - uses: ncipollo/release-action@v1
+      - run: sudo apt-get install -y apksigner zipalign
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "yarn install attempt $i"
+            yarn install --immutable && break
+            sleep 5
+            [ "$i" = "3" ] && exit 1
+          done
+      - name: Build web app
+        run: CI='' yarn build
+      # android/app/build.gradle carries placeholder values; rewrite them from the tag rather than
+      # from the tag count, so the apk version always matches the release
+      - name: Set Android versionCode and versionName
+        run: |
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          VERSION_CODE=$(node -e "const [major = 0, minor = 0, patch = 0] = require('./package.json').version.replace(/^v/, '').split('-')[0].split('.').map(Number); console.log((major * 10000) + (minor * 100) + patch)")
+          sed -i -E "s/versionCode [0-9]+/versionCode ${VERSION_CODE}/" ./android/app/build.gradle
+          sed -i -E "s/versionName \"[^\"]*\"/versionName \"${VERSION}\"/" ./android/app/build.gradle
+          grep -E "versionCode|versionName" ./android/app/build.gradle
+      - name: Sync Capacitor
+        run: npx cap sync android
+      - name: Build APK
+        run: cd android && ./gradlew assembleRelease --stacktrace
+      - name: Optimize APK
+        run: cd android/app/build/outputs/apk/release && zipalign 4 app-release-unsigned.apk app-release-aligned.apk
+      # Signing is optional so a missing keystore degrades to an unsigned apk instead of failing the
+      # whole release. Create one with:
+      #   keytool -genkey -v -keystore bitbones.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias release
+      # then set ANDROID_KEYSTORE_BASE64 (base64 -i bitbones.keystore) and ANDROID_KEYSTORE_PASSWORD.
+      - name: Sign APK
+        id: sign
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "${ANDROID_KEYSTORE_BASE64:-}" ] || [ -z "${ANDROID_KEYSTORE_PASSWORD:-}" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 and/or ANDROID_KEYSTORE_PASSWORD are not set, so the APK ships unsigned and will not install. Add both repository secrets to sign it."
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/bitbones.keystore
+          cd android/app/build/outputs/apk/release
+          apksigner sign \
+            --ks ../../../../../bitbones.keystore \
+            --ks-pass "pass:${ANDROID_KEYSTORE_PASSWORD}" \
+            --ks-key-alias release \
+            --out app-release-signed.apk \
+            app-release-aligned.apk
+          echo "signed=true" >> "$GITHUB_OUTPUT"
+      - name: Stage release artifacts
+        run: |
+          mkdir -p release-assets
+          VERSION=$(node -e "console.log(require('./package.json').version)")
+          APK_DIR=android/app/build/outputs/apk/release
+          if [ "${{ steps.sign.outputs.signed }}" = "true" ]; then
+            cp "$APK_DIR/app-release-signed.apk" "release-assets/bitbones-${VERSION}.apk"
+          else
+            cp "$APK_DIR/app-release-aligned.apk" "release-assets/bitbones-${VERSION}-unsigned.apk"
+          fi
+          ls -la release-assets
+      - name: Remove keystore
+        if: always()
+        run: rm -f android/bitbones.keystore
+      - uses: actions/upload-artifact@v4
         with:
-          tag: ${{ steps.previoustag.outputs.tag }}
-          artifacts: 'dist/bitbones*.apk'
+          name: release-android
+          path: release-assets/
+
+  finalize-release:
+    runs-on: ubuntu-22.04
+    needs: [linux, mac, windows, android]
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # needed for the git commit history changelog
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - name: Install dependencies
+        run: |
+          for i in 1 2 3; do
+            echo "yarn install attempt $i"
+            yarn install --immutable && break
+            sleep 5
+            [ "$i" = "3" ] && exit 1
+          done
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - run: ls -la release-assets
+      - name: Generate release body
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: node scripts/release-body > release-body.txt
+      - name: Create GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ github.ref_name }}
+          artifacts: 'release-assets/*'
+          bodyFile: release-body.txt
           token: ${{ secrets.GITHUB_TOKEN }}
           replacesArtifacts: true
-          bodyFile: "release-body.txt"
           allowUpdates: true

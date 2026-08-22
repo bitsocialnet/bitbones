@@ -42,9 +42,9 @@ yarn start
 | `yarn electron:dev` | run the desktop app against the dev server |
 | `yarn electron:make` | package the desktop app |
 
-## Relationship to plebones
+## Origins
 
-bitbones started as a copy of [plebbit/plebones](https://github.com/plebbit/plebones) (GPL), rebased onto Bitsocial: `@bitsocial/bitsocial-react-hooks` instead of the plebbit hooks, communities instead of subplebbits, and the dependency stack brought up to the same versions 5chan and Seedit run. The first commit in this repository is the unmodified plebones source, so the entire port is reviewable as a diff.
+bitbones is a port of an existing GPL bare-bones client onto the Bitsocial stack: `@bitsocial/bitsocial-react-hooks` for all protocol access, communities throughout, and the dependency stack brought up to the same versions 5chan and Seedit run. The first commit in this repository is the unmodified upstream source, so the entire port is reviewable as a single diff.
 
 ## License
 

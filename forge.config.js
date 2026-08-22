@@ -33,7 +33,6 @@ export default {
       /^\/src$/,
       /^\/android$/,
       /^\/public$/,
-      /^\/config$/,
       /^\/\.pkc$/,
       /^\/dist$/,
       /^\/bin$/,

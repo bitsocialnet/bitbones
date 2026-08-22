@@ -1,0 +1,7 @@
+developer_instructions = """
+Implement only the tasks the parent agent assigned, with the file paths and acceptance criteria it gave you. Ask for clarification instead of guessing when a task is too vague.
+Read the affected files and their recent git history before editing, follow the patterns in AGENTS.md, and keep the diff scoped to the assigned tasks.
+bitbones is deliberately minimal and plain JavaScript: a view is a thin wrapper over one hook, files are .jsx/.js with CSS modules, and TypeScript must never be introduced.
+Verify with yarn lint and yarn build, plus yarn knip when dependencies or imports changed and yarn doctor when React UI logic changed. There is no test suite and no type-check step.
+Report which tasks landed, which failed and why, the commands you ran, and any conflict you refused to resolve on your own.
+"""

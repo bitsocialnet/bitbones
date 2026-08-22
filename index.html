@@ -9,6 +9,49 @@
     <meta name="description" content="bare bones gui client for bitsocial" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>bitbones</title>
+
+    <!--
+      Dev-only render inspectors. Both are behind `import.meta.env.DEV`, which Vite replaces with
+      the literal `false` in a production build, so the dynamic imports are dead code and neither
+      package reaches the shipped bundle. Keep them here rather than in src/ so the guard stays in
+      one obvious place.
+
+      react-scan highlights re-renders; __getReactScanReport() returns a plain object (not a Map)
+      because callers JSON.stringify it, and JSON.stringify(new Map()) is always "{}".
+      react-grab is toolbar-activated only: its keyboard shortcut is disabled so it cannot fight
+      with copy/paste.
+    -->
+    <script type="module">
+      if (import.meta.env.DEV) {
+        import('react-scan').then(({ scan }) => {
+          const report = new Map();
+          scan({
+            enabled: true,
+            showToolbar: !window.__PROFILING__,
+            onRender: (fiber, renders) => {
+              for (const render of renders) {
+                const name = render.componentName || fiber?.type?.displayName || fiber?.type?.name;
+                if (!name) {
+                  continue;
+                }
+                const row = report.get(name) || { count: 0, time: 0 };
+                row.count += render.count || 1;
+                row.time += render.time || 0;
+                report.set(name, row);
+              }
+            },
+          });
+          window.__getReactScanReport = () => Object.fromEntries(report);
+          window.__resetReactScanReport = () => report.clear();
+        });
+
+        import('react-grab/core').then((m) => {
+          const api = m.init({ activationKey: () => false });
+          window.__REACT_GRAB__ = api;
+          window.dispatchEvent(new CustomEvent('react-grab:init', { detail: api }));
+        });
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

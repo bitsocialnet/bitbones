@@ -46,6 +46,10 @@ out/
 !.yarn/versions
 .pnp.*
 
+# release pipeline scratch (staged assets and generated notes)
+/release-assets
+release-body.txt
+
 # claude code local config
 .claude/settings.local.json
 .vercel

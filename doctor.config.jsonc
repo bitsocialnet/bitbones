@@ -1,0 +1,29 @@
+{
+  // react-doctor configuration. Read by `yarn doctor`, `yarn doctor:score`, `yarn doctor:verbose`
+  // and by .github/workflows/react-doctor.yml.
+  //
+  // Doctor is advisory here: `yarn doctor` never gates a build or a release, and we do not chase
+  // the aggregate score. What it is for is catching a regression a diff introduces.
+  //
+  // `scope: "full"` is the default scan (whole repo); the PR workflow overrides it with
+  // `--scope changed` so a review only sees what that PR introduced.
+  "scope": "full",
+
+  "ignore": {
+    // These are the example/experiment files listed in docs/examples.md. They exist to demonstrate
+    // a pattern, not to ship, so their findings would only dilute the signal from product code.
+    // NOTE: `ignore.files` has historically collapsed the scan scope in react-doctor (any non-empty
+    // value drops product files); `ignore.overrides` with no `rules` key correctly suppresses every
+    // rule for the matched files instead.
+    "overrides": [
+      {
+        "files": ["src/components/feed-post-lazy-example/**", "src/views/home-modal/**", "android/app/src/main/assets/public/**", "build/**"]
+      }
+    ],
+
+    // bitbones does NOT use the React Compiler (no babel-plugin-react-compiler in vite.config.js),
+    // so every useMemo/useCallback/memo here is load-bearing rather than redundant. This rule
+    // assumes the compiler is doing the memoizing and would have us delete working code.
+    "rules": ["react-doctor/react-compiler-no-manual-memoization"]
+  }
+}

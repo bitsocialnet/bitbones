@@ -1,6 +1,6 @@
 {
   "name": "bitbones",
-  "version": "0.1.4",
+  "version": "0.1.0",
   "packageManager": "yarn@4.17.1",
   "engines": {
     "node": ">=22.12.0"
@@ -11,27 +11,37 @@
   "license": "GPL-3.0-or-later",
   "private": true,
   "scripts": {
-    "release": "HUSKY=0 release-it --config config/.release-it.json",
-    "start": "yarn dev",
+    "start": "yarn sync:lists && node scripts/start-dev.js",
+    "start:preview": "node scripts/start-preview.js",
     "dev": "yarn sync:lists && vite",
     "build": "yarn sync:lists && vite build",
     "sync:lists": "node scripts/sync-default-lists.js",
     "lint": "oxlint --config oxlintrc.json src",
-    "prettier": "oxfmt src/**/*.{js,jsx} electron/**/*.js scripts/**/*.js",
-    "knip": "knip --no-progress --no-exit-code",
+    "prettier": "oxfmt src/**/*.{js,jsx} electron/**/*.js scripts/**/*.{js,mjs}",
+    "knip": "knip --production --include dependencies,unlisted,binaries --no-progress",
+    "knip:full": "knip --no-progress --no-exit-code",
+    "doctor": "react-doctor . -y",
+    "doctor:score": "react-doctor . --score -y",
+    "doctor:verbose": "react-doctor . --verbose -y",
+    "retest:quality": "yarn build && yarn lint && yarn knip && yarn doctor --blocking none",
+    "ai-workflow:check": "node scripts/validate-ai-workflow.mjs",
+    "llms:generate": "node scripts/generate-llms-files.mjs",
+    "i18n:update": "node scripts/update-translations.js",
+    "i18n:update:dry": "node scripts/update-translations.js --dry",
     "preview": "vite preview",
     "analyze-bundle": "cross-env GENERATE_SOURCEMAP=true vite build && npx source-map-explorer 'build/assets/*.js'",
     "electron": "yarn electron:before && electron-forge start",
-    "electron:dev": "concurrently \"cross-env BROWSER=none yarn dev\" \"wait-on http://localhost:5173 && yarn electron\"",
+    "electron:dev": "concurrently \"cross-env BROWSER=none PORTLESS=0 PORT=5173 yarn start\" \"wait-on http://localhost:5173 && yarn electron\"",
     "electron:package": "yarn build && yarn electron:prepare-package && electron-forge package",
     "electron:make": "yarn build && yarn electron:prepare-package && electron-forge make",
     "electron:make:linux": "yarn build && yarn electron:prepare-package && electron-forge make --platform=linux",
     "electron:make:windows": "yarn build && yarn electron:prepare-package && electron-forge make --platform=win32",
     "electron:make:mac": "yarn build && yarn electron:prepare-package && electron-forge make --platform=darwin",
-    "electron:prepare-package": "yarn electron:rebuild-native",
+    "electron:prepare-package": "yarn electron:rebuild-native && yarn electron:verify-native",
     "electron:rebuild-native": "electron-rebuild -f -o better-sqlite3",
+    "electron:verify-native": "node scripts/verify-electron-native-modules.js",
     "electron:before": "yarn electron:before:delete-data",
-    "electron:before:delete-data": "node -e \"require('node:fs').rmSync('.pkc', {recursive: true, force: true})\"",
+    "electron:before:delete-data": "node scripts/clear-local-pkc-data.mjs",
     "android:build:icons": "cordova-res android --skip-config --copy --resources /tmp/bitbones-android-icons --icon-source ./android/icons/icon.png --splash-source ./android/icons/splash.png --icon-foreground-source ./android/icons/icon-foreground.png --icon-background-source '#000000'",
     "changelog": "conventional-changelog --preset angular --infile CHANGELOG.md --same-file --release-count 0",
     "postinstall": "node scripts/patch-capacitor-cli-tar.cjs"
@@ -77,10 +87,9 @@
     "@electron-forge/maker-zip": "7.8.0",
     "@electron/rebuild": "3.7.2",
     "@reforged/maker-appimage": "5.1.1",
-    "@release-it/conventional-changelog": "12.0.0",
     "@types/react": "19.2.16",
     "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.0",
+    "@vitejs/plugin-react": "6.1.0",
     "concurrently": "8.0.1",
     "conventional-changelog-cli": "4.1.0",
     "cordova-res": "0.15.4",
@@ -93,11 +102,16 @@
     "lint-staged": "12.3.8",
     "oxfmt": "0.20.0",
     "oxlint": "1.35.0",
-    "release-it": "21.0.2",
-    "vite": "8.0.16",
+    "react-doctor": "0.9.12",
+    "react-grab": "0.2.0",
+    "react-scan": "0.5.7",
+    "vite": "8.2.2",
     "vite-plugin-node-polyfills": "0.28.0",
-    "vite-plugin-pwa": "1.2.0",
+    "vite-plugin-pwa": "1.3.0",
     "wait-on": "9.0.3"
+  },
+  "optionalDependencies": {
+    "portless": "0.15.5"
   },
   "resolutions": {
     "@pkcprotocol/pkc-js": "0.0.85",
@@ -164,14 +178,14 @@
     "yauzl": "3.4.0",
     "qs": "6.15.2",
     "baseline-browser-mapping": "2.9.11",
-    "vite": "8.0.16",
+    "vite": "8.2.2",
     "tar": "7.5.22",
     "undici@npm:7.24.7": "7.29.0",
     "uuid@npm:13.0.0": "13.0.1"
   },
   "main": "electron/main.js",
   "lint-staged": {
-    "{src,electron,scripts}/**/*.{js,jsx}": [
+    "{src,electron,scripts}/**/*.{js,jsx,mjs}": [
       "oxfmt"
     ]
   },

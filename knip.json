@@ -1,19 +1,19 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/main.jsx", "electron/main.js", "electron/preload.js", "scripts/*.js", "forge.config.js", "vite.config.js"],
-  "project": ["src/**/*.{js,jsx}", "electron/**/*.js", "scripts/**/*.js"],
+  "entry": ["electron/preload.js!", "forge.config.js", "scripts/*.{js,mjs,cjs}"],
   "ignore": [
+    "android/app/src/main/assets/public/**",
     "src/components/feed-post-lazy-example/**",
     "src/hooks/use-is-mounted.js"
   ],
   "ignoreDependencies": [
-    "kubo",
     "@electron-forge/maker-dmg",
     "@electron-forge/maker-squirrel",
     "@electron-forge/maker-zip",
     "@reforged/maker-appimage",
-    "@release-it/conventional-changelog",
-    "cz-conventional-changelog"
+    "cz-conventional-changelog",
+    "react-grab",
+    "react-scan"
   ],
   "ignoreBinaries": ["source-map-explorer", "cz", "taskkill"]
 }

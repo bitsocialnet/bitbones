@@ -1,0 +1,38 @@
+# React Doctor PR review.
+#
+# Reports only the issues a PR INTRODUCES (`--scope changed`, diffed against the base branch). It
+# reads doctor.config.jsonc, so the example/experiment files and the React-Compiler rule we do not
+# enforce stay suppressed. We do NOT chase the aggregate score, and this job never blocks a merge:
+# many of its diagnostics flag intentional patterns rather than bugs.
+
+name: React Doctor
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: react-doctor-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  react-doctor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # so React Doctor can diff against the merge-base for new-vs-existing
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: corepack enable
+      - name: Install dependencies
+        run: yarn install --immutable
+      - name: Run React Doctor on changed files
+        continue-on-error: true
+        run: yarn doctor --verbose --scope changed --base "origin/${{ github.base_ref }}" --blocking none
