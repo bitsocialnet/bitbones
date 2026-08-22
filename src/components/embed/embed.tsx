@@ -1,16 +1,5 @@
 import styles from './embed.module.css';
 
-declare module 'react' {
-  // lowercase iframe attributes React renders verbatim; they are absent from React's own typings
-  interface IframeHTMLAttributes<T> extends HTMLAttributes<T> {
-    allowfullscreen?: boolean;
-    credentialless?: boolean;
-    frameborder?: string;
-    referrerpolicy?: string;
-    srcdoc?: string;
-  }
-}
-
 interface EmbedProps {
   parsedUrl: URL;
 }

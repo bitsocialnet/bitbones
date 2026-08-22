@@ -1,4 +1,4 @@
-import utils from '../../lib/utils';
+import utils, { type CommentMediaType } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import styles from './feed-post.module.css';
 import Arrow from '../icons/arrow';
@@ -11,11 +11,8 @@ import useDownvote from '../../hooks/use-downvote';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 
-// the media type union returned by utils.getCommentMediaType is not exported, so derive it here
-type MediaType = ReturnType<typeof utils.getCommentMediaType>;
-
 interface FeedPostMediaProps {
-  mediaType: MediaType;
+  mediaType: CommentMediaType | undefined;
   mediaUrl?: string;
   link: string;
 }

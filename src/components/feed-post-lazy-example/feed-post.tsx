@@ -1,15 +1,12 @@
-import utils from '../../lib/utils';
+import utils, { type CommentMediaType } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import styles from './feed-post.module.css';
 import { useState, useEffect } from 'react';
 import useIsMounted from '../../hooks/use-is-mounted';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 
-// the media type union returned by utils.getCommentMediaType is not exported, so derive it here
-type MediaType = ReturnType<typeof utils.getCommentMediaType>;
-
 interface FeedPostMediaProps {
-  mediaType: MediaType;
+  mediaType?: CommentMediaType;
   mediaUrl?: string;
   show: boolean;
 }
@@ -40,7 +37,7 @@ const FeedPostMedia = ({ mediaType, mediaUrl, show }: FeedPostMediaProps) => {
 };
 
 interface MediaProps {
-  mediaType?: MediaType;
+  mediaType?: CommentMediaType;
 }
 
 // fake slow media

@@ -1,7 +1,7 @@
 import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
+import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { Components } from 'react-virtuoso';
 import FeedPost from './feed-post';
@@ -11,10 +11,6 @@ import useTimeFilter from '../../hooks/use-time-filter';
 import PostView from '../../views/post';
 import styles from './home.module.css';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
-
-// UseFeedResult omits updatedFeed, which useFeed does return at runtime, always as an array
-// (bitsocial-react-hooks/dist/hooks/feeds/feeds.js)
-type FeedResult = UseFeedResult & { updatedFeed: Comment[] };
 
 const lastVirtuosoStates = {};
 

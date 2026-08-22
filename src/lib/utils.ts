@@ -4,7 +4,7 @@ import en from 'javascript-time-ago/locale/en';
 import memoize from 'memoizee';
 import type { ChallengeVerification, Comment, Vote } from '@bitsocial/bitsocial-react-hooks';
 
-type CommentMediaType = 'image' | 'video' | 'audio';
+export type CommentMediaType = 'image' | 'video' | 'audio';
 
 // cache media type because it takes on average 5ms
 const getCommentLinkMediaTypeNoCache = (link?: string): CommentMediaType | undefined => {

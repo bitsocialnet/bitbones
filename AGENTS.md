@@ -157,9 +157,13 @@ component that owns them.
 - Type props with an `interface XProps { ... }` declared directly above the component. No `React.FC`.
 - Keep relative imports extensionless (`./use-theme`, not `./use-theme.ts`).
 - Extend `src/modules.d.ts` (CSS modules), `src/env.d.ts` (`import.meta.env`), or `src/globals.d.ts`
-  (`Window` extras) rather than adding a fourth ambient file. A `declare module` shim for a dependency
-  that ships no typings goes in `src/modules.d.ts` alongside the CSS-module shim, the way the sibling
-  client 5chan does it.
+  (`Window` extras) rather than adding a fourth ambient file. Which of the three depends on the
+  declaration kind, and the two are not interchangeable: `src/modules.d.ts` is a global *script*, so
+  it holds ambient `declare module` shims for dependencies that ship no typings (`ext-name`, and the
+  CSS-module shim). `src/globals.d.ts` is a *module* (it ends in `export {}`), so it holds global
+  augmentations of packages that DO ship typings — `declare module 'react'` to add attributes React
+  renders but does not type. Putting an augmentation in `modules.d.ts` silently replaces the
+  package's real typings instead of extending them, which breaks every import from it.
 - `electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` are outside `tsconfig.json`'s
   `include` and stay plain JavaScript.
 

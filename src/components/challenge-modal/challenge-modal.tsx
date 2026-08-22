@@ -4,20 +4,6 @@ import styles from './challenge-modal.module.css';
 import useChallenges, { type PendingChallenge } from '../../hooks/use-challenges';
 import { getPublicationType, getVotePreview, getPublicationPreview, type ChallengePublication } from './utils';
 
-declare module 'react' {
-  // lowercase iframe attributes React renders verbatim; they are absent from React's own typings
-  interface IframeHTMLAttributes<T> extends HTMLAttributes<T> {
-    credentialless?: boolean;
-    frameborder?: string;
-    referrerpolicy?: string;
-  }
-  // `alt` is not a valid attribute on a div, but the challenge text div below sets one and React
-  // renders it verbatim; declaring it keeps that markup unchanged
-  interface HTMLAttributes<T> extends DOMAttributes<T> {
-    alt?: string;
-  }
-}
-
 interface ChallengeItem {
   type?: string;
   challenge?: string;
@@ -84,8 +70,10 @@ const Challenge = ({ challenge, closeModal }: ChallengeProps) => {
       />
     );
   } else {
+    // `alt` is not a valid attribute on a div, but React renders it verbatim; spreading it keeps
+    // that markup unchanged without declaring `alt` on every element in the app
     challengeComponent = (
-      <div alt='challenge' className={styles.challengeText}>
+      <div {...({ alt: 'challenge' } as Record<string, string>)} className={styles.challengeText}>
         {challenges[currentChallengeIndex]?.challenge}
       </div>
     );

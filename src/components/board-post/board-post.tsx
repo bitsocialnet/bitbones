@@ -1,15 +1,12 @@
-import utils from '../../lib/utils';
+import utils, { type CommentMediaType } from '../../lib/utils';
 import { Link } from 'react-router-dom';
 import { flattenCommentsPages } from '@bitsocial/bitsocial-react-hooks/dist/lib/utils/index.js';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import { useMemo } from 'react';
 import styles from './board-post.module.css';
 
-// the media type union returned by utils.getCommentMediaType is not exported, so derive it here
-type MediaType = ReturnType<typeof utils.getCommentMediaType>;
-
 interface BoardPostMediaProps {
-  mediaType: MediaType;
+  mediaType: CommentMediaType | undefined;
   mediaUrl?: string;
 }
 

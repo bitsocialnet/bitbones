@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react';
 import { useFeed, useAccount } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
+import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
@@ -16,9 +16,6 @@ const NoPosts = () => 'no posts';
 
 // show own pending posts at the top for 12 hours
 const accountComments = { newerThan: 60 * 60 * 12 };
-
-// useFeed returns updatedFeed at runtime, but the library's UseFeedResult type omits it
-type FeedResult = UseFeedResult & { updatedFeed: Comment[] };
 
 function Subscriptions() {
   const params = useParams<{ sortType?: string }>();

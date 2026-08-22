@@ -1,3 +1,14 @@
+declare module 'react' {
+  // lowercase iframe attributes React renders verbatim; they are absent from React's own typings
+  interface IframeHTMLAttributes<T> extends HTMLAttributes<T> {
+    allowfullscreen?: boolean;
+    credentialless?: boolean;
+    frameborder?: string;
+    referrerpolicy?: string;
+    srcdoc?: string;
+  }
+}
+
 declare global {
   interface Window {
     // set in src/app.tsx so the pkc-js module is reachable from the devtools console
