@@ -50,7 +50,13 @@ out/
 /release-assets
 release-body.txt
 
+# playwright-cli workspace scratch (traces, videos, saved storage state)
+.playwright-cli/
+
 # claude code local config
 .claude/settings.local.json
+
+# git worktrees created inside the repo by agent workflows
+.claude/worktrees/
 .vercel
 .env*

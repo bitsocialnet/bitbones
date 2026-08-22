@@ -58,8 +58,8 @@ jobs:
         run: node -e "import('./forge.config.js').then((c) => console.log('forge config loaded, makers:', c.default.makers?.length || 0)).catch((e) => { console.error(e); process.exit(1); })"
       - name: Verify the dev-only inspectors stayed out of the bundle
         run: |
-          if grep -rl "__REACT_GRAB__\|__getReactScanReport" build/assets; then
-            echo "::error::react-scan / react-grab leaked into the production bundle"
+          if grep -rlE "__REACT_GRAB__|__PROFILING__|__ELEMENT_SOURCE__|getReactScanReport" build/assets; then
+            echo "::error::react-scan / react-grab / element-source leaked into the production bundle"
             exit 1
           fi
 

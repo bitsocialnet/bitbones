@@ -61,7 +61,9 @@ Agents may use compiled context to navigate quickly, but must verify against sou
 | Translation key/value changed | Use the `translate` skill (spawns parallel `translator` subagents); it drives `scripts/update-translations.js`, never hand-edit the language files |
 | Public-facing English content or AI context changed (`README.md`, `index.html`, `AGENTS.md`, docs pages) | Run `yarn llms:generate`; inspect and commit any resulting changes to `public/llms*.txt` |
 | Bug report in a specific file/line | Start with the git history scan in `docs/agent-playbooks/bug-investigation.md` before editing |
-| UI/visual behavior changed | Open the affected route with `yarn start` and check it by hand, desktop plus a mobile viewport. There is no test suite and no committed browser-automation wrapper in this repo |
+| UI/visual behavior changed | Verify in a browser with `playwright-cli`, desktop plus a mobile viewport. Open every session through `./scripts/pw-session.sh` so only one browser is active machine-wide, and run engines sequentially. Use the `playwright-cli` skill, or delegate to the `browser-check` subagent. There is no test suite in this repo |
+| Loading, navigation, or rerender cost matters | Use the `profile-browsing` skill, which drives `profiler` subagents against the dev-only react-scan instrumentation in `src/lib/react-scan.js`. Run profiler batches sequentially, never in parallel |
+| Need the source file behind a specific on-screen element | Use the `inspect-elements` skill (`window.__ELEMENT_SOURCE__`, dev server only) |
 | Cutting a version | Use the `release` skill. Releases are manual and tag-triggered; nothing publishes until a `vX.Y.Z` tag reaches `origin` |
 | Long-running task spans multiple sessions, handoffs, or spawned agents | Use `docs/agent-playbooks/long-running-agent-workflow.md` and keep a machine-readable feature list plus a progress log |
 | New reviewable feature/fix started while on `master` | Create a short-lived `feature/*`, `fix/*`, `docs/*`, or `chore/*` branch from `master` before editing; use a separate worktree only for parallel tasks |
@@ -80,6 +82,7 @@ Agents may use compiled context to navigate quickly, but must verify against sou
 - zustand 4 for local UI state, react-router-dom 7 with `HashRouter`
 - i18next for translations
 - oxlint + oxfmt, knip for dependency hygiene, react-doctor for React review
+- `playwright` + the global `playwright-cli` for browser automation; react-scan, react-grab and element-source as dev-only inspectors
 - electron-forge for desktop, capacitor for android
 
 This is **JavaScript, not TypeScript**. There is no `tsc`, no `type-check` script, and no `.ts`/`.tsx`
@@ -180,7 +183,7 @@ component that owns them.
   mirrors. Review that diff and keep or discard it deliberately.
 - Do not commit or force-add local rebuild output. `build/` is the generated build output; remove it
   after local verification before committing.
-- For UI/visual changes, open the route with `yarn start` and check desktop plus a mobile viewport by hand.
+- For UI/visual changes, check the route in a browser, desktop plus a mobile viewport. `playwright-cli` through `./scripts/pw-session.sh` is the committed path; by hand with `yarn start` is fine for a quick look.
 - The shared hook verification path is strict by default. Only set `AGENT_VERIFY_MODE=advisory` when you intentionally need signal from a broken tree without blocking the session.
 - If verification fails, fix and re-run until passing.
 
@@ -188,7 +191,7 @@ component that owns them.
 
 - Use `gh` CLI for GitHub work (issues, PRs, actions, dependabot, search).
 - Do not use GitHub MCP.
-- Do not use browser MCP servers.
+- Do not use browser MCP servers. Use `playwright-cli` for browser automation.
 - If many MCP tools are present in context, warn the user and suggest disabling unused MCPs.
 
 ### AI Tooling Rules
@@ -206,6 +209,23 @@ component that owns them.
 - When a diff adds new `useEffect`, `useLayoutEffect`, `useInsertionEffect`, `useMemo`, `useCallback`, or `memo(...)` usage under `src/`, treat the repo hook reminder as mandatory and reconsider the change with `you-might-not-need-an-effect` before finishing.
 - For work expected to span multiple sessions, keep explicit task state in a `feature-list.json` plus `progress.md` pair using `docs/agent-playbooks/long-running-agent-workflow.md`.
 - If more than one human or toolchain needs the same task state, keep it in a tracked location such as `docs/agent-runs/<slug>/` instead of a tool-specific hidden directory.
+
+### Browser Automation Rules
+
+- One Playwright browser at a time, machine-wide. Open and close every session through
+  `./scripts/pw-session.sh`; it holds a lock shared with every other checkout that ships the script.
+  Exit code 75 means the slot is busy — wait with `open --wait`, do not bypass it. Never
+  `playwright-cli close-all` or `kill-all` while another agent may own a session.
+- Never run browser-driving agents (`browser-check`, `profiler`) in parallel.
+- Automate the plain-port dev server: `PORTLESS=0 yarn start` (http://localhost:5173). The default
+  portless hostname is derived from the current git branch and its certificate is locally generated,
+  and `playwright-cli open` has no flag to accept it. Resolve the port rather than assuming 5173 —
+  `scripts/local-server-utils.mjs` walks up when it is taken.
+- Routing is `HashRouter`, so every automated URL needs the `#` segment.
+- `src/lib/react-scan.js` is dev-only instrumentation (`__getReactScanReport`, `__ELEMENT_SOURCE__`,
+  `__REACT_GRAB__`). It is loaded by the single `import.meta.env.DEV` guard in `index.html` and must
+  never be imported from application code. CI greps the production bundle for those globals; if you
+  add a new one, extend the grep in `.github/workflows/ci.yml`.
 
 ### Security and Boundaries
 
@@ -247,6 +267,8 @@ To bypass portless: `PORTLESS=0 yarn start` (http://localhost:5173).
 ```bash
 corepack yarn install
 yarn start                # https://bitbones.localhost
+PORTLESS=0 yarn start     # http://localhost:5173 — use this one for browser automation
+./scripts/pw-session.sh status
 yarn build
 yarn lint
 yarn knip

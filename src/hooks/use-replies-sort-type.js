@@ -1,4 +1,4 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 
 const repliesPerPage = 50;
 const repliesSortTypesToUseRepliesOptions = {
@@ -9,7 +9,7 @@ const repliesSortTypesToUseRepliesOptions = {
 };
 const repliesSortTypes = Object.keys(repliesSortTypesToUseRepliesOptions);
 
-const useRepliesSortTypeStore = createStore((setState, getState) => ({
+const useRepliesSortTypeStore = create((setState, getState) => ({
   repliesSortType: localStorage.getItem('bitbonesRepliesSortType') || 'nested',
   setRepliesSortType: (repliesSortType) => {
     setState((state) => ({ repliesSortType }));

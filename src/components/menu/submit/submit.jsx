@@ -2,7 +2,7 @@ import { useState, useEffect, memo } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './submit.module.css';
 import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
-import createStore from 'zustand';
+import { create } from 'zustand';
 import challengesStore from '../../../hooks/use-challenges';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
@@ -10,7 +10,7 @@ import { alertChallengeVerificationFailed } from '../../../lib/utils';
 
 const { addChallenge } = challengesStore.getState();
 
-const useSubmitStore = createStore((setState, getState) => ({
+const useSubmitStore = create((setState, getState) => ({
   communityAddress: undefined,
   title: undefined,
   content: undefined,

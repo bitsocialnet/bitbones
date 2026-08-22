@@ -1,10 +1,10 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 import localForageLru from '@bitsocial/bitsocial-react-hooks/dist/lib/localforage-lru/index.js';
 import { useCallback } from 'react';
 
 const readReplyCountsDb = localForageLru.createInstance({ name: `bitbonesReadReplyCounts`, size: 2000 });
 
-const useReadReplyCountsStore = createStore((setState, getState) => ({
+const useReadReplyCountsStore = create((setState, getState) => ({
   readReplyCounts: {},
   setReadReplyCount: (commentCid, readReplyCount) => {
     setState((state) => ({

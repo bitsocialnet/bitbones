@@ -1,9 +1,9 @@
 import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './go-to-community-modal.module.css';
 import { useNavigate } from 'react-router-dom';
-import createStore from 'zustand';
+import { create } from 'zustand';
 
-const useCommunityAddress = createStore((setState) => ({
+const useCommunityAddress = create((setState) => ({
   communityAddress: '',
   setCommunityAddress: (communityAddress) => setState((state) => ({ communityAddress })),
 }));

@@ -21,3 +21,11 @@ config_file = "agents/react-doctor-fixer.toml"
 [agents.translator]
 description = "Single-key i18next translation agent that updates all supported languages through the project script."
 config_file = "agents/translator.toml"
+
+[agents.browser-check]
+description = "Read-only browser verification agent that checks UI changes with playwright-cli across Blink, Gecko, and WebKit."
+config_file = "agents/browser-check.toml"
+
+[agents.profiler]
+description = "Read-only performance profiler that browses assigned bitbones routes with playwright-cli and reports Web Vitals plus react-scan rerender data."
+config_file = "agents/profiler.toml"

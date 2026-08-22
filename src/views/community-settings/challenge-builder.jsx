@@ -1,7 +1,7 @@
 import DragAndDrop from './drag-and-drop';
 import pkcRpcSettings from './pkc-rpc-settings-mock';
 import { useState } from 'react';
-import createStore from 'zustand';
+import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 import styles from './challenge-builder.module.css';
 import ChallengeExclude from './challenge-builder-exclude';
@@ -54,7 +54,7 @@ import ChallengeExclude from './challenge-builder-exclude';
 //   ]
 // }
 
-export const useChallengesStore = createStore(
+export const useChallengesStore = create(
   immer((setState, getState) => ({
     challengesTree: {
       combinator: 'and',

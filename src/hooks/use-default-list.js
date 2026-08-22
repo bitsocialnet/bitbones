@@ -1,4 +1,4 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 
 // which client's default community list the feed uses
 const DEFAULT_LISTS = ['seedit', '5chan'];
@@ -20,7 +20,7 @@ const readStoredList = () => {
 
 // read synchronously at module init so the first render already has the right list and the feed
 // never mounts against one client's communities and then remounts against the other's
-const useDefaultListStore = createStore((setState) => ({
+const useDefaultListStore = create((setState) => ({
   defaultList: readStoredList(),
   setDefaultList: (defaultList) => {
     if (!DEFAULT_LISTS.includes(defaultList)) {

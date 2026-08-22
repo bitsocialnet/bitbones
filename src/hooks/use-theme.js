@@ -1,6 +1,6 @@
-import createStore from 'zustand';
+import { create } from 'zustand';
 
-const useThemeStore = createStore((setState, getState) => ({
+const useThemeStore = create((setState, getState) => ({
   theme: localStorage.getItem('bitbonesTheme') || 'dark',
   setTheme: (theme) => {
     localStorage.setItem('bitbonesTheme', theme);

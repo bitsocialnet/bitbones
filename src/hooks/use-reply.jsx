@@ -1,13 +1,13 @@
 import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
 import { useMemo } from 'react';
-import createStore from 'zustand';
+import { create } from 'zustand';
 import challengesStore from './use-challenges';
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { incrementReadReplyCount } from './use-unread-reply-count';
 
 const { addChallenge } = challengesStore.getState();
 
-const useReplyStore = createStore((setState, getState) => ({
+const useReplyStore = create((setState, getState) => ({
   content: {},
   publishCommentOptions: {},
   setReplyStore: ({ communityAddress, parentCid, content, comment }) =>
