@@ -33,7 +33,8 @@
     "electron:before": "yarn electron:before:delete-data",
     "electron:before:delete-data": "node -e \"require('node:fs').rmSync('.pkc', {recursive: true, force: true})\"",
     "android:build:icons": "cordova-res android --skip-config --copy --resources /tmp/bitbones-android-icons --icon-source ./android/icons/icon.png --splash-source ./android/icons/splash.png --icon-foreground-source ./android/icons/icon-foreground.png --icon-background-source '#000000'",
-    "changelog": "conventional-changelog --preset angular --infile CHANGELOG.md --same-file --release-count 0"
+    "changelog": "conventional-changelog --preset angular --infile CHANGELOG.md --same-file --release-count 0",
+    "postinstall": "node scripts/patch-capacitor-cli-tar.cjs"
   },
   "dependencies": {
     "@bitsocial/bitsocial-react-hooks": "0.1.39",
@@ -106,11 +107,6 @@
     "protobufjs": "7.6.5",
     "@protobufjs/utf8": "1.1.1",
     "shell-quote": "1.9.0",
-    "tar@npm:^6.0.2": "6.2.1",
-    "tar@npm:^6.0.5": "6.2.1",
-    "tar@npm:^6.1.2": "6.2.1",
-    "tar@npm:^6.1.11": "6.2.1",
-    "tar@npm:^6.2.1": "6.2.1",
     "serialize-javascript": "7.0.5",
     "node-forge": "1.4.0",
     "@xmldom/xmldom": "0.8.13",
@@ -168,7 +164,10 @@
     "yauzl": "3.4.0",
     "qs": "6.15.2",
     "baseline-browser-mapping": "2.9.11",
-    "vite": "8.0.16"
+    "vite": "8.0.16",
+    "tar": "7.5.22",
+    "undici@npm:7.24.7": "7.29.0",
+    "uuid@npm:13.0.0": "13.0.1"
   },
   "main": "electron/main.js",
   "lint-staged": {
