@@ -3,6 +3,9 @@ TODO.md
 # scripts/deploy.sh env
 .deploy-env
 
+# android signing key, never commit
+android/*.keystore
+
 # electron builder binaries
 /bin
 
