@@ -1,6 +1,6 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { useFeed, useAccount } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, CommentsFilter } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import { Virtuoso, type StateSnapshot, type VirtuosoHandle } from 'react-virtuoso';
 import useWindowWidth from '../../hooks/use-window-width';
 import { useParams } from 'react-router-dom';
@@ -51,12 +51,11 @@ function Catalog() {
   // eslint-disable-next-line
   const postsPerPage = useMemo(() => (columnCount <= 2 ? 10 : columnCount === 3 ? 15 : columnCount === 4 ? 20 : 25), []);
   const communities = useCommunityIdentifiers(communityAddresses);
-  // useFeed's CommentsFilter is {filter, key}, but bitbones passes a bare predicate; kept as-is, only cast, by this types-only migration
   const { feed, hasMore, loadMore } = useFeed({
     communities,
     sortType,
     postsPerPage,
-    filter: utils.catalogFilter as unknown as CommentsFilter,
+    filter: utils.catalogCommentsFilter,
     newerThan: timeFilterSeconds,
     accountComments,
   });

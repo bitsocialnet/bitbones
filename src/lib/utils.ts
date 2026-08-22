@@ -2,7 +2,7 @@ import extName from 'ext-name';
 import TimeAgo from 'javascript-time-ago';
 import en from 'javascript-time-ago/locale/en';
 import memoize from 'memoizee';
-import type { ChallengeVerification, Comment, Vote } from '@bitsocial/bitsocial-react-hooks';
+import type { ChallengeVerification, Comment, CommentsFilter, Vote } from '@bitsocial/bitsocial-react-hooks';
 
 export type CommentMediaType = 'image' | 'video' | 'audio';
 
@@ -32,10 +32,14 @@ export const getCommentMediaType = (comment?: Comment): CommentMediaType | undef
 };
 
 // bitbones catalog is image/video only, not including thumbnail urls
-export const catalogFilter = (comment?: Comment): boolean => {
+const catalogFilter = (comment?: Comment): boolean => {
   const mediaType = getCommentMediaType(comment);
   return mediaType === 'image' || mediaType === 'video';
 };
+
+// useFeed takes the filter as an object and caches the filtered feed under filter.key, so the key
+// identifies what catalogFilter does: change it whenever the predicate's logic changes
+export const catalogCommentsFilter: CommentsFilter = { filter: catalogFilter, key: 'catalog' };
 
 TimeAgo.addDefaultLocale(en);
 const timeAgo = new TimeAgo('en-US');
@@ -65,7 +69,7 @@ export const alertChallengeVerificationFailed = (challengeVerification?: Challen
 
 const utils = {
   getCommentMediaType,
-  catalogFilter,
+  catalogCommentsFilter,
   getFormattedTime,
   alertChallengeVerificationFailed,
 };
