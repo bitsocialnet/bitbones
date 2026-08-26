@@ -286,6 +286,10 @@ component that owns them.
 ### Verification Rules
 
 - Never mark work complete without verification.
+- Treat the contributor machine as a shared, resource-constrained environment. Before a CPU- or memory-intensive command, inspect existing repo workloads and stop only stale processes that the current agent owns.
+- Run heavyweight work sequentially across the whole task, including delegated agents: dependency installs, production builds, `yarn retest:quality`, React Doctor, Electron/Android work, and browser/profiler verification must not overlap. Do not run `yarn retest:quality` alongside any of its constituent checks.
+- Prefer the narrowest reliable check first. When a full verification pass is required, finish each heavyweight command before starting the next; parallelize only lightweight read-only checks.
+- Reuse an already-running compatible development stack for the same worktree when safe. Otherwise keep at most one declared dev stack per active worktree, record every process/session it starts, and stop that stack on every exit path as soon as it is no longer needed. Never start duplicate app servers or stop a process whose owner or purpose is unclear.
 - After code changes, run: `yarn lint`, `yarn type-check`, `yarn build`.
 - After React UI logic changes, also run `yarn doctor`. Treat react-doctor output as guidance for
   *newly introduced* issues, not as an aggregate score to grind up: many `error`-level diagnostics
@@ -352,7 +356,7 @@ component that owns them.
 ## Core SHOULD Rules
 
 - Keep context lean: delegate heavy/verbose tasks to subprocesses when available.
-- For complex work, parallelize independent checks.
+- For complex work, parallelize independent lightweight checks. Keep CPU- or memory-intensive commands sequential.
 - Use `yarn knip` when adding/removing dependencies or introducing new direct imports; resolve real issues before finishing.
 - When proposing or implementing meaningful code changes, include both:
   - a Conventional Commit title suggestion
