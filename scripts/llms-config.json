@@ -33,6 +33,7 @@
     "docs/agent-playbooks/long-running-agent-workflow.md",
     "docs/agent-playbooks/skills-and-tools.md",
     "docs/agent-playbooks/commit-issue-format.md",
-    "docs/agent-playbooks/hooks-setup.md"
+    "docs/agent-playbooks/hooks-setup.md",
+    "docs/agent-playbooks/verification.md"
   ]
 }

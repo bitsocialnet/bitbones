@@ -1,115 +1,80 @@
 # Skills and Tools
 
-Use this playbook when setting up/adjusting skills and external tooling, or to discover what is already committed.
+Shared skills live in `.agents/skills/`. Edit these sources, then run `yarn ai-workflow:sync` to generate `.claude/skills/` for Claude Code. Codex and Cursor discover `.agents/skills/` directly; do not restore the duplicate `.codex/skills/` or `.cursor/skills/` roots.
 
-## Committed Skills Index
+Shared role prompts live in `.agents/roles/*.md`. This is a repository-specific source format, not a native agent discovery path. `scripts/ai-workflow-files.mjs` converts these sources into the app-specific files below; `yarn ai-workflow:sync` writes them. Commit the generated files alongside their sources so a fresh checkout has the native configuration without running a generator first. After removing a source, remove its obsolete generated outputs explicitly; the validator reports them rather than silently deleting files.
 
-These live in `.claude/skills/`, `.cursor/skills/`, and `.codex/skills/` (mirrored; run `yarn ai-workflow:check` after edits). No install needed — prefer them over re-implementing the flow by hand.
+## Native discovery paths
 
-| Skill | Use when |
+Verified against official documentation on 2026-09-12:
+
+| App | Project instructions | Skills used by this repository | Custom agents used by this repository |
+|---|---|---|---|
+| Codex | `AGENTS.md` | `.agents/skills/<name>/SKILL.md` | Generated `.codex/agents/<name>.toml` |
+| Cursor | `AGENTS.md`; `.cursor/rules/*.mdc` remains available for Cursor-specific conditional rules | `.agents/skills/<name>/SKILL.md` | Generated `.cursor/agents/<name>.md` |
+| Claude Code | `CLAUDE.md` imports `@AGENTS.md` | Generated `.claude/skills/<name>/SKILL.md` | Generated `.claude/agents/<name>.md` |
+
+Sources: [Codex skills](https://learn.chatgpt.com/docs/build-skills), [Codex subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Cursor rules](https://cursor.com/docs/rules), [Cursor skills](https://cursor.com/docs/skills), [Cursor subagents](https://cursor.com/docs/subagents), [Claude memory](https://code.claude.com/docs/en/memory), [Claude skills](https://code.claude.com/docs/en/skills), [Claude subagents](https://code.claude.com/docs/en/sub-agents).
+
+Do not replace the native agent directories with `.agents/roles` or assume Claude discovers `.agents/skills`. Claude can still read a referenced file there as ordinary project context. Cursor also discovers `.claude/skills` for compatibility; copies remain synchronized, but its published skills guide does not specify deduplication across these roots. Check the installed app's skill catalog rather than promising that duplicate entries cannot appear.
+
+The AI directories use LF line endings through `.gitattributes` so generated text stays identical across platforms. Supporting skill assets are copied as bytes.
+
+## Skills
+
+| Skill | Purpose |
 |---|---|
-| `commit` | Committing current work (splits into logical scoped commits) |
-| `commit-format` / `issue-format` | Formatting commit/issue *suggestions* in chat output |
-| `make-closed-issue` | Creating an issue + branch + PR into `master` for already-done work |
-| `review-and-merge-pr` | Triaging bot/human PR feedback, fixing, merging, cleaning up local git state |
-| `fix-merge-conflicts` | Resolving merge conflicts non-interactively and validating the build |
-| `release` / `release-description` | Cutting a release / updating the release one-liner |
-| `code-quality-review` | Advisory final-diff quality pass before finishing, committing, pushing, or opening a PR |
-| `refactor-pass` | Simplicity-focused refactor of recent changes |
-| `deslop` | Removing AI-generated slop from the branch diff |
-| `debug-agent` | Evidence-based debugging with runtime NDJSON logs |
-| `you-might-not-need-an-effect` | Auditing/refactoring `useEffect` anti-patterns |
-| `vercel-react-best-practices` | React performance review rules (vendored from Vercel) |
-| `translate` | i18next key changes across all 93 languages (spawns `translator` subagents) |
-| `implement-plan` | Executing a multi-task plan via parallel `plan-implementer` subagents |
-| `readme` | Creating/updating README.md |
-| `context7` | Fetching up-to-date library docs |
-| `find-skills` | Discovering/installing ecosystem skills |
-| `playwright-cli` | Driving a browser: navigating, snapshotting, filling forms, screenshots, tracing |
-| `inspect-elements` | Mapping a live DOM node back to the React file that rendered it |
-| `profile-browsing` | Web Vitals + react-scan rerender profiling across a batch of routes |
+| `commit` | Create authorized, scoped local commits |
+| `commit-format`, `issue-format` | Format suggestions when requested |
+| `make-closed-issue` | Create an authorized issue, scoped commit and PR |
+| `review-and-merge-pr` | Triage PR feedback; fix/publish/merge only within the requested scope |
+| `fix-merge-conflicts` | Resolve conflicts and verify the merged result |
+| `release`, `release-description` | Prepare release wording and perform authorized release steps |
+| `code-quality-review` | Review non-trivial diffs or an explicitly requested quality concern |
+| `refactor-pass`, `deslop` | Requested cleanup of existing changes |
+| `debug-agent` | Evidence-based debugging, with instrumentation when needed |
+| `you-might-not-need-an-effect` | Focused effect/memo review |
+| `vercel-react-best-practices` | Applicable React performance guidance; skip Next.js/server-only rules for this Vite client |
+| `translate` | Generate translations, then apply maps through a single writer |
+| `playwright-cli`, `inspect-elements` | Browser verification and DOM-to-source mapping |
+| `profile-browsing` | Scoped browser and React profiling |
+| `implement-plan` | Execute a plan with optional bounded delegation |
+| `readme` | Maintain verified project documentation |
+| `context7` | Retrieve version-appropriate library documentation |
+| `find-skills` | Find additional skills when explicitly requested |
 
-## Committed Subagents
+## Roles and models
 
-Defined in `.claude/agents/*.md`, `.cursor/agents/*.md`, `.codex/agents/*.toml` (+ `.codex/config.toml` entries): `code-quality`, `plan-implementer`, `react-patterns-enforcer`, `react-doctor-fixer`, `translator`, `browser-check`, `profiler`. Most are driven by the skills above; read the agent file before spawning one directly.
+Keep custom roles for `browser-check`, `profiler`, `translator`, and `reviewer`. Use the harness's built-in worker/general-purpose or explorer role for ordinary implementation and code discovery. The parent assigns acceptance criteria and ownership; one owner runs heavyweight checks.
 
-`browser-check` and `profiler` are read-only and both drive a browser. Never run them concurrently, with each other or with anything else that opens a browser: `scripts/pw-session.sh` allows one Playwright browser at a time machine-wide, and competing sessions both saturate the machine and invalidate timing measurements.
+Codex agent files include `name`, `description`, and `developer_instructions`. `.codex/config.toml` caps concurrent children at four using `max_concurrent_threads_per_session`. Shared role metadata contains the name, description, and optional sandbox mode; it deliberately has no model fields.
 
-## Browser Automation
+Leave model and reasoning fields out of committed skills and custom agents in all three apps. This allows runtime invocation choices, user defaults, and parent inheritance according to each app’s documented precedence. Claude family aliases reduce version maintenance but still choose a family; a versioned Cursor model requires future updates. Keep such choices in user/session settings when needed. Inheritance does not promise an automatic choice of the best current model. Do not invent a `latest` alias or add model-catalog research to routine tasks. See [Codex selection](https://learn.chatgpt.com/docs/agent-configuration/subagents), [Claude selection](https://code.claude.com/docs/en/sub-agents#choose-a-model), and [Cursor selection](https://cursor.com/docs/subagents#model-configuration).
 
-The `playwright-cli`, `inspect-elements`, and `profile-browsing` skills, plus the `browser-check` and
-`profiler` subagents, are ported from the sibling client and adapted to bitbones. Their local
-infrastructure is:
+`sandbox-mode: read-only` maps to Codex’s sandbox and Cursor’s `readonly`; Claude’s tool list and the role instructions restrict its review workflow, but Bash access is not an OS-level sandbox.
 
-| Piece | What it does |
-|---|---|
-| `scripts/pw-session.sh` | Machine-wide single-browser resource lock around `playwright-cli open`/`close`. Exit 75 means the slot is busy — wait, do not bypass |
-| `src/lib/react-scan.ts` | Dev-only inspectors: react-scan render report (`__getReactScanReport`), element-source (`__ELEMENT_SOURCE__`), react-grab (`__REACT_GRAB__`) |
-| `index.html` | The single `import.meta.env.DEV` guard that loads the module above; nothing in `src/` may import it |
-| `playwright` (devDependency) | Browser binaries via `npx playwright install`, and raw Playwright for reproduction scripts |
-| `playwright-cli` (global) | `npm install -g @playwright/cli@latest` — not a repo dependency |
+Shared skill frontmatter uses `disable-model-invocation: true` for user-invoked workflows where applicable. Codex's corresponding setting lives in `agents/openai.yaml` as `policy.allow_implicit_invocation: false`; the validator requires both. Invocation metadata supplements explicit authorization rules; a review request never authorizes publication merely because a skill includes publishing steps.
 
-Drive the **plain-port** dev server (`PORTLESS=0 yarn start`, http://localhost:5173). The default
-`yarn start` fronts Vite with portless on a hostname derived from the current git branch, behind a
-locally generated certificate that `playwright-cli open` has no flag to accept. Routing is
-`HashRouter`, so every in-app URL needs the `#` segment.
+## Checks and discovery
 
-CI greps `build/assets/` for `__REACT_GRAB__|__PROFILING__|__ELEMENT_SOURCE__|getReactScanReport` to
-prove the dev-only inspectors never ship. If you expose a new dev-only global, add it to that grep in
-`.github/workflows/ci.yml`.
+- `yarn ai-workflow:sync` regenerates compatibility outputs using installed `js-yaml` and `smol-toml`.
+- `yarn ai-workflow:check` parses source/frontmatter/configs, checks generated outputs, invocation metadata, model-field placement, and the formatter-only hook wiring. It does not resolve model identifiers against a provider catalog.
+- `yarn ai-workflow:test` runs isolated Node fixtures for hook payloads and workflow generation/validation.
+- After upgrading an agent application, verify skill/role discovery in that application. Syntax/parity checks do not replace a loader check. Reload the application if an existing session retains an old catalog.
+- Hooks require the harness's project trust and hook review; do not bypass trust to make a check pass. See [hooks-setup.md](hooks-setup.md).
 
-## Deliberately Not Committed Here
+## Maintaining useful instructions
 
-The sibling client also ships a `test-apk` skill and agent. It is **not** ported to bitbones: it
-drives Android instrumentation tests and media-upload flows, and this repo has neither, so it would
-have nothing to exercise.
+Follow [OpenAI’s skills and prompts guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra) (reviewed 2026-09-12): keep descriptions precise, load details only when relevant, and preserve the user’s requested scope. Shared skills serve different models; retain project-specific invariants while allowing routine implementation choices.
 
-There is also no test skill or test step, because there is no test runner in this repo. Do not
-fabricate `yarn test`.
+Keep a skill’s purpose, decision boundaries, and essential constraints in `SKILL.md`. Link substantial mode-specific commands or examples as optional references. Put trigger conditions early in short descriptions; a matching keyword alone should not expand the task. Preserve existing invocation metadata unless its behavior is intentionally being changed.
 
-## Recommended Skills
+After a substantial instruction change, exercise a few representative small and large requests. Check which skills/references were selected, whether actions stayed within scope, whether verification matched the change, and whether authorized work completed. Schema and fixture tests establish tooling correctness, not agent decision quality.
 
-### Context7 (library docs)
+## Tools and browser ownership
 
-For up-to-date docs on libraries.
+Prefer the existing skill/tool catalog and installed project CLIs. Use `gh` for GitHub, `playwright-cli` for browser verification, and official/version-specific documentation when library behavior matters. Avoid installing duplicate skills or fetching an unpinned package merely to run an existing formatter.
 
-```bash
-npx skills add https://github.com/intellectronica/agent-skills --skill context7
-```
+MCP overhead depends on the harness: deferred tool loading can avoid loading every schema upfront. Keep integrations relevant rather than treating MCP itself as obsolete. Existing CLI choices remain useful for reproducibility and resource control.
 
-### Vercel React Best Practices
-
-For deeper React performance guidance.
-
-```bash
-npx skills add https://github.com/vercel-labs/agent-skills --skill vercel-react-best-practices
-```
-
-### Find Skills
-
-Discover/install skills from the open ecosystem.
-
-```bash
-npx skills add https://github.com/vercel-labs/skills --skill find-skills
-```
-
-## Local Verification Tools
-
-| Command | What it gives you |
-|---|---|
-| `yarn start` | Dev server at https://bitbones.localhost via portless (`PORTLESS=0 yarn start` for http://localhost:5173, which is what browser automation should target) |
-| `./scripts/pw-session.sh status` | Who holds the machine-wide Playwright browser slot, and whether that browser is still alive |
-| `yarn lint` / `yarn type-check` / `yarn build` | The required gate, also enforced by the stop hook |
-| `yarn knip` | Manifest/import audit (strict); `yarn knip:full` is the advisory full report |
-| `yarn doctor` | react-doctor review of React UI logic; treat it as a reviewer of *new* diagnostics, not a score |
-| `yarn ai-workflow:check` | Parity check across `.claude/`, `.cursor/`, `.codex/` |
-| `yarn llms:generate` | Regenerates `public/llms*.txt` after public-facing English content changes |
-| `yarn i18n:update` / `yarn i18n:update:dry` | Translation key updates across every language file |
-
-## MCP Policy Rationale
-
-Avoid GitHub MCP and browser MCP servers for this project because they add significant tool-schema/context overhead.
-
-- GitHub operations: use `gh` CLI.
-- Browser operations: use `playwright-cli` through `scripts/pw-session.sh`, not a browser MCP.
-- If many MCP tools are present in context, warn the user and suggest disabling unused MCPs.
+All browser sessions use `./scripts/pw-session.sh`, which enforces one active browser machine-wide. Default to a fresh isolated session. Current personal-browser access needs explicit authorization; reuse that authorization in subsequent steps. Choose browsers/viewports for the affected behavior, run selected engines sequentially, close the exact named session in cleanup, and never use `close-all`/`kill-all`. See the `playwright-cli` skill and [verification.md](verification.md).

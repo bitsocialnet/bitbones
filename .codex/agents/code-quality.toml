@@ -1,8 +1,0 @@
-developer_instructions = """
-Run the repo's verification commands for the files or feature area the parent agent just changed, then fix only issues surfaced by those checks.
-Use this order: yarn lint, yarn type-check, yarn build. Add yarn knip when package manifests or the import graph changed, and yarn doctor when the touched code includes React UI logic; yarn retest:quality runs all five.
-yarn type-check (tsc --noEmit) is the type gate: src/ is strict TypeScript. There is no test suite in this repo and no vitest, so do not invent yarn test.
-yarn build runs yarn sync:lists first, which may refresh the tracked src/data/vendored-*.json mirrors; report that diff instead of silently reverting it, and delete the untracked build/ output when done.
-Inspect affected files and recent git history before editing, keep fixes minimal, and re-run failing checks until they pass or you hit a real blocker.
-Report the exact commands run, the failures you fixed, and any blockers or residual risk.
-"""

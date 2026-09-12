@@ -1,115 +1,49 @@
 # AGENTS.md
 
-## Purpose
+## Purpose and priority
 
-This file defines the always-on rules for AI agents working on bitbones.
-Use this as the default policy. Load linked playbooks only when their trigger condition applies.
+Shared instructions for agents working on bitbones. Explicit user instructions take precedence over repository workflow guidance. MUST rules are requirements; SHOULD rules are defaults. Read linked playbooks only when relevant.
 
-## Surprise Handling
+Define completion for non-trivial work and continue through implementation, appropriate verification, and fixes within the requested scope. Use judgment for routine choices; ask only when missing information materially changes the result or an action lacks authorization. Skills do not create additional approval gates.
 
-The role of this file is to reduce recurring agent mistakes and confusion points in this repository.
-If you encounter something surprising or ambiguous while working, alert the developer immediately.
-After confirmation, add a concise entry to `docs/agent-playbooks/known-surprises.md` so future agents avoid the same issue.
-Only record items that are repo-specific, likely to recur, and have a concrete mitigation.
+## Product and source of truth
 
-## Project Overview
+bitbones is a bare bones GUI client for the Bitsocial protocol. Its minimalism is the product: every view should keep the protocol hook and result legible, without unrelated styling opinions or product features. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
 
-bitbones is a bare bones GUI client for the Bitsocial protocol. Deliberately minimal: no styling
-opinions, no product features, every view a thin wrapper over one hook. It exists to make the
-protocol legible and to be the fastest place to reproduce a bug against real communities.
+Source, manifests, tests, docs, and runtime evidence establish behavior. AGENTS, skills, playbooks, task logs, and generated `llms*.txt` orient the agent; verify technical claims against source. Check the installed dependency version before assuming a sibling repository provides its implementation.
 
-That minimalism is the product. Before adding a component, a store, or an abstraction, ask whether
-the protocol behavior is still visible through it.
+Record recurring repository surprises with concrete mitigation in [known-surprises.md](docs/agent-playbooks/known-surprises.md) after contributor confirmation. Continue independent work while any needed detail is unresolved.
 
-## Instruction Priority
+## Working principles
 
-- **MUST** rules are mandatory.
-- **SHOULD** rules are strong defaults unless task context requires a different choice.
-- If guidance conflicts, prefer: user request > MUST > SHOULD > playbooks.
+- Understand the affected flow before editing. Prefer skipping unnecessary work, reusing repository code, native/standard-library features, then installed dependencies before adding code.
+- Preserve unrelated edits. Keep changes scoped; avoid adjacent cleanup or broad reformatting without a task reason.
+- Simplicity must preserve correctness, validation, accessibility, security, error handling, and useful tests.
+- For a bug tied to a file/line, inspect `git log` or `git blame`, then relevant `git show`. Use reproduction or conclusive source/runtime evidence before fixing; see [bug-investigation.md](docs/agent-playbooks/bug-investigation.md).
+- Prefer existing evidence before instrumentation. Remove only task-owned temporary logs/artifacts once verification is complete.
 
-## Agent Operating Principles
+## Task router
 
-- Before editing, state important assumptions when the task is ambiguous. Ask instead of silently choosing between materially different interpretations.
-- After understanding the affected flow, apply the [Ponytail](https://github.com/DietrichGebert/ponytail) solution ladder: skip work that is not required; reuse repository code; prefer the standard library, native platform features, then installed dependencies; only then write the minimum new code. Never trade away explicit requirements, correctness, clarity, validation, error handling, security, or accessibility.
-- Keep diffs surgical. Do not refactor, reformat, rename, or "improve" adjacent code unless it is necessary for the task.
-- Clean up only artifacts created by the current change, such as newly unused imports or dead helper code.
-- For non-trivial work, define success criteria and verify them with the narrowest reliable checks before marking the task complete.
-
-## LLM Knowledge Base Policy
-
-Use compiled context for orientation, not as source of truth.
-
-Source of truth:
-
-- Code, package manifests, docs, and runtime/live evidence when relevant.
-
-Compiled context:
-
-- `AGENTS.md`, `CLAUDE.md`, and repo-managed `.codex/`, `.cursor/`, and `.claude/` workflow files.
-- `docs/agent-playbooks/**`, `docs/agent-runs/**`, and tracked `llms.txt` / `llms-full.txt` files when present.
-
-Agents may use compiled context to navigate quickly, but must verify against source files before making behavioral claims or edits. External code graph, RAG, MCP, or wiki tools are optional local accelerators unless the developer explicitly asks to make one part of the committed workflow.
-
-## Task Router (Read First)
-
-| Situation | Required action |
+| Task | Guidance/check |
 |---|---|
-| A protocol hook is called (`useFeed`, `useCommunity`, `useCommunityStats`, `useCommunitiesStates`, `useSubscribe`) | Check both argument traps in the Protocol Hook Rules below before finishing |
-| React UI logic changed (`src/components`, `src/views`, `src/hooks`, `src/lib`, `src/app.tsx`) | Follow the React architecture rules below, review the diff with `vercel-react-best-practices` when available, fix valid findings, then run `yarn doctor` |
-| Anything under `src/` changed (types, props, hook signatures, a new file) | Run `yarn type-check`; `src/` is strict TypeScript and `tsc --noEmit` is the only type gate |
-| `package.json` changed | Run `corepack yarn install` to keep `yarn.lock` in sync |
-| Dependencies or import graph changed | Run `yarn knip` (`yarn knip:full` for the advisory full report) |
-| Translation key/value changed | Use the `translate` skill (spawns parallel `translator` subagents); it drives `scripts/update-translations.js`, never hand-edit the language files |
-| Public-facing English content or AI context changed (`README.md`, `index.html`, `AGENTS.md`, docs pages) | Run `yarn llms:generate`; inspect and commit any resulting changes to `public/llms*.txt` |
-| Bug report in a specific file/line | Start with the git history scan in `docs/agent-playbooks/bug-investigation.md` before editing |
-| UI/visual behavior changed | Verify in a browser with `playwright-cli`, desktop plus a mobile viewport. Open every session through `./scripts/pw-session.sh` so only one browser is active machine-wide, and run engines sequentially. Use the `playwright-cli` skill, or delegate to the `browser-check` subagent. There is no test suite in this repo |
-| Loading, navigation, or rerender cost matters | Use the `profile-browsing` skill, which drives `profiler` subagents against the dev-only react-scan instrumentation in `src/lib/react-scan.ts`. Run profiler batches sequentially, never in parallel |
-| Need the source file behind a specific on-screen element | Use the `inspect-elements` skill (`window.__ELEMENT_SOURCE__`, dev server only) |
-| Cutting a version | Use the `release` skill. Releases are manual and tag-triggered; nothing publishes until a `vX.Y.Z` tag reaches `origin` |
-| Long-running task spans multiple sessions, handoffs, or spawned agents | Use `docs/agent-playbooks/long-running-agent-workflow.md` and keep a machine-readable feature list plus a progress log |
-| New reviewable feature/fix started while on `master` | Create a short-lived `feature/*`, `fix/*`, `docs/*`, or `chore/*` branch from `master` before editing; use a separate worktree only for parallel tasks |
-| Open PR needs feedback triage or merge readiness check | Use the `review-and-merge-pr` skill |
-| Before finishing or committing code, docs, or AI workflow changes, and before pushing/opening a PR | Run the advisory `code-quality-review` skill on the current diff; treat findings as suggestions, not blockers |
-| Repo AI workflow files changed (`.codex/**`, `.cursor/**`, `.claude/**`) | Keep the three copies aligned; run `yarn ai-workflow:check`; update `AGENTS.md` if the default agent policy changes |
-| GitHub operation needed | Use `gh` CLI, not GitHub MCP |
-| User asks for commit/issue phrasing | Use `docs/agent-playbooks/commit-issue-format.md` |
-| Surprising/ambiguous repo behavior encountered | Alert developer and, once confirmed, document in `docs/agent-playbooks/known-surprises.md` |
+| Files in a directory with AGENTS.md | Read that directory's instructions |
+| Code or automation changed | Select checks by impact in [verification.md](docs/agent-playbooks/verification.md) |
+| React state/effects/data flow/performance changed | Read relevant React skill rules; use Doctor when diagnostics resolve a concern |
+| UI/layout changed | Verify affected flows; choose browsers/viewports using the verification playbook |
+| Translation keys/values | Use `translate`; one writer applies all locale changes |
+| `package.json` changed | Run `corepack yarn install` and keep `yarn.lock` synchronized |
+| Dependencies/imports changed | Run advisory `yarn knip`; resolve relevant new findings |
+| AI workflow files changed | Edit shared sources; run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, `yarn ai-workflow:test` |
+| Public English docs or AI context changed | Run `yarn llms:generate` and include resulting tracked indexes |
+| Open PR feedback or merge readiness | Use `review-and-merge-pr` within the requested scope |
+| Durable handoff/resumption needed | Use [long-running-agent-workflow.md](docs/agent-playbooks/long-running-agent-workflow.md) |
+| Protocol hooks called | Check the identifier and argument traps below |
+| `src/` changed | Run `yarn type-check`; there is no application test runner |
+| Version/release requested | Use `release`; publication starts when an authorized version tag reaches origin |
 
-## Stack
+## Code and product constraints
 
-- Node 22.12.0 (`nvm use`), Yarn 4.17.1 via corepack (`corepack enable`)
-- React 19 + Vite 8 (rolldown) + TypeScript 7 in strict mode, CSS modules
-- `@bitsocial/bitsocial-react-hooks` for all protocol access, `@pkcprotocol/pkc-js` in electron only
-- zustand 4 for local UI state, react-router-dom 7 with `HashRouter`
-- i18next for translations
-- oxlint + oxfmt, knip for dependency hygiene, react-doctor for React review
-- `playwright` + the global `playwright-cli` for browser automation; react-scan, react-grab and element-source as dev-only inspectors
-- electron-forge for desktop, capacitor for android
-
-`src/` is **strict TypeScript**: every source file is `.ts` or `.tsx`, `tsconfig.json` sets
-`strict: true` and `allowJs: false`, and `yarn type-check` (`tsc --noEmit`) is the type gate.
-`electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` stay plain JavaScript on purpose —
-only `src/` is TypeScript. There is still no test runner: no vitest, no `yarn test`. Do not invent one.
-
-## Project Structure
-
-```text
-src/
-├── components/   # Reusable UI components (colocated .module.css)
-├── views/        # Page-level route views, one per hook
-├── hooks/        # Custom hooks, including the small zustand stores
-├── lib/          # Utilities/helpers
-└── data/         # Generated default-community-list mirrors
-```
-
-Ambient declarations live in three files at the root of `src/`: `modules.d.ts` (CSS modules),
-`env.d.ts` (`import.meta.env`), and `globals.d.ts` (`Window` extras).
-
-There is no `src/stores/` directory. Shared UI state lives in small zustand stores created with
-`createStore` inside `src/hooks/` (see `src/hooks/use-theme.ts`) or colocated with the single
-component that owns them.
-
-## Core MUST Rules
+`src/` is React/TypeScript; `electron/`, `scripts/`, `vite.config.js`, and `forge.config.js` remain JavaScript. Shared UI stores live in `src/hooks/`, not a new `src/stores/` directory. Keep views thin.
 
 ### Naming and Branding Rules
 
@@ -177,151 +111,38 @@ component that owns them.
 - Follow DRY: shared UI in `src/components/`, shared logic in `src/hooks/`.
 - Add comments for complex/non-obvious code; skip obvious comments.
 
-### Git Workflow Rules
+## Git and ownership
 
-- Keep `master` releasable. Do not treat `master` as a scratch branch.
-- If the user asks for a reviewable feature/fix and the current branch is `master`, create a short-lived task branch before making code changes unless the user explicitly asks to work directly on `master`.
-- Name short-lived AI task branches by intent: `feature/*`, `fix/*`, `docs/*`, `chore/*`.
-- Open PRs from task branches into `master` so review bots can run against the actual change.
-- Open PRs as ready for review, not draft. Draft PRs prevent CodeRabbit, Cursor Bugbot, and similar review bots from running.
-- Use worktrees only when parallel tasks need isolated checkouts. One active task branch per worktree, named descriptively after the task (`fix-blank-community-header`, not `wt1` or `tmp`).
-- If a new task is unrelated to the currently checked out branch, do not stack it on that branch. Create a new worktree from `master` and a separate short-lived task branch there.
-- After a reviewed branch is merged, prefer deleting it to keep branch drift and merge conflicts low.
+- Keep `master` releasable. Default to short-lived `codex/feature/*`, `codex/fix/*`, `codex/docs/*`, or `codex/chore/*` branches unless the user asks otherwise.
+- For an unrelated task on another active branch, use a descriptive worktree from `master`; never switch branches underneath another agent. Related delegated slices may share a checkout with non-overlapping ownership.
+- Stage only task-owned changes, using selective patches for mixed files. Do not use `git add -A` by default. Preserve secrets, unrelated edits, and preexisting artifacts during cleanup.
+- Only commit, push, publish, or merge when authorized; existing authorization persists through necessary steps. When a PR is requested, target `master` and make it ready for review unless a draft was requested.
+- After an authorized merge, remove only the verified merged branch/worktree. Never perform Git cleanup from lifecycle hooks.
+- Use `gh` for GitHub operations. Use [commit-issue-format.md](docs/agent-playbooks/commit-issue-format.md) for requested wording or actual commit/issue creation, not automatic suggestions.
 
-### Bug Investigation Rules
+## Verification and resources
 
-- For bug reports tied to a specific file/line, check relevant git history before any fix.
-- Minimum sequence: `git log --oneline` or `git blame` first, then scoped `git show` for relevant commits.
-- Full workflow: `docs/agent-playbooks/bug-investigation.md`.
+- Use the narrowest reliable behavior checks first. Run applicable checks once for the final state, repeating only after changes, failures, or unresolved concerns. Preserve explicit CI/release/user requirements.
+- Documentation-only work needs document/workflow checks, not an app build. Add regression tests for non-trivial testable bugs, not wording changes.
+- Inspect active workloads before heavy work. Serialize installs, builds/full suites, React Doctor, Android/Electron work, and browser profiling across the task. One owner runs heavy verification; never stop processes of unclear ownership.
+- Reuse a compatible dev server in the same worktree when safe. Otherwise record and clean up only the processes this task starts; never start a server for documentation-only work.
+- Run browser engines sequentially through `./scripts/pw-session.sh open <session> ...` and `close <session>`. One browser is active machine-wide. Exit 75 means busy; defer or use the bounded wait. Close the exact owned session even after failure, never `close-all` or `kill-all`.
+- Default to isolated sessions; personal-browser reuse requires authorization. A caller-owned session can be reused by a delegated helper without taking over its lifecycle.
+- Review the final task-owned diff. Use `code-quality-review` for non-trivial changes or an explicit review; apply high-confidence in-scope findings. Doctor, Knip, and coverage are diagnostics, not new repository-wide gates.
 
-### Verification Rules
+## Skills and delegation
 
-- Never mark work complete without verification.
-- Treat the contributor machine as a shared, resource-constrained environment. Before a CPU- or memory-intensive command, inspect existing repo workloads and stop only stale processes that the current agent owns.
-- Run heavyweight work sequentially across the whole task, including delegated agents: dependency installs, production builds, `yarn retest:quality`, React Doctor, Electron/Android work, and browser/profiler verification must not overlap. Do not run `yarn retest:quality` alongside any of its constituent checks.
-- Prefer the narrowest reliable check first. When a full verification pass is required, finish each heavyweight command before starting the next; parallelize only lightweight read-only checks.
-- Reuse an already-running compatible development stack for the same worktree when safe. Otherwise keep at most one declared dev stack per active worktree, record every process/session it starts, and stop that stack on every exit path as soon as it is no longer needed. Never start duplicate app servers or stop a process whose owner or purpose is unclear.
-- After code changes, run: `yarn lint`, `yarn type-check`, `yarn build`.
-- After React UI logic changes, also run `yarn doctor`. Treat react-doctor output as guidance for
-  *newly introduced* issues, not as an aggregate score to grind up: many `error`-level diagnostics
-  flag intentional patterns or current React-Compiler limitations.
-- After dependency or import-graph changes, run `yarn knip`.
-- `yarn type-check` (`tsc --noEmit`) is the type gate; run it after any change under `src/`.
-- There is no test command. If a checklist asks for one, say it does not exist here rather than
-  inventing a command.
-- `yarn build` runs `yarn sync:lists` first and can rewrite the tracked `src/data/vendored-*.json`
-  mirrors. Review that diff and keep or discard it deliberately.
-- Do not commit or force-add local rebuild output. `build/` is the generated build output; remove it
-  after local verification before committing.
-- For UI/visual changes, check the route in a browser, desktop plus a mobile viewport. `playwright-cli` through `./scripts/pw-session.sh` is the committed path; by hand with `yarn start` is fine for a quick look.
-- The shared hook verification path is strict by default. Only set `AGENT_VERIFY_MODE=advisory` when you intentionally need signal from a broken tree without blocking the session.
-- If verification fails, fix and re-run until passing.
+- Shared skills live in `.agents/skills/`; `.agents/roles/` is the repository's generator source, not a native discovery path. Commit generated `.claude/skills/`, `.codex/agents/`, `.claude/agents/`, and `.cursor/agents/` alongside sources. See [skills-and-tools.md](docs/agent-playbooks/skills-and-tools.md).
+- Keep harness-specific hooks, permissions, and metadata explicit. Leave model and reasoning fields out of committed skills/custom agents so runtime invocation, user defaults, and inheritance control selection. Do not invent a `latest` model alias.
+- Use built-in worker/explorer roles for ordinary implementation/research; custom roles cover browser checks, profiling, translation, review, and applicable Android checks. Avoid compulsory specialist chains.
+- Delegate substantial independent work when it improves speed or context isolation. Give scope, acceptance criteria, context, ownership, and expected evidence. At most four workers by default; no overlapping writes or concurrent browser work.
+- Use relevant React guidance for the changed state/effect/data flow; load `you-might-not-need-an-effect` for a focused uncertain effect/memo review. Do not apply Next.js/server rules indiscriminately to Vite clients.
+- Prefer installed tools and CLIs. Look up current external APIs when needed; do not install skills merely because a normal task mentions their domain. Keep tool catalogs relevant; unused integrations add choices even when schemas are deferred.
 
-### Tooling Constraints
+## Commands and playbooks
 
-- Use `gh` CLI for GitHub work (issues, PRs, actions, dependabot, search).
-- Do not use GitHub MCP.
-- Do not use browser MCP servers. Use `playwright-cli` for browser automation.
-- If many MCP tools are present in context, warn the user and suggest disabling unused MCPs.
+Use Node from `.nvmrc` and Corepack-managed Yarn. `yarn start` runs the launcher; `PORTLESS=0 yarn start` serves direct Vite, beginning at port 5173 and advancing if occupied. Use its reported URL and hash routes. `yarn start:preview` serves the production build without dev inspectors.
 
-### AI Tooling Rules
+Checks: `yarn lint`, `yarn type-check`, `yarn build`, advisory `yarn doctor` and `yarn knip`. `yarn build` runs `sync:lists`, which may update tracked `src/data/vendored-*.json`; inspect those changes deliberately. There is no application test runner or `yarn test`; AI tooling has isolated Node fixtures.
 
-- Treat `.codex/`, `.cursor/`, and `.claude/` as repo-managed contributor tooling, not private scratch space.
-- Keep equivalent workflow files aligned across all toolchains when their directories contain the same skill, hook, or agent. `yarn ai-workflow:check` enforces this.
-- Keep shared behavior equivalent while preserving harness-specific models, config formats, hook entry points, and tool invocation syntax.
-- Hook implementations in this repo are self-contained inside each toolchain directory, not wrappers around a shared script. Edit `.claude/hooks/<name>.sh` first, then mirror it verbatim into `.cursor/hooks/` and `.codex/hooks/`, rewriting only the `.claude/` path token. Keep every hook executable.
-- Hook entry points are harness-specific: the `hooks` key in `.claude/settings.json` (Claude Code does not read a standalone hooks.json), `.cursor/hooks.json` (Cursor schema), and `.codex/hooks.json` (Codex schema, intentionally Claude-compatible).
-- Do not configure `.claude` agents to use a Cursor-only model such as `composer-2`. Keep `.claude` agent models on Claude-supported options; judgment-tier agents omit `model:` entirely so they inherit the session model.
-- Do not pin `model` or `model_reasoning_effort` in committed Codex custom-agent TOMLs under `.codex/agents/*.toml`; omit both so subagents inherit the current parent settings.
-- If `AGENTS.md` references a skill, agent, or hook, prefer a tracked file under `.codex/`, `.cursor/`, or `.claude/` rather than an untracked local-only instruction.
-- Review `.codex/config.toml`, `.codex/hooks.json`, `.cursor/hooks.json`, and `.claude/settings.json` before changing agent orchestration or hook behavior.
-- Before finishing any React UI logic change under `src/components`, `src/views`, `src/hooks`, `src/lib`, or `src/app.tsx`, review the changed diff with `vercel-react-best-practices`. Fix valid findings before final verification.
-- When a diff adds new `useEffect`, `useLayoutEffect`, `useInsertionEffect`, `useMemo`, `useCallback`, or `memo(...)` usage under `src/`, treat the repo hook reminder as mandatory and reconsider the change with `you-might-not-need-an-effect` before finishing.
-- For work expected to span multiple sessions, keep explicit task state in a `feature-list.json` plus `progress.md` pair using `docs/agent-playbooks/long-running-agent-workflow.md`.
-- If more than one human or toolchain needs the same task state, keep it in a tracked location such as `docs/agent-runs/<slug>/` instead of a tool-specific hidden directory.
-
-### Browser Automation Rules
-
-- One Playwright browser at a time, machine-wide. Open and close every session through
-  `./scripts/pw-session.sh`; it holds a lock shared with every other checkout that ships the script.
-  Exit code 75 means the slot is busy — wait with `open --wait`, do not bypass it. Never
-  `playwright-cli close-all` or `kill-all` while another agent may own a session.
-- Never run browser-driving agents (`browser-check`, `profiler`) in parallel.
-- Automate the plain-port dev server: `PORTLESS=0 yarn start` (http://localhost:5173). The default
-  portless hostname is derived from the current git branch and its certificate is locally generated,
-  and `playwright-cli open` has no flag to accept it. Resolve the port rather than assuming 5173 —
-  `scripts/local-server-utils.mjs` walks up when it is taken.
-- Routing is `HashRouter`, so every automated URL needs the `#` segment.
-- `src/lib/react-scan.ts` is dev-only instrumentation (`__getReactScanReport`, `__ELEMENT_SOURCE__`,
-  `__REACT_GRAB__`). It is loaded by the single `import.meta.env.DEV` guard in `index.html` and must
-  never be imported from application code. CI greps the production bundle for those globals; if you
-  add a new one, extend the grep in `.github/workflows/ci.yml`.
-
-### Security and Boundaries
-
-- Never commit secrets or API keys.
-- Never push to a remote unless the user explicitly asks.
-- Never push a release tag without explicit approval — the tag is what publishes.
-- Test responsive behavior on a mobile viewport.
-
-## Core SHOULD Rules
-
-- Keep context lean: delegate heavy/verbose tasks to subprocesses when available.
-- For complex work, parallelize independent lightweight checks. Keep CPU- or memory-intensive commands sequential.
-- Use `yarn knip` when adding/removing dependencies or introducing new direct imports; resolve real issues before finishing.
-- When proposing or implementing meaningful code changes, include both:
-  - a Conventional Commit title suggestion
-  - a short GitHub issue suggestion
-
-  Use the format playbook: `docs/agent-playbooks/commit-issue-format.md`.
-- When stuck on a bug, search the web for recent fixes/workarounds.
-- After user corrections, identify root cause and apply the lesson in subsequent steps.
-
-## Default Community Lists
-
-`src/data/vendored-*.json` are generated by `yarn sync:lists` from bitsocialnet/lists. Never hand
-edit them. `src/lib/default-lists.ts` layers memory -> localStorage (1h TTL) -> vendored mirror and
-refreshes in the background; caches are keyed per source so switching the default list cannot serve
-one client's list under the other's name.
-
-## Local Development URLs
-
-`yarn start` serves the app through [portless](https://github.com/vercel-labs/portless) at
-https://bitbones.localhost. Other Bitsocial projects use the same proxy, so they can run
-simultaneously without port conflicts.
-
-To bypass portless: `PORTLESS=0 yarn start` (http://localhost:5173).
-
-## Common Commands
-
-```bash
-corepack yarn install
-yarn start                # https://bitbones.localhost
-PORTLESS=0 yarn start     # http://localhost:5173 — use this one for browser automation
-./scripts/pw-session.sh status
-yarn build
-yarn lint
-yarn type-check
-yarn knip
-yarn knip:full
-yarn doctor
-yarn retest:quality       # build + lint + type-check + knip + doctor
-yarn prettier
-yarn electron
-yarn ai-workflow:check
-yarn llms:generate
-yarn i18n:update:dry --key <name>   # requires --key
-yarn sync:lists
-```
-
-## Playbooks (Load On Demand)
-
-Use these only when relevant to the active task:
-
-- Hooks setup and scripts: `docs/agent-playbooks/hooks-setup.md`
-- Skills/tools index, MCP rationale, and what is deliberately not committed: `docs/agent-playbooks/skills-and-tools.md`
-- Known surprises log: `docs/agent-playbooks/known-surprises.md`
-- Bug investigation workflow: `docs/agent-playbooks/bug-investigation.md`
-- Commit/issue output format: `docs/agent-playbooks/commit-issue-format.md`
-- Long-running agent workflow: `docs/agent-playbooks/long-running-agent-workflow.md`
-- Android build notes: `docs/android.md`
+Load details when needed: [hooks](docs/agent-playbooks/hooks-setup.md), [verification](docs/agent-playbooks/verification.md), [skills/tools](docs/agent-playbooks/skills-and-tools.md), [long-running work](docs/agent-playbooks/long-running-agent-workflow.md), [known surprises](docs/agent-playbooks/known-surprises.md).

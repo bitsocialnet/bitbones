@@ -45,7 +45,9 @@
     "android:build:icons": "cordova-res android --skip-config --copy --resources /tmp/bitbones-android-icons --icon-source ./android/icons/icon.png --splash-source ./android/icons/splash.png --icon-foreground-source ./android/icons/icon-foreground.png --icon-background-source '#000000'",
     "changelog": "conventional-changelog --preset angular --infile CHANGELOG.md --same-file --release-count 0",
     "postinstall": "node scripts/patch-capacitor-cli-tar.cjs",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "ai-workflow:sync": "node scripts/sync-ai-workflow.mjs",
+    "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs"
   },
   "dependencies": {
     "@bitsocial/bitsocial-react-hooks": "0.1.39",
@@ -97,11 +99,13 @@
     "conventional-changelog-cli": "4.1.0",
     "cordova-res": "0.15.4",
     "cross-env": "7.0.3",
+    "cross-spawn": "7.0.6",
     "cz-conventional-changelog": "3.3.0",
     "electron": "39.8.10",
     "element-source": "0.0.4",
     "glob": "10.5.0",
     "husky": "4.3.8",
+    "js-yaml": "4.3.1",
     "knip": "6.17.0",
     "lint-staged": "12.3.8",
     "oxfmt": "0.20.0",
@@ -110,6 +114,7 @@
     "react-doctor": "0.9.12",
     "react-grab": "0.2.0",
     "react-scan": "0.5.7",
+    "smol-toml": "1.6.1",
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "vite-plugin-node-polyfills": "0.28.0",
