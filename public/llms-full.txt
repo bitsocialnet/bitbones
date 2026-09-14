@@ -229,6 +229,12 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 - Use relevant React guidance for the changed state/effect/data flow; load `you-might-not-need-an-effect` for a focused uncertain effect/memo review. Do not apply Next.js/server rules indiscriminately to Vite clients.
 - Prefer installed tools and CLIs. Look up current external APIs when needed; do not install skills merely because a normal task mentions their domain. Keep tool catalogs relevant; unused integrations add choices even when schemas are deferred.
 
+## React diagnostics and visual feedback
+
+Use the pinned React Doctor through `yarn doctor --scope changed --base <base> --blocking none --no-parallel` to investigate the actual task diff. Use `HEAD` for uncommitted work, or the task's starting commit after committing. Run `yarn doctor:scan --help` and follow `profile-browsing` for runtime Chrome traces; serialize its browser with other browser work. React Doctor manages its own isolated Chrome, an exception to the Playwright wrapper; first close owned Playwright sessions, defer if the wrapper reports another active owner, and confirm the scan browser exits before continuing. Diagnose measured costs and relevant new findings without chasing a score.
+
+Development builds expose Agentation for visual annotations and retain `window.__ELEMENT_SOURCE__` for source inspection. Set `window.__PROFILING__ = true` before navigation to suppress the toolbar during automated measurements. Production builds must contain neither inspector.
+
 ## Commands and playbooks
 
 Use Node from `.nvmrc` and Corepack-managed Yarn. `yarn start` runs the launcher; `PORTLESS=0 yarn start` serves direct Vite, beginning at port 5173 and advancing if occupied. Use its reported URL and hash routes. `yarn start:preview` serves the production build without dev inspectors.

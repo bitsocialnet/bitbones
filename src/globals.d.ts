@@ -1,16 +1,9 @@
 import type { ElementInfo } from 'element-source';
-import type { ReactGrabAPI } from 'react-grab/core';
 
-// Shapes of the dev-only instrumentation src/lib/react-scan.ts publishes on `window`. They exist on
+// Shapes of the dev-only instrumentation src/lib/dev-tools.ts publishes on `window`. They exist on
 // the dev server only: index.html loads that module behind `import.meta.env.DEV`, so all of these
 // are undefined in a production build, hence optional. The `profile-browsing` and `inspect-elements`
 // skills read them through the browser, and no application code may touch them.
-
-// one react-scan report row: how many times a component rendered and how long those renders took
-interface ReactScanReportRow {
-  count: number;
-  time: number;
-}
 
 // what element-source resolves a DOM node to: the library's ElementInfo plus a flag saying whether
 // anything was actually resolved, or a message explaining why nothing was
@@ -45,15 +38,10 @@ declare global {
     pkcRpcAuthKey?: string;
     // guards the one-time sticky-menu scroll listener in src/components/menu/menu.tsx
     STICKY_MENU_SCROLL_LISTENER?: boolean;
-    // set by the profiler via addInitScript before the app loads, to suppress the react-scan toolbar
+    // set by the profiler via addInitScript before the app loads, to suppress the Agentation toolbar
     __PROFILING__?: boolean;
-    // per-component render report accumulated by src/lib/react-scan.ts
-    __getReactScanReport?: () => Record<string, ReactScanReportRow>;
-    __resetReactScanReport?: () => void;
     // element-source bridge used by the `inspect-elements` skill
     __ELEMENT_SOURCE__?: ElementSourceApi;
-    // react-grab element picker, also announced on the `react-grab:init` event
-    __REACT_GRAB__?: ReactGrabAPI;
   }
 }
 

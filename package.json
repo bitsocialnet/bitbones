@@ -47,7 +47,8 @@
     "postinstall": "node scripts/patch-capacitor-cli-tar.cjs",
     "type-check": "tsc --noEmit",
     "ai-workflow:sync": "node scripts/sync-ai-workflow.mjs",
-    "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs"
+    "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs",
+    "doctor:scan": "react-doctor scan"
   },
   "dependencies": {
     "@bitsocial/bitsocial-react-hooks": "0.1.39",
@@ -95,6 +96,7 @@
     "@types/react": "19.2.18",
     "@types/react-dom": "19.2.4",
     "@vitejs/plugin-react": "6.1.0",
+    "agentation": "3.0.2",
     "concurrently": "8.0.1",
     "conventional-changelog-cli": "4.1.0",
     "cordova-res": "0.15.4",
@@ -111,9 +113,7 @@
     "oxfmt": "0.20.0",
     "oxlint": "1.35.0",
     "playwright": "1.56.1",
-    "react-doctor": "0.9.12",
-    "react-grab": "0.2.0",
-    "react-scan": "0.5.7",
+    "react-doctor": "0.9.14",
     "smol-toml": "1.6.1",
     "typescript": "7.0.2",
     "vite": "8.2.2",

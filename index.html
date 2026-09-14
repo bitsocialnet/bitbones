@@ -10,16 +10,10 @@
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>bitbones</title>
 
-    <!--
-      Dev-only render inspectors (react-scan, element-source, react-grab). The whole thing is behind
-      `import.meta.env.DEV`, which Vite replaces with the literal `false` in a production build, so
-      the dynamic import is dead code and none of those packages reach the shipped bundle. Keep the
-      guard here rather than in src/ so it stays in one obvious place; the instrumentation itself
-      lives in src/lib/react-scan.ts, which the playwright-cli browser skills drive.
-    -->
+    <!-- Development inspectors are excluded from production builds. -->
     <script type="module">
       if (import.meta.env.DEV) {
-        import('./src/lib/react-scan.ts');
+        import('./src/lib/dev-tools.ts');
       }
     </script>
   </head>
