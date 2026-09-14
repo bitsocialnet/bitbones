@@ -1,4 +1,4 @@
-import { StrictMode } from 'react';
+import { Profiler, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './app';
@@ -13,12 +13,21 @@ import type { BackButtonListenerEvent } from '@capacitor/app';
 // window.defaultPkcOptions = {libp2pJsClientsOptions: [{key: 'libp2pjs'}]}
 
 // #root is declared in index.html, so the non-null assertion is the standard React entry-point idiom
-createRoot(document.getElementById('root')!).render(
+const app = (
   <StrictMode>
     <Router>
       <App />
     </Router>
-  </StrictMode>,
+  </StrictMode>
+);
+createRoot(document.getElementById('root')!).render(
+  (import.meta.env.DEV || import.meta.env.MODE === 'profiling') && window.__REACT_PERF__ ? (
+    <Profiler id='app' onRender={window.__REACT_PERF__.onProfilerRender}>
+      {app}
+    </Profiler>
+  ) : (
+    app
+  ),
 );
 
 // add back button in android app

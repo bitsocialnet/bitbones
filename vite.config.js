@@ -1,30 +1,31 @@
-import {readFileSync} from 'node:fs'
-import {defineConfig} from 'vite'
-import react from '@vitejs/plugin-react'
-import {nodePolyfills} from 'vite-plugin-node-polyfills'
-import {VitePWA} from 'vite-plugin-pwa'
+import { readFileSync } from 'node:fs';
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { VitePWA } from 'vite-plugin-pwa';
 
-const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version
-const commitRef = process.env.VITE_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_SHA || ''
+const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+const isProfilingBuild = process.env.REACT_PERF_PROFILE === '1';
+const commitRef = process.env.VITE_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_SHA || '';
 
 // Serve and emit /version.json, and expose the version to the app as an env value. Importing
 // package.json from src/ instead would inline the WHOLE manifest — every dependency and version —
 // into the browser bundle. vercel.json already sends no-cache headers for /version.json.
 function appVersionMetadataPlugin() {
-  const payload = `${JSON.stringify({version: appVersion, commitRef: commitRef || undefined})}\n`
+  const payload = `${JSON.stringify({ version: appVersion, commitRef: commitRef || undefined })}\n`;
   return {
     name: 'bitbones-version-metadata',
     configureServer(server) {
       server.middlewares.use('/version.json', (_req, res) => {
-        res.setHeader('Content-Type', 'application/json; charset=utf-8')
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-        res.end(payload)
-      })
+        res.setHeader('Content-Type', 'application/json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.end(payload);
+      });
     },
     generateBundle() {
-      this.emitFile({type: 'asset', fileName: 'version.json', source: payload})
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: payload });
     },
-  }
+  };
 }
 
 // vite 8 bundles with rolldown instead of rollup, and rolldown ignores optimizeDeps.esbuildOptions.
@@ -51,6 +52,7 @@ export default defineConfig({
 
     // set up pwa / service worker
     VitePWA({
+      disable: isProfilingBuild,
       registerType: 'autoUpdate',
       manifest: {
         short_name: 'bitbones',
@@ -78,7 +80,7 @@ export default defineConfig({
         runtimeCaching: [
           // cache the entire react app
           {
-            urlPattern: ({url}) => url.origin === self.location.origin,
+            urlPattern: ({ url }) => url.origin === self.location.origin,
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'everything-react-app-cache',
@@ -100,14 +102,19 @@ export default defineConfig({
   // electron uses file:// urls, so need base ./
   base: './',
 
+  resolve: {
+    alias: isProfilingBuild ? { 'react-dom/client': 'react-dom/profiling' } : {},
+  },
+
   build: {
     // usually vite uses 'dist', but we want to use 'dist' for electron
-    outDir: 'build',
+    outDir: isProfilingBuild ? 'build-profile' : 'build',
 
     // don't include sourcemap in the electron app or ipfs build
-    sourcemap: process.env.GENERATE_SOURCEMAP === 'true' ? true : undefined,
+    sourcemap: isProfilingBuild || process.env.GENERATE_SOURCEMAP === 'true' ? true : undefined,
+    ...(isProfilingBuild ? { minify: false } : {}),
 
     // try to support as old browsers as possible
     target: ['chrome67', 'edge79', 'firefox68', 'opera54', 'safari14'],
   },
-})
+});

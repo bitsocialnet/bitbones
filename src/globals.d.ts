@@ -1,7 +1,7 @@
 import type { ElementInfo } from 'element-source';
 
 // Shapes of the dev-only instrumentation src/lib/dev-tools.ts publishes on `window`. They exist on
-// the dev server only: index.html loads that module behind `import.meta.env.DEV`, so all of these
+// the dev server only: src/bootstrap.ts loads that module behind `import.meta.env.DEV`, so all of these
 // are undefined in a production build, hence optional. The `profile-browsing` and `inspect-elements`
 // skills read them through the browser, and no application code may touch them.
 

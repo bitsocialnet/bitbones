@@ -12,7 +12,7 @@ const Theme = () => {
   return (
     <div>
       <div>theme:</div>
-      <select value={theme} onChange={(e) => setTheme(e.target.value)}>
+      <select aria-label='Theme' value={theme} onChange={(e) => setTheme(e.target.value)}>
         <option value='dark'>dark</option>
         <option value='light'>light</option>
       </select>
@@ -70,7 +70,7 @@ const AuthorAddress = () => {
   return (
     <div>
       <div>address:</div>
-      <input defaultValue={account?.author?.address} onChange={(e) => setInputValue(e.target.value)} />
+      <input aria-label='Author address' defaultValue={account?.author?.address} onChange={(e) => setInputValue(e.target.value)} />
       <button onClick={save}>save</button> <span>{helpText}</span>
     </div>
   );
@@ -117,7 +117,7 @@ const AccountSettings = () => {
   return (
     <div>
       <div>account:</div>
-      <textarea onChange={(e) => setText(e.target.value)} autoCorrect='off' rows={32} value={text} />
+      <textarea aria-label='Account JSON' onChange={(e) => setText(e.target.value)} autoCorrect='off' rows={32} value={text} />
       <button onClick={saveAccount}>save</button>
       <button onClick={() => _deleteAccount(account?.name)}>delete account u/{account?.author?.shortAddress?.toLowerCase?.().substring(0, 8) || ''}</button>
     </div>

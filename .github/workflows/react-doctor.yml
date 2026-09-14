@@ -2,8 +2,8 @@
 #
 # Reports only the issues a PR INTRODUCES (`--scope changed`, diffed against the base branch). It
 # reads doctor.config.jsonc, so the example/experiment files and the React-Compiler rule we do not
-# enforce stay suppressed. We do NOT chase the aggregate score, and this job never blocks a merge:
-# many of its diagnostics flag intentional patterns rather than bugs.
+# enforce stay suppressed. Findings remain advisory; execution failures are reported.
+# We do not chase the aggregate score or hide broken diagnostic tooling.
 
 name: React Doctor
 
@@ -34,5 +34,4 @@ jobs:
       - name: Install dependencies
         run: yarn install --immutable
       - name: Run React Doctor on changed files
-        continue-on-error: true
-        run: yarn doctor --verbose --scope changed --base "origin/${{ github.base_ref }}" --blocking none
+        run: yarn doctor:check --base "origin/${{ github.base_ref }}"

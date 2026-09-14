@@ -60,3 +60,7 @@ release-body.txt
 .claude/worktrees/
 .vercel
 .env*
+
+# Local React performance captures and separate instrumented builds
+/.react-perf/
+/build-profile/

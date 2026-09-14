@@ -28,7 +28,7 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 |---|---|
 | Files in a directory with AGENTS.md | Read that directory's instructions |
 | Code or automation changed | Select checks by impact in [verification.md](docs/agent-playbooks/verification.md) |
-| React state/effects/data flow/performance changed | Read relevant React skill rules; use Doctor when diagnostics resolve a concern |
+| React state/effects/data flow/performance changed | Read relevant React skill rules; run `yarn doctor:check` and affected `yarn perf:check` scenarios |
 | UI/layout changed | Verify affected flows; choose browsers/viewports using the verification playbook |
 | Translation keys/values | Use `translate`; one writer applies all locale changes |
 | `package.json` changed | Run `corepack yarn install` and keep `yarn.lock` synchronized |
@@ -38,7 +38,7 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 | Open PR feedback or merge readiness | Use `review-and-merge-pr` within the requested scope |
 | Durable handoff/resumption needed | Use [long-running-agent-workflow.md](docs/agent-playbooks/long-running-agent-workflow.md) |
 | Protocol hooks called | Check the identifier and argument traps below |
-| `src/` changed | Run `yarn type-check`; there is no application test runner |
+| `src/` changed | Run `yarn type-check`; include affected performance scenarios for React behavior |
 | Version/release requested | Use `release`; publication starts when an authorized version tag reaches origin |
 
 ## Code and product constraints
@@ -139,16 +139,20 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 - Use relevant React guidance for the changed state/effect/data flow; load `you-might-not-need-an-effect` for a focused uncertain effect/memo review. Do not apply Next.js/server rules indiscriminately to Vite clients.
 - Prefer installed tools and CLIs. Look up current external APIs when needed; do not install skills merely because a normal task mentions their domain. Keep tool catalogs relevant; unused integrations add choices even when schemas are deferred.
 
-## React diagnostics and visual feedback
+## React diagnostics and runtime performance
 
-Use the pinned React Doctor through `yarn doctor --scope changed --base <base> --blocking none --no-parallel` to investigate the actual task diff. Use `HEAD` for uncommitted work, or the task's starting commit after committing. Run `yarn doctor:scan --help` and follow `profile-browsing` for runtime Chrome traces; serialize its browser with other browser work. React Doctor manages its own isolated Chrome, an exception to the Playwright wrapper; first close owned Playwright sessions, defer if the wrapper reports another active owner, and confirm the scan browser exits before continuing. Diagnose measured costs and relevant new findings without chasing a score.
+`yarn agent:verify` and CI run `yarn doctor:check` for task-diff source diagnostics and `yarn perf:check` for deterministic runtime scenarios. Doctor remains advisory for relevant new findings; a score is not a target. Run affected scenarios after React state/effect/subscription/rendering changes, and `yarn perf:test` after React, Bippy, or collector upgrades. Install the pinned browser once with `yarn perf:install`; ordinary edit hooks still only format files.
 
-Development builds expose Agentation for visual annotations and retain `window.__ELEMENT_SOURCE__` for source inspection. Set `window.__PROFILING__ = true` before navigation to suppress the toolbar during automated measurements. Production builds must contain neither inspector.
+Development builds initialize the bounded Bippy collector before React and expose `window.__REACT_PERF__.reset()` / `.snapshot()`. It counts committed component updates by instance; it does not identify wasted work or count aborted renders. A root React Profiler supplies measured render duration. Missing instrumentation, dropped events, and exceeded scenario budgets fail the runtime check. Use `yarn perf:record --scenario <name>` for JSON and native Chrome traces; use `profile-browsing` for the evidence contract and broader investigations.
+
+`yarn build:profile` creates a separate `build-profile/` output with `react-dom/profiling` and sourcemaps; `yarn preview:profile` serves it. Ordinary production excludes the collector and Profiler boundary. A normal production preview can measure page timing but cannot provide these React timing/count checks.
+
+Development builds retain Agentation and `window.__ELEMENT_SOURCE__` for visual feedback/source inspection. The runner suppresses Agentation during capture. Run browser tools and heavy checks serially; the performance runner owns its browser/server lifecycle and uses the shared browser resource lock. Stop or wait for an existing browser owner before starting another capture.
 
 ## Commands and playbooks
 
 Use Node from `.nvmrc` and Corepack-managed Yarn. `yarn start` runs the launcher; `PORTLESS=0 yarn start` serves direct Vite, beginning at port 5173 and advancing if occupied. Use its reported URL and hash routes. `yarn start:preview` serves the production build without dev inspectors.
 
-Checks: `yarn lint`, `yarn type-check`, `yarn build`, advisory `yarn doctor` and `yarn knip`. `yarn build` runs `sync:lists`, which may update tracked `src/data/vendored-*.json`; inspect those changes deliberately. There is no application test runner or `yarn test`; AI tooling has isolated Node fixtures.
+Checks: `yarn lint`, `yarn type-check`, `yarn build`, advisory `yarn doctor` and `yarn knip`. `yarn build` runs `sync:lists`, which may update tracked `src/data/vendored-*.json`; inspect those changes deliberately. There is no general application unit-test runner or `yarn test`; AI tooling has isolated Node fixtures and `perf:test` validates the browser collector.
 
 Load details when needed: [hooks](docs/agent-playbooks/hooks-setup.md), [verification](docs/agent-playbooks/verification.md), [skills/tools](docs/agent-playbooks/skills-and-tools.md), [long-running work](docs/agent-playbooks/long-running-agent-workflow.md), [known surprises](docs/agent-playbooks/known-surprises.md).

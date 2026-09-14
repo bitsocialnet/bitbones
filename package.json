@@ -23,7 +23,7 @@
     "doctor": "react-doctor . -y",
     "doctor:score": "react-doctor . --score -y",
     "doctor:verbose": "react-doctor . --verbose -y",
-    "retest:quality": "yarn build && yarn lint && yarn type-check && yarn knip && yarn doctor --blocking none",
+    "retest:quality": "yarn agent:verify && yarn knip",
     "ai-workflow:check": "node scripts/validate-ai-workflow.mjs",
     "llms:generate": "node scripts/generate-llms-files.mjs",
     "i18n:update": "node scripts/update-translations.js",
@@ -48,7 +48,15 @@
     "type-check": "tsc --noEmit",
     "ai-workflow:sync": "node scripts/sync-ai-workflow.mjs",
     "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs",
-    "doctor:scan": "react-doctor scan"
+    "doctor:scan": "react-doctor scan",
+    "perf:check": "node scripts/react-perf/runner.mjs check",
+    "perf:record": "node scripts/react-perf/runner.mjs record",
+    "perf:test": "node scripts/react-perf/runner.mjs selftest",
+    "perf:install": "node scripts/react-perf/install-browser.mjs",
+    "doctor:check": "node scripts/react-perf/doctor-check.mjs",
+    "build:profile": "cross-env REACT_PERF_PROFILE=1 vite build --mode profiling",
+    "preview:profile": "cross-env REACT_PERF_PROFILE=1 vite preview --outDir build-profile",
+    "agent:verify": "yarn build && yarn lint && yarn type-check && yarn doctor:check && yarn perf:check"
   },
   "dependencies": {
     "@bitsocial/bitsocial-react-hooks": "0.1.39",
@@ -119,7 +127,10 @@
     "vite": "8.2.2",
     "vite-plugin-node-polyfills": "0.28.0",
     "vite-plugin-pwa": "1.3.0",
-    "wait-on": "9.0.3"
+    "wait-on": "9.0.3",
+    "@playwright/cli": "0.1.19",
+    "bippy": "0.7.3",
+    "esbuild": "0.28.2"
   },
   "optionalDependencies": {
     "portless": "0.15.5"

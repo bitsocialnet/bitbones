@@ -9,13 +9,13 @@ Select checks from the changed behavior and remaining uncertainty. Reuse success
 | Isolated helper or script | Focused invocation/fixtures and syntax or type/lint checks for the affected code |
 | Shared runtime, dependency, build, integration change | Focused affected checks plus the relevant build/type/lint checks below |
 | CSS/theme/layout only | Affected routes/viewports/themes in selected browsers; build when imports, assets, or CSS processing changed |
-| React state/effects/performance | Affected behavior and applicable React guidance; Doctor when diagnostics resolve a concrete concern |
+| React state/effects/performance | Affected behavior and applicable React guidance; `yarn doctor:check` and affected `yarn perf:check` scenarios |
 
 ## Project checks
 
 - Any `src/` change requires `yarn type-check` (`tsc --noEmit`); TypeScript is strict and `allowJs` stays false.
-- Shared runtime/dependency/build changes use `yarn lint`, `yarn type-check`, and `yarn build` sequentially. `yarn retest:quality` deliberately broadens to build/lint/type-check/Knip/Doctor; do not run it alongside its constituents.
-- There is no application test runner. For new automation, isolated Node fixtures can verify behavior without inventing an application test command.
+- Shared runtime/dependency/build changes use `yarn agent:verify` for sequential build/lint/type-check/Doctor/runtime checks. `yarn retest:quality` adds Knip; do not run it alongside its constituents.
+- There is no general application unit-test runner; `yarn perf:test` validates browser collector compatibility. For new automation, isolated Node fixtures can verify behavior without inventing an application test command.
 - `yarn build` refreshes tracked default lists. Review `src/data/vendored-*.json` changes; never restore unrelated tracked content or remove preexisting artifacts merely to make the tree clean.
 - `yarn knip` and Doctor provide diagnostic evidence; resolve relevant new findings rather than chasing a repository score.
 
@@ -30,3 +30,11 @@ For performance work, compare the same flow with equivalent viewport, content, n
 ## Final evidence
 
 One agent owns heavy verification. Inspect active workloads and serialize installs, builds/full suites, Doctor, Android/Electron work, and browser profiling. Report commands/outcomes and specific limitations; missing data or a skipped engine is not a passing result. Tooling fixtures verify formats and mechanics, not end-to-end app discovery or model decision quality.
+
+## Automated React performance evidence
+
+Run `yarn perf:install` once for the pinned browser, then `yarn perf:check` (three samples at 4x CPU by default). Scope a rerun with `--scenario <name>` when the change affects one covered flow. CI runs the compatibility self-test and scenarios; local `agent:verify` runs scenarios and Doctor automatically. After React/Bippy/collector upgrades, run `yarn perf:test` before relying on the counts. Keep these heavy checks out of per-edit hooks.
+
+`yarn perf:record` keeps JSON and native trace evidence under `.react-perf/`; use `--url <origin>` to reuse a compatible instrumented server. The runner owns its processes and browser lock; run it separately from manual browser sessions. Scenario configuration lives in `scripts/react-perf/config.mjs`. Exact update limits follow the tested interaction; timing caps are deliberately generous smoke limits and must not be relaxed merely to silence a failure. Diagnose a failed phase from its component-instance/commit evidence and visible completion.
+
+Read the `profile-browsing` measurement reference for interpretation and coverage limits. Root Profiler duration measures the subtree, not the self time of each component. A normal production preview lacks this React instrumentation; build and serve `build-profile/` for production-like React timing, leaving the release output untouched.

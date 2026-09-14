@@ -10,15 +10,9 @@
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>bitbones</title>
 
-    <!-- Development inspectors are excluded from production builds. -->
-    <script type="module">
-      if (import.meta.env.DEV) {
-        import('./src/lib/dev-tools.ts');
-      }
-    </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="./src/main.tsx"></script>
+    <script type="module" src="./src/bootstrap.ts"></script>
   </body>
 </html>
