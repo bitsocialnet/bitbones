@@ -124,6 +124,7 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 | `package.json` changed | Run `corepack yarn install` and keep `yarn.lock` synchronized |
 | Dependencies/imports changed | Run advisory `yarn knip`; resolve relevant new findings |
 | AI workflow files changed | Edit shared sources; run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, `yarn ai-workflow:test` |
+| Bug fix or substantive review correction exposes a preventable mistake | Use [retro](.agents/skills/retro/SKILL.md) for the smallest worthwhile prevention |
 | Public English docs or AI context changed | Run `yarn llms:generate` and include resulting tracked indexes |
 | Open PR feedback or merge readiness | Use `review-and-merge-pr` within the requested scope |
 | Durable handoff/resumption needed | Use [long-running-agent-workflow.md](docs/agent-playbooks/long-running-agent-workflow.md) |
@@ -491,6 +492,7 @@ The AI directories use LF line endings through `.gitattributes` so generated tex
 | `fix-merge-conflicts` | Resolve conflicts and verify the merged result |
 | `release`, `release-description` | Prepare release wording and perform authorized release steps |
 | `code-quality-review` | Review non-trivial diffs or an explicitly requested quality concern |
+| [retro](../../.agents/skills/retro/SKILL.md) | Turn demonstrated mistakes into focused checks or guidance that prevent recurrence |
 | `refactor-pass`, `deslop` | Requested cleanup of existing changes |
 | `debug-agent` | Evidence-based debugging, with instrumentation when needed |
 | `you-might-not-need-an-effect` | Focused effect/memo review |
