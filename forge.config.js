@@ -1,5 +1,6 @@
 import { readdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import { downloadIpfsClients } from './electron/before-pack.js';
 
 // @electron/rebuild's dep walker doesn't reach transitive native modules.
 // Scan node_modules for all packages with binding.gyp so they get rebuilt for Electron's ABI.
@@ -23,9 +24,11 @@ export default {
     executableName: 'bitbones',
     appBundleId: 'bitbones.desktop',
 
-    // Unpack native modules and kubo binary from ASAR so they can be executed
+    // Unpack native modules and the kubo binary in bin/ from ASAR so they can be executed
     asar: {
-      unpack: '{*.node,*.dll,*.dylib,*.so,**/kubo/kubo/**}'
+      unpack: '{*.node,*.dll,*.dylib,*.so}',
+      // forward slashes so minimatch also recognizes the glob on Windows
+      unpackDir: 'bin/**/*'
     },
 
     // Exclude unnecessary files
@@ -35,7 +38,8 @@ export default {
       /^\/public$/,
       /^\/\.pkc$/,
       /^\/dist$/,
-      /^\/bin$/,
+      // build-time downloader; packaged builds use the binary it puts in bin/
+      /^\/electron\/before-pack\.js$/,
       /^\/out$/,
       /^\/squashfs-root$/,
       /^\/original-assets$/,
@@ -59,6 +63,10 @@ export default {
   },
 
   hooks: {
+    generateAssets: async (forgeConfig, platform, arch) => {
+      await downloadIpfsClients({ platform, arch });
+    },
+
     postPackage: async (config, options) => {
       const { execSync } = await import('child_process');
       const globPkg = await import('glob');
@@ -73,8 +81,8 @@ export default {
           } catch (e) { /* ignore failures */ }
         }
 
-        // Strip kubo binary (executable files without extensions)
-        const kuboFiles = globSync('**/kubo/kubo/**/!(*.*)' , { cwd: result, absolute: true });
+        // Strip the kubo binary
+        const kuboFiles = globSync('**/app.asar.unpacked/bin/*/ipfs', { cwd: result, absolute: true });
         for (const file of kuboFiles) {
           try {
             execSync(`strip --strip-debug "${file}"`, { stdio: 'pipe' });
