@@ -13,6 +13,8 @@ const projectRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..'
 const kuboReleaseBaseUrl = 'https://github.com/ipfs/kubo/releases/download';
 
 const ipfsClientVersion = '0.39.0';
+// abort a connection that stops sending data so downloadWithRetry can try again
+const downloadIdleTimeoutMs = 60 * 1000;
 
 const toKuboArch = (arch) => (arch === 'arm64' ? 'arm64' : 'amd64');
 
@@ -31,6 +33,10 @@ const downloadWithProgress = (url) =>
     const fileName = split[split.length - 1];
     const chunks = [];
     const req = https.request(url);
+    // a stalled socket never errors on its own; redirects create a new request, so each hop gets this
+    req.setTimeout(downloadIdleTimeoutMs, () => {
+      req.destroy(new Error(`Download request for ${url} stalled for ${downloadIdleTimeoutMs / 1000}s`));
+    });
     req.on('error', (err) => {
       console.error(`Error making request for ${url}:`, err);
       reject(err);
