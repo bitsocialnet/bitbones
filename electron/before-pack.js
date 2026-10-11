@@ -108,13 +108,13 @@ const extractArchive = async (archivePath, destinationPath) => {
   throw new Error(`Unsupported archive format: ${archivePath}`);
 };
 
-// Downloads into bin/<platform>/ipfs. platform and arch default to the host, and forge's
-// generateAssets hook passes its target so --platform/--arch packages get the matching binary.
-export const downloadIpfsClients = async ({ platform = process.platform, arch = process.arch } = {}) => {
+// Downloads into <rootPath>/bin/<platform>/ipfs. Dev calls it for the host with the repo root, where
+// .kubo-source keeps the binary until the pinned version or target changes. Forge's packageAfterCopy
+// hook calls it for each packaged target with that target's fresh build path, which gets no marker.
+export const downloadIpfsClients = async ({ platform = process.platform, arch = process.arch, rootPath = projectRoot } = {}) => {
   const url = getKuboUrl(platform, arch);
-  const binPath = getBundledKuboPath(projectRoot, platform);
+  const binPath = getBundledKuboPath(rootPath, platform);
   const destinationPath = path.dirname(binPath);
-  // re-download when the pinned version or target changes
   const sourceMarkerPath = path.join(destinationPath, '.kubo-source');
   const cachedSource = fs.pathExistsSync(sourceMarkerPath) ? fs.readFileSync(sourceMarkerPath, 'utf8').trim() : undefined;
   if (fs.pathExistsSync(binPath) && cachedSource === url) {
@@ -130,7 +130,9 @@ export const downloadIpfsClients = async ({ platform = process.platform, arch = 
   fs.removeSync(extractedPath);
   await extractArchive(archivePath, destinationPath);
   fs.moveSync(path.join(extractedPath, path.basename(binPath)), binPath, { overwrite: true });
-  fs.writeFileSync(sourceMarkerPath, `${url}\n`);
+  if (rootPath === projectRoot) {
+    fs.writeFileSync(sourceMarkerPath, `${url}\n`);
+  }
   // only the binary is packaged, so remove the archive and the rest of the release folder
   fs.removeSync(archivePath);
   fs.removeSync(extractedPath);
