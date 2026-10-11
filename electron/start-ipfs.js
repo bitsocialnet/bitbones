@@ -19,14 +19,12 @@ const getKuboPath = async () => {
   if (process.env.KUBO_BINARY) {
     return process.env.KUBO_BINARY;
   }
-  const bundledKuboPath = getBundledKuboPath(path.join(dirname, '..'));
-  if (!fs.existsSync(bundledKuboPath)) {
-    console.log(`Kubo binary missing at ${bundledKuboPath}, downloading it...`);
-    // before-pack.js is excluded from packaged builds, so only load it in dev
-    const { downloadIpfsClients } = await import('./before-pack.js');
-    await downloadIpfsClients();
-  }
-  return bundledKuboPath;
+  // before-pack.js is excluded from packaged builds, so only load it in dev. A cross-arch package
+  // build can leave another arch's binary in bin/, so always ask for the host's; this is a no-op
+  // when bin/ already holds it.
+  const { downloadIpfsClients } = await import('./before-pack.js');
+  await downloadIpfsClients({ platform: process.platform, arch: process.arch });
+  return getBundledKuboPath(path.join(dirname, '..'));
 };
 
 // use this custom function instead of spawnSync for better logging
