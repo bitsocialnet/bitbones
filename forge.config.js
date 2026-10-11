@@ -38,7 +38,9 @@ export default {
       /^\/public$/,
       /^\/\.pkc$/,
       /^\/dist$/,
-      // build-time downloader; packaged builds use the binary it puts in bin/
+      // the dev kubo cache; packageAfterCopy downloads each target's binary into the build's bin/
+      /^\/bin$/,
+      // build-time downloader
       /^\/electron\/before-pack\.js$/,
       /^\/out$/,
       /^\/squashfs-root$/,
@@ -63,8 +65,10 @@ export default {
   },
 
   hooks: {
-    generateAssets: async (forgeConfig, platform, arch) => {
-      await downloadIpfsClients({ platform, arch });
+    // Runs once per packaged target with its own build path, so a multi-arch build gets each target's
+    // kubo. generateAssets would run once for all targets, and also on `electron-forge start`.
+    packageAfterCopy: async (forgeConfig, buildPath, electronVersion, platform, arch) => {
+      await downloadIpfsClients({ platform, arch, rootPath: buildPath });
     },
 
     postPackage: async (config, options) => {
