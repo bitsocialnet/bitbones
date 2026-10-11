@@ -7,8 +7,27 @@ import proxyServer from './proxy-server.js';
 import tcpPortUsed from 'tcp-port-used';
 import EnvPaths from 'env-paths';
 import { fileURLToPath } from 'url';
+import { getBundledKuboPath } from './kubo-paths.js';
 const dirname = path.join(path.dirname(fileURLToPath(import.meta.url)));
 const envPaths = EnvPaths('pkc', { suffix: false });
+
+const getKuboPath = async () => {
+  if (!isDev) {
+    // forge's generateAssets hook downloads it into bin/, which is unpacked from the ASAR so it can run
+    return getBundledKuboPath(path.join(process.resourcesPath, 'app.asar.unpacked'));
+  }
+  if (process.env.KUBO_BINARY) {
+    return process.env.KUBO_BINARY;
+  }
+  const bundledKuboPath = getBundledKuboPath(path.join(dirname, '..'));
+  if (!fs.existsSync(bundledKuboPath)) {
+    console.log(`Kubo binary missing at ${bundledKuboPath}, downloading it...`);
+    // before-pack.js is excluded from packaged builds, so only load it in dev
+    const { downloadIpfsClients } = await import('./before-pack.js');
+    await downloadIpfsClients();
+  }
+  return bundledKuboPath;
+};
 
 // use this custom function instead of spawnSync for better logging
 // also spawnSync might have been causing crash on start on windows
@@ -26,15 +45,8 @@ const spawnAsync = (...args) =>
   });
 
 const startIpfs = async () => {
-  // Use kubo package directly - in production it's unpacked from ASAR
-  const { path: kuboPath } = await import('kubo');
-  let ipfsPath = kuboPath();
+  const ipfsPath = await getKuboPath();
   const ipfsDataPath = isDev ? path.join(dirname, '..', '.pkc', 'ipfs') : path.join(envPaths.data, 'ipfs');
-
-  // In production, the binary is unpacked from ASAR to app.asar.unpacked
-  if (!isDev && ipfsPath.includes('app.asar')) {
-    ipfsPath = ipfsPath.replace('app.asar', 'app.asar.unpacked');
-  }
 
   if (!fs.existsSync(ipfsPath)) {
     throw Error(`ipfs binary '${ipfsPath}' doesn't exist`);
