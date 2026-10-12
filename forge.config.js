@@ -1,5 +1,6 @@
 import { readdirSync, existsSync } from 'fs';
 import { join } from 'path';
+import { downloadIpfsClients } from './electron/before-pack.js';
 
 // @electron/rebuild's dep walker doesn't reach transitive native modules.
 // Scan node_modules for all packages with binding.gyp so they get rebuilt for Electron's ABI.
@@ -23,9 +24,11 @@ export default {
     executableName: 'bitbones',
     appBundleId: 'bitbones.desktop',
 
-    // Unpack native modules and kubo binary from ASAR so they can be executed
+    // Unpack native modules and the kubo binary in bin/ from ASAR so they can be executed
     asar: {
-      unpack: '{*.node,*.dll,*.dylib,*.so,**/kubo/kubo/**}'
+      unpack: '{*.node,*.dll,*.dylib,*.so}',
+      // forward slashes so minimatch also recognizes the glob on Windows
+      unpackDir: 'bin/**/*'
     },
 
     // Exclude unnecessary files
@@ -35,7 +38,10 @@ export default {
       /^\/public$/,
       /^\/\.pkc$/,
       /^\/dist$/,
+      // the dev kubo cache; packageAfterCopy downloads each target's binary into the build's bin/
       /^\/bin$/,
+      // build-time downloader
+      /^\/electron\/before-pack\.js$/,
       /^\/out$/,
       /^\/squashfs-root$/,
       /^\/original-assets$/,
@@ -59,6 +65,12 @@ export default {
   },
 
   hooks: {
+    // Runs once per packaged target with its own build path, so a multi-arch build gets each target's
+    // kubo. generateAssets would run once for all targets, and also on `electron-forge start`.
+    packageAfterCopy: async (forgeConfig, buildPath, electronVersion, platform, arch) => {
+      await downloadIpfsClients({ platform, arch, rootPath: buildPath });
+    },
+
     postPackage: async (config, options) => {
       const { execSync } = await import('child_process');
       const globPkg = await import('glob');
@@ -73,8 +85,8 @@ export default {
           } catch (e) { /* ignore failures */ }
         }
 
-        // Strip kubo binary (executable files without extensions)
-        const kuboFiles = globSync('**/kubo/kubo/**/!(*.*)' , { cwd: result, absolute: true });
+        // Strip the kubo binary
+        const kuboFiles = globSync('**/app.asar.unpacked/bin/*/ipfs', { cwd: result, absolute: true });
         for (const file of kuboFiles) {
           try {
             execSync(`strip --strip-debug "${file}"`, { stdio: 'pipe' });
