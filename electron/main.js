@@ -1,5 +1,5 @@
 import './log.js';
-import { app, BrowserWindow, Menu, MenuItem, Tray, screen as electronScreen, shell, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, Menu, MenuItem, Tray, screen as electronScreen, shell, dialog, ipcMain, clipboard, ClipboardItem } from 'electron';
 import isDev from 'electron-is-dev';
 import fs from 'fs';
 import path from 'path';
@@ -35,6 +35,16 @@ if (process.platform === 'darwin') fakeUserAgent = 'Mozilla/5.0 (Macintosh; Inte
 if (process.platform === 'linux') fakeUserAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36';
 const realUserAgent = `bitbones/${packageJson.version}`;
 
+// electron-context-menu 3.x copies urls with clipboard.write({ bookmark, text }), which Electron 44 rejects
+// (it only accepts ClipboardItem arrays), so "Copy Link" and "Copy Image Address" are rebuilt here
+const copyUrlMenuItem = ({ label, visible, url, title }) => ({
+  label,
+  visible,
+  click: () => {
+    clipboard.write([new ClipboardItem({ 'text/plain': url, 'electron application/bookmark': { title, url } })]).catch((error) => console.warn(error));
+  },
+});
+
 // add right click menu
 contextMenu({
   // prepend custom buttons to top
@@ -57,14 +67,31 @@ contextMenu({
       click: () => browserWindow?.webContents?.reload(),
     },
   ],
-  showLookUpSelection: false,
-  showCopyImage: true,
-  showCopyImageAddress: true,
-  showSaveImageAs: true,
-  showSaveLinkAs: true,
-  showInspectElement: true,
-  showServices: false,
-  showSearchWithGoogle: false,
+  // the library's default order, without look up / search with google / services
+  menu: (defaultActions, parameters, browserWindow, dictionarySuggestions) => [
+    defaultActions.separator(),
+    ...dictionarySuggestions,
+    defaultActions.separator(),
+    defaultActions.learnSpelling(),
+    defaultActions.separator(),
+    defaultActions.cut(),
+    defaultActions.copy(),
+    defaultActions.paste(),
+    defaultActions.separator(),
+    defaultActions.saveImageAs(),
+    defaultActions.copyImage(),
+    copyUrlMenuItem({ label: 'C&opy Image Address', visible: parameters.mediaType === 'image', url: parameters.srcURL, title: parameters.srcURL }),
+    defaultActions.separator(),
+    copyUrlMenuItem({
+      label: 'Copy Lin&k',
+      visible: parameters.linkURL.length > 0 && parameters.mediaType === 'none',
+      url: parameters.linkURL,
+      title: parameters.linkText,
+    }),
+    defaultActions.saveLinkAs(),
+    defaultActions.separator(),
+    defaultActions.inspect(),
+  ],
 });
 
 const createMainWindow = () => {
