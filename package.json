@@ -75,7 +75,7 @@
     "http-proxy": "1.18.1",
     "i18next": "25.10.9",
     "i18next-browser-languagedetector": "7.1.0",
-    "i18next-http-backend": "3.0.5",
+    "i18next-http-backend": "4.0.2",
     "immer": "11.1.18",
     "javascript-time-ago": "2.6.4",
     "json-stringify-pretty-compact": "4.0.0",
@@ -206,7 +206,9 @@
     "tar": "7.5.22",
     "undici@npm:7.24.7": "7.29.1",
     "uuid@npm:13.0.0": "13.0.1",
-    "better-sqlite3@npm:12.9.0": "12.11.1"
+    "better-sqlite3@npm:12.9.0": "12.11.1",
+    "probe-image-size": "7.4.0",
+    "tinypool@npm:2.0.0": "2.1.2"
   },
   "main": "electron/main.js",
   "lint-staged": {
