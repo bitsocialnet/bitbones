@@ -59,14 +59,14 @@
     "agent:verify": "yarn build && yarn lint && yarn type-check && yarn doctor:check && yarn perf:check"
   },
   "dependencies": {
-    "@bitsocial/bitsocial-react-hooks": "0.1.59",
+    "@bitsocial/bitsocial-react-hooks": "0.1.61",
     "@bitsocial/bso-resolver": "0.0.10",
     "@capacitor/app": "7.0.1",
     "@dnd-kit/core": "6.3.1",
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "3.2.2",
     "@floating-ui/react": "0.26.1",
-    "@pkcprotocol/pkc-js": "0.0.124",
+    "@pkcprotocol/pkc-js": "0.0.128",
     "electron-context-menu": "3.3.0",
     "electron-is-dev": "2.0.0",
     "env-paths": "3.0.0",
@@ -138,7 +138,7 @@
     "portless": "0.15.5"
   },
   "resolutions": {
-    "@pkcprotocol/pkc-js": "0.0.124",
+    "@pkcprotocol/pkc-js": "0.0.128",
     "@libp2p/gossipsub": "17.0.1",
     "@libp2p/kad-dht": "16.4.4",
     "elliptic": "6.6.1",
@@ -148,7 +148,7 @@
     "serialize-javascript": "7.0.5",
     "node-forge": "1.4.0",
     "@xmldom/xmldom": "0.8.15",
-    "ws": "8.21.0",
+    "ws": "8.22.0",
     "undici@npm:^6.21.2": "6.28.0",
     "undici@npm:6.23.0": "6.28.0",
     "undici@npm:^7.16.0": "7.29.1",

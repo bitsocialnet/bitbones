@@ -1233,12 +1233,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@bitsocial/bitsocial-react-hooks@npm:0.1.59":
-  version: 0.1.59
-  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.1.59"
+"@bitsocial/bitsocial-react-hooks@npm:0.1.61":
+  version: 0.1.61
+  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.1.61"
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.10"
-    "@pkcprotocol/pkc-js": "npm:0.0.124"
+    "@pkcprotocol/pkc-js": "npm:0.0.128"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     ethers: "npm:5.8.0"
     localforage: "npm:1.10.0"
@@ -1253,7 +1253,7 @@ __metadata:
     zustand: "npm:4.5.7"
   peerDependencies:
     react: ">=16.8"
-  checksum: 10c0/d52436588faa4689b96f8729e56f7e70e831088ce39b3e9f399e34706461b39d5162e7f7b956586017ac62cc55cd5c124741cff26dea1465d9e832f6aff66fbc
+  checksum: 10c0/537bfa86810801e4de7aa11287eb5baf1bfb0e5505305485ab1634c552440fb926172f629f00b5755e2eb991ed3cf17aaadd766140628126d9b7af44a59c5bf1
   languageName: node
   linkType: hard
 
@@ -5699,9 +5699,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.124":
-  version: 0.0.124
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.124"
+"@pkcprotocol/pkc-js@npm:0.0.128":
+  version: 0.0.128
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.128"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/bitswap": "npm:4.0.14"
@@ -5750,7 +5750,7 @@ __metadata:
     p-limit: "npm:7.3.0"
     p-retry: "npm:8.0.0"
     p-timeout: "npm:7.0.1"
-    probe-image-size: "npm:7.2.3"
+    probe-image-size: "npm:7.4.0"
     quick-lru: "npm:5.1.1"
     remeda: "npm:2.39.0"
     retry: "npm:0.13.1"
@@ -5761,11 +5761,11 @@ __metadata:
     ts-custom-error: "npm:3.3.1"
     typestub-ipfs-only-hash: "npm:4.0.0"
     uint8arrays: "npm:6.1.1"
-    undici: "npm:7.24.7"
-    uuid: "npm:13.0.0"
-    ws: "npm:8.20.0"
-    zod: "npm:4.3.6"
-  checksum: 10c0/ab1d2772703b6d33ceac0d90d77bfbf90db7dc713418dd25af555bbb05ce7236909e35988bf3fc20837b1feb71e7479b293bc050e18131d5acda015ae2e8ac37
+    undici: "npm:7.30.1"
+    uuid: "npm:13.0.1"
+    ws: "npm:8.22.0"
+    zod: "npm:4.6.7"
+  checksum: 10c0/663e47cecb53cc429404e1de39a2654e7a21a255742ff10c656346b6e47538a3c6a2de6b6fe33819f387fbc6fbea0e877f73b572aeab7e7d14ac47e8dd51c1ec
   languageName: node
   linkType: hard
 
@@ -7335,7 +7335,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "bitbones@workspace:."
   dependencies:
-    "@bitsocial/bitsocial-react-hooks": "npm:0.1.59"
+    "@bitsocial/bitsocial-react-hooks": "npm:0.1.61"
     "@bitsocial/bso-resolver": "npm:0.0.10"
     "@capacitor/android": "npm:7.6.9"
     "@capacitor/app": "npm:7.0.1"
@@ -7350,7 +7350,7 @@ __metadata:
     "@electron-forge/maker-zip": "npm:7.8.0"
     "@electron/rebuild": "npm:3.7.2"
     "@floating-ui/react": "npm:0.26.1"
-    "@pkcprotocol/pkc-js": "npm:0.0.124"
+    "@pkcprotocol/pkc-js": "npm:0.0.128"
     "@playwright/cli": "npm:0.1.19"
     "@reforged/maker-appimage": "npm:5.1.1"
     "@types/memoizee": "npm:0.4.12"
@@ -18434,7 +18434,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"undici@npm:^7.24.4":
+"undici@npm:7.30.1, undici@npm:^7.24.4":
   version: 7.30.1
   resolution: "undici@npm:7.30.1"
   checksum: 10c0/c838089b010e8e28a9a5358d4bf4621e0c8d7bb70058b23e819667349c4c0b6791a7c8bc9bbe94ff0923db132faae0d9d9592b9743eda4f2b49466fa57482213
@@ -19290,9 +19290,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ws@npm:8.21.0":
-  version: 8.21.0
-  resolution: "ws@npm:8.21.0"
+"ws@npm:8.22.0":
+  version: 8.22.0
+  resolution: "ws@npm:8.22.0"
   peerDependencies:
     bufferutil: ^4.0.1
     utf-8-validate: ">=5.0.2"
@@ -19301,7 +19301,7 @@ __metadata:
       optional: true
     utf-8-validate:
       optional: true
-  checksum: 10c0/ef4a243476283fc49bc7550966c4af4aa0eef56273837211e700de3b664e08604a760cdddcb5ba43c049140e74ccfec5b0ee0bb439e08c2adf9138902fdde5f9
+  checksum: 10c0/7304d14ef38898dd366a528a85e2da389c4eebf30f4ce8a007bd2dce6025f9b619cefe44fe2354f0bad0ec541b1c9a4da06a3f3e046ab56f01fd52d5784ecfb2
   languageName: node
   linkType: hard
 
@@ -19448,10 +19448,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"zod@npm:4.3.6":
-  version: 4.3.6
-  resolution: "zod@npm:4.3.6"
-  checksum: 10c0/860d25a81ab41d33aa25f8d0d07b091a04acb426e605f396227a796e9e800c44723ed96d0f53a512b57be3d1520f45bf69c0cb3b378a232a00787a2609625307
+"zod@npm:4.6.7":
+  version: 4.6.7
+  resolution: "zod@npm:4.6.7"
+  checksum: 10c0/4ce2eb14034317b7254e347ca37b5ad591cf8333147030cf05b9b5d31692d45073f7f2747aa50cf8c6b29012194d2b22978cecc89969cf34a0d18e89d0ee7d7b
   languageName: node
   linkType: hard
 
