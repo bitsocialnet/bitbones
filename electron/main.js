@@ -11,14 +11,27 @@ import contextMenu from 'electron-context-menu';
 import packageJson from '../package.json' with { type: 'json' };
 const dirname = path.join(path.dirname(fileURLToPath(import.meta.url)));
 
+// the latest ipfs start error, cleared once ipfs runs again
 let startIpfsError;
-startIpfs.onError = (error) => {
-  // only show error once or it spams the user
-  const alreadyShownIpfsError = !!startIpfsError;
-  startIpfsError = error;
-  if (!alreadyShownIpfsError) {
-    dialog.showErrorBox('IPFS warning', error.message);
+let startIpfsErrorShown = false;
+const showStartIpfsError = () => {
+  // the start loop retries every second, so only show a failure once or it spams the user
+  if (!startIpfsError || startIpfsErrorShown) {
+    return;
   }
+  startIpfsErrorShown = true;
+  dialog.showErrorBox('IPFS warning', startIpfsError.message);
+};
+startIpfs.onError = (error) => {
+  startIpfsError = error;
+  // before ready the dialog can't show on every platform, so ready-to-show shows it instead
+  if (app.isReady()) {
+    showStartIpfsError();
+  }
+};
+startIpfs.onStarted = () => {
+  startIpfsError = undefined;
+  startIpfsErrorShown = false;
 };
 
 // send pkc rpc auth key to renderer
@@ -165,9 +178,7 @@ const createMainWindow = () => {
       mainWindow.openDevTools();
     }
 
-    if (startIpfsError) {
-      dialog.showErrorBox('IPFS warning', startIpfsError.message);
-    }
+    showStartIpfsError();
   });
 
   mainWindow.on('closed', () => {

@@ -144,6 +144,8 @@ const startIpfsAutoRestart = async () => {
       if (!started) {
         await startIpfs();
       }
+      // ipfs is running, started by this client or another one; exported callback, can be undefined
+      DefaultExport.onStarted?.();
     } catch (e) {
       console.log('failed starting ipfs', e);
       try {

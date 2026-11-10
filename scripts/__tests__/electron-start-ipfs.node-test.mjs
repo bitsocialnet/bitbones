@@ -99,9 +99,12 @@ const loadStartIpfs = async (t) => {
   port.used = false;
 
   const errors = [];
+  let started = 0;
   startIpfs.onError = (error) => errors.push(error);
+  startIpfs.onStarted = () => started++;
   return {
     errors,
+    started: () => started,
     attempt: () => mock.timers.tick(1000),
     // runs what the module registered for app quit, recording the pids it signals instead of signalling them
     quit: () => {
@@ -155,4 +158,16 @@ test('quitting signals only the running daemon, not its pid + 1', async (t) => {
   ipfs.attempt();
   await waitFor(() => daemonPid() > 0, 'the daemon pid');
   assert.deepEqual(ipfs.quit(), [daemonPid()]);
+});
+
+test('onStarted fires once ipfs runs, whether this client or another one started it', async (t) => {
+  const ipfs = await loadStartIpfs(t);
+  installKubo(kubo.healthy);
+  ipfs.attempt();
+  await waitFor(() => ipfs.started() === 1, 'onStarted after the daemon is ready');
+
+  port.used = true;
+  ipfs.attempt();
+  await waitFor(() => ipfs.started() === 2, 'onStarted while the api port is in use');
+  assert.deepEqual(ipfs.errors, []);
 });
