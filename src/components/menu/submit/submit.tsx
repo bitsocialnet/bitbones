@@ -1,4 +1,4 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './submit.module.css';
 import type { PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
@@ -80,9 +80,16 @@ interface SubmitProps {
 
 const Submit = ({ onSubmit }: SubmitProps) => {
   const params = useParams<{ communityAddress?: string }>();
-  const communities = useDefaultAndSubscriptionsCommunities();
   const { communityAddress, title, content, publishCommentOptions, publishing, setSubmitStore, resetSubmitStore, setPublishing } = useSubmitStore();
-  const { index, publishComment } = usePublishCommentWithAbandon(publishCommentOptions);
+  // the draft's community, or the community page the form was opened on: the select shows it,
+  // and validation and publishing use it, so the three can't disagree
+  const selectedCommunityAddress = communityAddress || params.communityAddress;
+  const communities = useDefaultAndSubscriptionsCommunities(selectedCommunityAddress);
+  const selectedPublishCommentOptions = useMemo(
+    (): PublishCommentOptions | undefined => publishCommentOptions && { ...publishCommentOptions, communityAddress: selectedCommunityAddress },
+    [publishCommentOptions, selectedCommunityAddress],
+  );
+  const { index, publishComment } = usePublishCommentWithAbandon(selectedPublishCommentOptions);
 
   const navigate = useNavigate();
 
@@ -99,7 +106,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
       alert(`missing link`);
       return;
     }
-    if (!communityAddress) {
+    if (!selectedCommunityAddress) {
       alert(`missing community`);
       return;
     }
@@ -122,7 +129,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
 
   return (
     <div className={styles.submit}>
-      <CommunitySelect communities={communities} communityAddress={communityAddress || params.communityAddress} setSubmitStore={setSubmitStore} />
+      <CommunitySelect communities={communities} communityAddress={selectedCommunityAddress} setSubmitStore={setSubmitStore} />
       <div>
         {/* set params.communityAddress as default if communityAddress is not yet defined */}
         <input
@@ -169,13 +176,7 @@ const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore }:
   );
   return (
     <div>
-      <select
-        onChange={(e) => setSubmitStore({ communityAddress: e.target.value })}
-        // NOTE: using 'defaultValue' instead of 'value' sometimes causes a bug to render 'p/' even when communityAddress
-        // is defined, but it seems to improve performance and the bug doesn't affect UX much
-        defaultValue={communityAddress || 'p/'}
-        className={styles.submitSelectCommunity}
-      >
+      <select onChange={(e) => setSubmitStore({ communityAddress: e.target.value })} value={communityAddress || ''} className={styles.submitSelectCommunity}>
         {communitiesOptions}
       </select>
     </div>
