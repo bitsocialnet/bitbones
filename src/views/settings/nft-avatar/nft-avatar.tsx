@@ -139,7 +139,8 @@ const NftAvatar = () => {
   return (
     <div>
       <div>avatar:</div>
-      <NftAvatarForm account={account} />
+      {/* remount per account, the form state is seeded from the account it first rendered */}
+      <NftAvatarForm key={account.id} account={account} />
     </div>
   );
 };
