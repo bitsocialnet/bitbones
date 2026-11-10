@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { rm } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -71,7 +72,19 @@ export async function main(argv = process.argv.slice(2)) {
   }
   if (!values.queue || !values.review || !values.out) throw new Error('Explicit queue, review bundle, and new output prefix required');
   const result = importTranslationReview(await readReviewJson(values.queue), await readReviewJson(values.review));
-  for (const [name, value] of Object.entries(result)) if (value !== null) await writeReviewJson(`${values.out}.${name}.json`, value);
+  const written = [];
+  try {
+    for (const [name, value] of Object.entries(result)) {
+      if (value === null) continue;
+      const file = `${values.out}.${name}.json`;
+      await writeReviewJson(file, value);
+      written.push(file);
+    }
+  } catch (error) {
+    // A prefix that is already partly used must not leave this import's corpus beside an older manifest.
+    await Promise.all(written.map((file) => rm(file, { force: true })));
+    throw error;
+  }
   console.log(JSON.stringify({ outputPrefix: values.out, ...result.manifest.summary, accuracy: 'unmeasured' }));
 }
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href)
