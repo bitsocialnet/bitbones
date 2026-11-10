@@ -4,11 +4,13 @@ import { validatePlan, candidatesFromSnapshot, runBrowserPlan } from '../browser
 import { createJevClient, JevError } from '../client.mjs';
 import { canonicalNavigationAllowed, browserOriginGuard, createPlaywrightDriver, findPlaywrightCli } from '../browser-playwright.mjs';
 import { runInNewContext } from 'node:vm';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { setTimeout as delay } from 'node:timers/promises';
 
 const basePlan = () => ({
   version: 1,
@@ -84,6 +86,26 @@ test('a wrapper close warning with exit zero is still a cleanup failure', async 
   assert.equal(closed, 1);
 });
 
+test('closing during an in-flight open waits for that browser, closes it once and starts no later command', async () => {
+  const calls = [];
+  let finishOpen;
+  const driver = createPlaywrightDriver({
+    execute: async (_file, args) => {
+      const name = ['open', 'close'].includes(args[0]) ? args[0] : args[1];
+      calls.push(name);
+      if (name === 'open') await new Promise((resolve) => (finishOpen = resolve));
+      return { stdout: '### Result\n{}\n', stderr: '' };
+    },
+  });
+  const opening = driver.open(validatePlan(basePlan()));
+  while (!finishOpen) await delay(1);
+  const closing = Promise.all([driver.close(), driver.close()]);
+  finishOpen();
+  await assert.rejects(opening, { code: 'browser_closed' });
+  await closing;
+  assert.deepEqual(calls, ['open', 'close']);
+});
+
 test('browser commands never inherit the key, model or credential-location overrides', async () => {
   const names = ['TYPESAFE_API_KEY', 'TYPESAFE_API_KEY_FILE', 'JEV_CONFIG_FILE', 'JEV_MODEL'];
   const previous = Object.fromEntries(names.map((name) => [name, process.env[name]]));
@@ -148,6 +170,71 @@ test('live CLI preflights missing credentials and model before a browser command
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+// Stand-in CLI: the browser stays open, and a page command hangs until the session is closed or the test ends.
+const hangingCli = `#!/bin/bash
+session="\${1#-s=}"
+case "$2" in
+  open) printf '%s\\n%s\\n' "$PWD" "$session" >"$FAKE_CLI_STATE/opened" ;;
+  run-code) touch "$FAKE_CLI_STATE/running"; for _ in $(seq 50); do [ -f "$FAKE_CLI_STATE/closed" ] || [ ! -d "$FAKE_CLI_STATE" ] && exit 1; sleep 0.1; done; exit 1 ;;
+  close) echo "$session" >"$FAKE_CLI_STATE/closed" ;;
+esac
+`;
+
+async function terminateMidPlan(script, args, signal) {
+  const directory = await mkdtemp(path.join(tmpdir(), 'jev-signal-test-'));
+  let child;
+  try {
+    const cli = path.join(directory, 'playwright-cli');
+    const lock = path.join(directory, 'lock');
+    const planFile = path.join(directory, 'plan.json');
+    await writeFile(cli, hangingCli, { mode: 0o700 });
+    await writeFile(planFile, JSON.stringify(basePlan()));
+    child = spawn(process.execPath, [fileURLToPath(new URL(script, import.meta.url)), '--plan', planFile, ...args], {
+      env: { ...process.env, PLAYWRIGHT_CLI_BIN: cli, PLAYWRIGHT_RESOURCE_LOCK_DIR: lock, FAKE_CLI_STATE: directory },
+      stdio: 'ignore',
+    });
+    const exited = new Promise((resolve) => child.on('exit', (code, killedBy) => resolve({ code, signal: killedBy })));
+    for (let i = 0; i < 200 && !existsSync(path.join(directory, 'running')); i++) await delay(50);
+    assert.ok(existsSync(path.join(directory, 'running')), 'the helper never reached a page command');
+    child.kill(signal);
+    const result = await exited;
+    const [browserDirectory, session] = (await readFile(path.join(directory, 'opened'), 'utf8')).trim().split('\n');
+    const closedFile = path.join(directory, 'closed');
+    return {
+      ...result,
+      session,
+      closedSession: existsSync(closedFile) ? (await readFile(closedFile, 'utf8')).trim() : null,
+      slotHeld: existsSync(lock),
+      browserDirectoryLeft: existsSync(browserDirectory),
+    };
+  } finally {
+    if (child?.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    await rm(directory, { recursive: true, force: true });
+  }
+}
+
+test('terminating a live run closes its browser session and releases the shared slot before exiting', async () => {
+  for (const [signal, code] of [
+    ['SIGTERM', 143],
+    ['SIGINT', 130],
+  ]) {
+    const result = await terminateMidPlan('../browser.mjs', ['--live', '--baseline'], signal);
+    assert.equal(result.closedSession, result.session, `${signal} left the browser session open`);
+    assert.equal(result.slotHeld, false, `${signal} left the browser slot held`);
+    assert.equal(result.browserDirectoryLeft, false, `${signal} left the private browser directory`);
+    assert.deepEqual([result.code, result.signal], [code, null]);
+  }
+});
+
+test('terminating a live benchmark closes the running browser session and releases the shared slot', async () => {
+  const root = fileURLToPath(new URL('../../..', import.meta.url));
+  const result = await terminateMidPlan('../browser-benchmark.mjs', ['--baseline-root', root, '--live', '--samples', '1', '--warmups', '0'], 'SIGTERM');
+  assert.equal(result.closedSession, result.session);
+  assert.equal(result.slotHeld, false);
+  assert.equal(result.browserDirectoryLeft, false);
+  assert.deepEqual([result.code, result.signal], [143, null]);
 });
 function fixtureDriver(extra = {}) {
   let stage = 0,

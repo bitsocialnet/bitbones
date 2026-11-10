@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-import { createPlaywrightDriver, findPlaywrightCli } from './browser-playwright.mjs';
+import { createPlaywrightDriver, findPlaywrightCli, closeOnTermination } from './browser-playwright.mjs';
 import { runBrowserPlan, validatePlan } from './browser-plan.mjs';
 import { createJevClient } from './client.mjs';
 
@@ -210,7 +210,10 @@ export async function main(argv = process.argv.slice(2)) {
     for (let sample = -warmups; sample < samples; sample++) {
       const order = (sample + warmups) % 2 ? ['combined', 'old'] : ['old', 'combined'];
       for (const transport of order) {
-        const result = await benchmarkRun(entry.plan, { ...variants[transport], client, baseline: !values.jev });
+        let driver;
+        const createDriver = (options) => (driver = variants[transport].createDriver(options));
+        const release = closeOnTermination(() => driver?.close());
+        const result = await benchmarkRun(entry.plan, { ...variants[transport], createDriver, client, baseline: !values.jev }).finally(release);
         const run = {
           case: entry.id,
           plan: entry.file,
