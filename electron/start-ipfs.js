@@ -39,7 +39,11 @@ const spawnAsync = (...args) =>
     spawedProcess.stderr.on('data', (data) => console.error(data.toString()));
     spawedProcess.stdin.on('data', (data) => console.log(data.toString()));
     spawedProcess.stdout.on('data', (data) => console.log(data.toString()));
-    spawedProcess.on('error', (data) => console.error(data.toString()));
+    // a failed spawn (e.g. EACCES) emits 'error' without 'exit'
+    spawedProcess.on('error', (error) => {
+      console.error(error.toString());
+      reject(error);
+    });
   });
 
 const startIpfs = async () => {
@@ -95,7 +99,10 @@ const startIpfs = async () => {
           resolve();
         }
       });
-      ipfsProcess.on('error', (data) => console.error(data.toString()));
+      ipfsProcess.on('error', (error) => {
+        console.error(error.toString());
+        reject(error);
+      });
       ipfsProcess.on('exit', () => {
         console.error(`ipfs process with pid ${ipfsProcess.pid} exited`);
         reject(Error(lastError));
