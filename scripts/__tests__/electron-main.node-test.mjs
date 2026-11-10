@@ -27,6 +27,10 @@ class FakeWebContents extends EventEmitter {
   session = { webRequest: { onBeforeSendHeaders() {}, onHeadersReceived() {} }, setPermissionRequestHandler() {} };
   history = ['file:///build/index.html'];
   index = 0;
+  navigate(url) {
+    this.history = [...this.history.slice(0, this.index + 1), url];
+    this.index = this.history.length - 1;
+  }
   canGoBack() {
     return this.index > 0;
   }
@@ -177,6 +181,7 @@ const launch = async ({ platform, gotLock = true }) => {
     },
   };
 };
+const menuItems = (label) => world.menu.items.filter((item) => item.label === label);
 const openWindows = () => FakeBrowserWindow.getAllWindows();
 // macOS: closing the last window keeps the app running, clicking the dock icon creates a new window
 const reopenWindowOnMac = () => {
@@ -209,6 +214,28 @@ test('launching bitbones again shows the window that was closed to the tray', as
   assert.equal(window.visible, true);
   assert.equal(window.focused, true);
   assert.equal(world.windows.length, 1);
+});
+
+test('reopening the window on macOS keeps one set of menu arrows, and they navigate the live window', async () => {
+  const { ready } = await launch({ platform: 'darwin' });
+  await ready();
+  openWindows()[0].emit('ready-to-show');
+  assert.equal(menuItems('←').length, 1);
+
+  const window = reopenWindowOnMac();
+  assert.equal(menuItems('←').length, 1);
+  assert.equal(menuItems('→').length, 1);
+  assert.equal(menuItems('⟳').length, 1);
+
+  window.webContents.navigate('file:///build/index.html#/c/example');
+  const [back] = menuItems('←');
+  const [forward] = menuItems('→');
+  assert.notEqual(back.enabled, false);
+  back.click(back, window, {});
+  assert.equal(window.webContents.index, 0);
+  assert.notEqual(forward.enabled, false);
+  forward.click(forward, window, {});
+  assert.equal(window.webContents.index, 1);
 });
 
 test('the IPFS warning is shown once per failure, not again after IPFS recovers', async () => {

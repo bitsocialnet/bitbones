@@ -306,21 +306,22 @@ const createMainWindow = () => {
       });
     }
   }
+};
 
+// the application menu is app-wide, so it is set up once and its items act on the focused window
+const setupApplicationMenu = () => {
   const appMenuBack = new MenuItem({
     label: '←',
-    enabled: mainWindow?.webContents?.canGoBack(),
-    click: () => mainWindow?.webContents?.goBack(),
+    click: (menuItem, browserWindow) => browserWindow?.webContents?.goBack(),
   });
   const appMenuForward = new MenuItem({
     label: '→',
-    enabled: mainWindow?.webContents?.canGoForward(),
-    click: () => mainWindow?.webContents?.goForward(),
+    click: (menuItem, browserWindow) => browserWindow?.webContents?.goForward(),
   });
   const appMenuReload = new MenuItem({
     label: '⟳',
     role: 'reload',
-    click: () => mainWindow?.webContents?.reload(),
+    click: (menuItem, browserWindow) => browserWindow?.webContents?.reload(),
   });
 
   // application menu
@@ -360,6 +361,7 @@ if (!isPrimaryInstance) {
 
   app.whenReady().then(() => {
     createMainWindow();
+    setupApplicationMenu();
 
     app.on('activate', () => {
       if (!BrowserWindow.getAllWindows().length) {
