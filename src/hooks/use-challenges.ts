@@ -6,8 +6,16 @@ import type { Challenge, Comment } from '@bitsocial/bitsocial-react-hooks';
 // third element themselves, so the length varies and this stays an array rather than a tuple.
 export type PendingChallenge = (Challenge | Comment | undefined)[];
 
+interface QueuedChallenge {
+  // the challenge modal keys each queued challenge by this, so its step and answers start over
+  id: number;
+  challenge: PendingChallenge;
+}
+
+let nextChallengeId = 0;
+
 interface ChallengesState {
-  challenges: PendingChallenge[];
+  challenges: QueuedChallenge[];
   addChallenge: (challenge: PendingChallenge) => void;
   removeChallenge: () => void;
 }
@@ -15,7 +23,7 @@ interface ChallengesState {
 const useChallengesStore = create<ChallengesState>((setState, getState) => ({
   challenges: [],
   addChallenge: (challenge) => {
-    setState((state) => ({ challenges: [...state.challenges, challenge] }));
+    setState((state) => ({ challenges: [...state.challenges, { id: nextChallengeId++, challenge }] }));
   },
   removeChallenge: () =>
     setState((state) => {

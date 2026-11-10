@@ -133,7 +133,7 @@ function ChallengeModal() {
       {isOpen && (
         <FloatingFocusManager context={context} modal={false}>
           <div className={styles.modal} ref={refs.setFloating} aria-labelledby={headingId} {...getFloatingProps()}>
-            <Challenge challenge={challenges[0]} closeModal={closeModal} />
+            <Challenge key={challenges[0].id} challenge={challenges[0].challenge} closeModal={closeModal} />
           </div>
         </FloatingFocusManager>
       )}
