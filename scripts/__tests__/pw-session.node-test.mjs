@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -62,7 +62,7 @@ function fixture(t) {
   };
   const owner = () => (existsSync(path.join(lock, 'owner')) ? readFileSync(path.join(lock, 'owner'), 'utf8').split('\n')[0] : null);
   const closed = () => (existsSync(path.join(state, 'closed')) ? readFileSync(path.join(state, 'closed'), 'utf8').trim().split('\n') : []);
-  return { state, lock, workspace, run, start, owner, closed };
+  return { state, lock, env, workspace, run, start, owner, closed };
 }
 
 async function waitFor(predicate, label, timeoutMs = 10_000) {
@@ -125,4 +125,41 @@ test('an abandoned ownerless lock and a dead launcher are still reclaimed', (t) 
   const reclaimedLauncher = run(directory, 'open', 'third', 'about:blank');
   assert.equal(reclaimedLauncher.status, 0, reclaimedLauncher.stdout + reclaimedLauncher.stderr);
   assert.equal(owner(), 'third');
+});
+
+test('close from another workspace leaves a same-named holder and its browser alone', (t) => {
+  const { lock, workspace, run, owner, closed } = fixture(t);
+  const holder = workspace('holder');
+  const other = workspace('other');
+  assert.equal(run(holder, 'open', 'check-task', 'about:blank').status, 0);
+
+  const close = run(other, 'close', 'check-task');
+  assert.notEqual(close.status, 0, close.stdout + close.stderr);
+  assert.match(close.stderr, /another workspace/);
+  assert.deepEqual(closed(), []);
+  assert.equal(owner(), 'check-task');
+
+  const release = run(other, 'release', 'check-task');
+  assert.notEqual(release.status, 0, release.stdout + release.stderr);
+  assert.equal(owner(), 'check-task');
+
+  const ownClose = run(holder, 'close', 'check-task');
+  assert.equal(ownClose.status, 0, ownClose.stdout + ownClose.stderr);
+  assert.deepEqual(closed(), ['check-task']);
+  assert.equal(existsSync(lock), false);
+});
+
+test('close from the same directory reached through a symlink still releases the slot', (t) => {
+  const { lock, env, workspace, run, closed } = fixture(t);
+  const directory = workspace('outside-git');
+  const link = path.join(path.dirname(directory), 'outside-git-link');
+  symlinkSync(directory, link);
+  // A shell keeps the symlinked spelling in PWD, and a plain `pwd` reports it.
+  const open = spawnSync('bash', [wrapper, 'open', 'check-task', 'about:blank'], { cwd: link, env: { ...env, PWD: link }, encoding: 'utf8' });
+  assert.equal(open.status, 0, open.stdout + open.stderr);
+
+  const close = run(directory, 'close', 'check-task');
+  assert.equal(close.status, 0, close.stdout + close.stderr);
+  assert.deepEqual(closed(), ['check-task']);
+  assert.equal(existsSync(lock), false);
 });

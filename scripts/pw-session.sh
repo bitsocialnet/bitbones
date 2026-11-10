@@ -44,7 +44,8 @@ One browser slot is shared by every worktree and repository on this machine.
            A slot whose browser is gone is reclaimed automatically.
   close    Stop the named browser, then release the slot. Always attempts the
            browser close, even when the lock was already lost, and never
-           releases a slot held by a different session.
+           releases a slot held by a different session. A slot held under the
+           same name from another workspace is left alone, browser included.
   status   Report the holder and whether its browser is still running.
   release  Drop a lock without closing a browser. Normal cleanup uses `close`.
 EOF
@@ -71,9 +72,21 @@ workspace_file="$lock_dir/workspace"
 default_wait_seconds=300
 poll_seconds="${PW_SESSION_POLL_SECONDS:-5}"
 
-# Recorded for diagnostics only: the lock is machine-wide, so a checkout outside
-# a Git worktree is unusual but not an error.
-workspace="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+# Two checkouts can pick the same session name, so a lock is the caller's only
+# when its workspace matches as well. A checkout outside a Git worktree uses
+# its working directory, with symlinks resolved as Git resolves the top level.
+workspace="$(git rev-parse --show-toplevel 2>/dev/null || pwd -P)"
+
+# Prints the holder's workspace when it is not the caller's. Locks written
+# without a workspace file fall back to matching on the session name alone.
+foreign_workspace() {
+  local held_workspace
+
+  held_workspace="$(sed -n '1p' "$workspace_file" 2>/dev/null || true)"
+  if [ -n "$held_workspace" ] && [ "$held_workspace" != "$workspace" ]; then
+    printf '%s\n' "$held_workspace"
+  fi
+}
 
 validate_session() {
   local session="$1"
@@ -258,7 +271,7 @@ acquire() {
 }
 
 release() {
-  local session="$1" owner
+  local session="$1" owner held_workspace
 
   validate_session "$session"
   if [ ! -d "$lock_dir" ]; then
@@ -272,6 +285,12 @@ release() {
     if [ -n "$owner" ] && [ "$(holder_state "$owner")" = dead ]; then
       echo "pw-session: that lock is stale; the next 'open' reclaims it automatically" >&2
     fi
+    return 1
+  fi
+
+  held_workspace="$(foreign_workspace)"
+  if [ -n "$held_workspace" ]; then
+    echo "pw-session: '$session' holds the slot from another workspace ($held_workspace); release it from there" >&2
     return 1
   fi
 
@@ -338,8 +357,15 @@ case "$command" in
     validate_session "$session"
 
     # Cleanup must always stop the browser, even when the lock was lost, so a
-    # failed workflow cannot strand a running engine.
+    # failed workflow cannot strand a running engine. The exception is the same
+    # name held from another workspace: with a shared playwright-cli session
+    # namespace, closing it would stop that checkout's browser.
     owner="$(current_owner)"
+    held_workspace="$(foreign_workspace)"
+    if [ "$owner" = "$session" ] && [ -n "$held_workspace" ]; then
+      echo "pw-session: '$session' holds the slot from another workspace ($held_workspace); left its browser and the slot untouched" >&2
+      exit 1
+    fi
     close_status=0
     "$playwright_cli" -s="$session" close || close_status=$?
     if [ "$close_status" -ne 0 ]; then
