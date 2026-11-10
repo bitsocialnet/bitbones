@@ -124,6 +124,7 @@ class FakeTray extends EventEmitter {
 }
 
 const app = Object.assign(new EventEmitter(), {
+  requestSingleInstanceLock: () => world.gotLock,
   quit: () => world.quits++,
   isReady: () => world.ready,
   whenReady: () => world.whenReady,
@@ -154,11 +155,12 @@ mock.module(electronUrl('start-pkc-rpc.js'), {});
 
 let caseId = 0;
 // a fresh app process: loads a new copy of main.js, which waits for ready()
-const launch = async ({ platform }) => {
+const launch = async ({ platform, gotLock = true }) => {
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
   app.removeAllListeners();
   let setReady;
   world = {
+    gotLock,
     ready: false,
     whenReady: new Promise((resolve) => (setReady = resolve)),
     windows: [],
@@ -186,6 +188,28 @@ const reopenWindowOnMac = () => {
   reopened.emit('ready-to-show');
   return reopened;
 };
+
+test('a second bitbones process quits instead of opening another window', async () => {
+  const { ready } = await launch({ platform: 'linux', gotLock: false });
+  await ready();
+  assert.equal(world.quits, 1);
+  assert.equal(world.windows.length, 0);
+});
+
+test('launching bitbones again shows the window that was closed to the tray', async () => {
+  const { ready } = await launch({ platform: 'linux' });
+  await ready();
+  const [window] = openWindows();
+  window.emit('ready-to-show');
+  window.close();
+  assert.equal(window.visible, false);
+  assert.equal(window.destroyed, false);
+
+  app.emit('second-instance', {}, [], '/');
+  assert.equal(window.visible, true);
+  assert.equal(window.focused, true);
+  assert.equal(world.windows.length, 1);
+});
 
 test('the IPFS warning is shown once per failure, not again after IPFS recovers', async () => {
   const { ready } = await launch({ platform: 'darwin' });

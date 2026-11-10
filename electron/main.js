@@ -339,15 +339,35 @@ const createMainWindow = () => {
   }
 };
 
-app.whenReady().then(() => {
-  createMainWindow();
-
-  app.on('activate', () => {
-    if (!BrowserWindow.getAllWindows().length) {
+// packaged builds close to the tray, so launching bitbones again must bring that window back instead of
+// starting another hidden instance. dev builds skip the lock so they can run next to an installed bitbones.
+const isPrimaryInstance = isDev || app.requestSingleInstanceLock();
+if (!isPrimaryInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) {
       createMainWindow();
+      return;
     }
+    if (window.isMinimized()) {
+      window.restore();
+    }
+    window.show();
+    window.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    createMainWindow();
+
+    app.on('activate', () => {
+      if (!BrowserWindow.getAllWindows().length) {
+        createMainWindow();
+      }
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
