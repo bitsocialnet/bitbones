@@ -50,12 +50,13 @@ function sanitizeLabel(value) {
     .replace(/-{2,}/g, '-');
 }
 
+// Probe the address Vite binds: on macOS a wildcard listen succeeds even while 127.0.0.1 holds the port.
 function checkPort(port) {
   return new Promise((resolve) => {
     const server = net.createServer();
     server.once('error', () => resolve(false));
     server.once('listening', () => server.close(() => resolve(true)));
-    server.listen(port);
+    server.listen(port, fallbackHost);
   });
 }
 
@@ -136,7 +137,8 @@ function startPortlessProxy() {
  * @param {number} fallbackPort port to try first when portless is not used
  */
 export async function resolveLocalServer(viteArgs, fallbackPort) {
-  const requestedPort = Number(process.env.PORT) || fallbackPort;
+  const explicitPort = Number(process.env.PORT);
+  const requestedPort = explicitPort || fallbackPort;
 
   if (usePortless && existsSync(portlessBin) && startPortlessProxy()) {
     const appName = getPortlessAppName();
@@ -148,7 +150,9 @@ export async function resolveLocalServer(viteArgs, fallbackPort) {
     };
   }
 
-  const port = await resolvePort(requestedPort);
+  // An explicit PORT is kept even when busy, so --strictPort fails loudly: `yarn electron:dev` loads
+  // a fixed http://localhost:5173 and would otherwise show whichever server already holds it.
+  const port = explicitPort ? requestedPort : await resolvePort(requestedPort);
   const url = `http://${fallbackUrlHost}:${port}`;
 
   if (usePortless) {
