@@ -38,6 +38,13 @@ if [ "$1" = daemon ]; then
 fi
 exit 0
 `,
+  daemonExits: `#!/bin/sh
+if [ "$1" = daemon ]; then
+  echo 'Error: address already in use' >&2
+  exit 1
+fi
+exit 0
+`,
   // setup succeeds, then the binary loses its exec bit right before the daemon is spawned
   daemonCannotSpawn: `#!/bin/sh
 if [ "$1" = config ] && [ "$2" = Addresses.API ]; then
@@ -96,6 +103,18 @@ const loadStartIpfs = async (t) => {
   return {
     errors,
     attempt: () => mock.timers.tick(1000),
+    // runs what the module registered for app quit, recording the pids it signals instead of signalling them
+    quit: () => {
+      const kill = mock.method(process, 'kill', () => true);
+      try {
+        for (const listener of quitHandlers()) {
+          listener(0);
+        }
+        return kill.mock.calls.map((call) => call.arguments[0]);
+      } finally {
+        kill.mock.restore();
+      }
+    },
   };
 };
 
@@ -117,4 +136,23 @@ test('a daemon spawn error reaches onError', async (t) => {
   ipfs.attempt();
   await waitFor(() => ipfs.errors.length === 1, 'onError after the daemon spawn error');
   assert.equal(ipfs.errors[0].code, 'EACCES');
+});
+
+test('daemons that already exited are not signalled when the app quits', async (t) => {
+  const ipfs = await loadStartIpfs(t);
+  installKubo(kubo.daemonExits);
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    ipfs.attempt();
+    await waitFor(() => ipfs.errors.length === attempt, `daemon exit ${attempt}`);
+  }
+  assert.match(ipfs.errors[2].message, /address already in use/);
+  assert.deepEqual(ipfs.quit(), []);
+});
+
+test('quitting signals only the running daemon, not its pid + 1', async (t) => {
+  const ipfs = await loadStartIpfs(t);
+  installKubo(kubo.healthy);
+  ipfs.attempt();
+  await waitFor(() => daemonPid() > 0, 'the daemon pid');
+  assert.deepEqual(ipfs.quit(), [daemonPid()]);
 });

@@ -46,6 +46,20 @@ const spawnAsync = (...args) =>
     });
   });
 
+// the kubo daemon this app spawned, until it exits. kubo is spawned directly, so its pid is the daemon itself.
+let runningIpfsDaemon;
+process.on('exit', () => {
+  // a spawn that failed has no pid
+  if (!runningIpfsDaemon?.pid) {
+    return;
+  }
+  try {
+    ps.kill(runningIpfsDaemon.pid);
+  } catch (e) {
+    console.log(e);
+  }
+});
+
 const startIpfs = async () => {
   const ipfsPath = await getKuboPath();
   const ipfsDataPath = isDev ? path.join(dirname, '..', '.pkc', 'ipfs') : path.join(envPaths.data, 'ipfs');
@@ -105,21 +119,12 @@ const startIpfs = async () => {
       });
       ipfsProcess.on('exit', () => {
         console.error(`ipfs process with pid ${ipfsProcess.pid} exited`);
+        if (runningIpfsDaemon === ipfsProcess) {
+          runningIpfsDaemon = undefined;
+        }
         reject(Error(lastError));
       });
-      process.on('exit', () => {
-        try {
-          ps.kill(ipfsProcess.pid);
-        } catch (e) {
-          console.log(e);
-        }
-        try {
-          // sometimes ipfs doesnt exit unless we kill pid +1
-          ps.kill(ipfsProcess.pid + 1);
-        } catch (e) {
-          console.log(e);
-        }
-      });
+      runningIpfsDaemon = ipfsProcess;
     });
   await startIpfsDaemon();
 };
