@@ -22,6 +22,11 @@ umask 077
 # workflow. When playwright-cli cannot be queried the lock is left alone, so a
 # broken CLI never silently disables the budget.
 #
+# playwright-cli lists a session only after its browser has launched, so while
+# `open` is still starting the browser the owner file carries the opener's PID
+# on its second line, and a lock with a live opener is never reclaimed. Older
+# copies of this script read only the first line.
+#
 # PW_SESSION_POLL_SECONDS overrides how often `--wait` re-checks the slot.
 
 usage() {
@@ -85,6 +90,14 @@ current_owner() {
   fi
 }
 
+# Succeeds while the wrapper that took the lock is still launching its browser.
+opener_running() {
+  local opener
+
+  opener="$(sed -n '2p' "$owner_file" 2>/dev/null || true)"
+  [[ "$opener" =~ ^[0-9]+$ ]] && kill -0 "$opener" 2>/dev/null
+}
+
 # Echoes `live`, `dead`, or `unknown` for a session name. `unknown` means the
 # browser list could not be read, and callers must treat the lock as held.
 session_state() {
@@ -115,10 +128,32 @@ session_state() {
   echo dead
 }
 
+# Like session_state, but `launching` while the holder is still starting its
+# browser.
+holder_state() {
+  if opener_running; then
+    echo launching
+  else
+    session_state "$1"
+  fi
+}
+
 write_lock_metadata() {
-  printf '%s\n' "$1" >"$owner_file"
+  printf '%s\n%s\n' "$1" "$$" >"$owner_file"
   date -u '+%Y-%m-%dT%H:%M:%SZ' >"$started_file"
   printf '%s\n' "$workspace" >"$workspace_file"
+}
+
+# Drops the opener PID once the browser is listed, so a recycled PID can never
+# keep a later stale lock alive. Written aside and renamed so readers never see
+# an empty owner file.
+mark_launched() {
+  local session="$1" staged="${lock_dir}.owner.$$"
+
+  if [ "$(current_owner)" = "$session" ]; then
+    printf '%s\n' "$session" >"$staged"
+    mv -f "$staged" "$owner_file" 2>/dev/null || rm -f "$staged"
+  fi
 }
 
 print_status() {
@@ -132,10 +167,10 @@ print_status() {
   owner="$(current_owner)"
   started="$(sed -n '1p' "$started_file" 2>/dev/null || true)"
   held_workspace="$(sed -n '1p' "$workspace_file" 2>/dev/null || true)"
-  state="$([ -n "$owner" ] && session_state "$owner" || echo unknown)"
+  state="$([ -n "$owner" ] && holder_state "$owner" || echo unknown)"
 
   case "$state" in
-    live) echo "pw-session: browser slot is held" ;;
+    live | launching) echo "pw-session: browser slot is held" ;;
     dead) echo "pw-session: browser slot is held by a stale lock" ;;
     *) echo "pw-session: browser slot is held (browser state unverifiable)" ;;
   esac
@@ -147,6 +182,7 @@ print_status() {
 
   case "$state" in
     live) echo "Browser: running" ;;
+    launching) echo "Browser: launching" ;;
     dead)
       echo "Browser: not running — the next 'open' reclaims this slot automatically"
       ;;
@@ -168,7 +204,7 @@ reclaim_stale_lock() {
 }
 
 acquire() {
-  local session="$1" wait_seconds="$2" owner state reclaims=0
+  local session="$1" wait_seconds="$2" owner state reclaims=0 ownerless=0
 
   validate_session "$session"
   mkdir -p "$(dirname "$lock_dir")"
@@ -182,7 +218,15 @@ acquire() {
     fi
 
     owner="$(current_owner)"
-    state="$([ -n "$owner" ] && session_state "$owner" || echo dead)"
+    # The holder creates the directory before its owner file; give it a moment
+    # before judging an ownerless lock abandoned.
+    if [ -z "$owner" ] && [ "$ownerless" -eq 0 ]; then
+      ownerless=1
+      sleep 1
+      continue
+    fi
+    ownerless=0
+    state="$([ -n "$owner" ] && holder_state "$owner" || echo dead)"
 
     # Bounded so an unremovable lock directory fails loudly instead of spinning.
     if [ "$state" = dead ] && [ "$reclaims" -lt 3 ]; then
@@ -225,7 +269,7 @@ release() {
   owner="$(current_owner)"
   if [ "$owner" != "$session" ]; then
     echo "pw-session: '$session' cannot release the slot held by '${owner:-unknown}'" >&2
-    if [ -n "$owner" ] && [ "$(session_state "$owner")" = dead ]; then
+    if [ -n "$owner" ] && [ "$(holder_state "$owner")" = dead ]; then
       echo "pw-session: that lock is stale; the next 'open' reclaims it automatically" >&2
     fi
     return 1
@@ -283,6 +327,7 @@ case "$command" in
       release "$session"
       exit 1
     fi
+    mark_launched "$session"
     ;;
   close)
     session="${2:-}"
