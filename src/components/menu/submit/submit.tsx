@@ -24,9 +24,12 @@ interface SubmitState {
   // discards the result, so this sync handler does not fit the stricter type.
   // usePublishCommentWithAbandon adds onChallenge.
   publishCommentOptions: PublishCommentOptions | undefined;
+  // set from the submit click until the library reports the pending post or fails
+  publishing: boolean;
   setSubmitStore: (options: SetSubmitStoreOptions) => void;
   // the implementation takes no argument, but the redirect effect below calls it with one
   resetSubmitStore: (options?: SetSubmitStoreOptions) => void;
+  setPublishing: (publishing: boolean) => void;
 }
 
 const useSubmitStore = create<SubmitState>((setState, getState) => ({
@@ -34,6 +37,7 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
   title: undefined,
   content: undefined,
   publishCommentOptions: undefined,
+  publishing: false,
   setSubmitStore: ({ communityAddress, title, content }) =>
     setState((state) => {
       const nextState = { ...state };
@@ -67,6 +71,7 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
       return nextState;
     }),
   resetSubmitStore: () => setState((state) => ({ communityAddress: undefined, title: undefined, content: undefined, publishCommentOptions: undefined })),
+  setPublishing: (publishing) => setState({ publishing }),
 }));
 
 interface SubmitProps {
@@ -76,12 +81,16 @@ interface SubmitProps {
 const Submit = ({ onSubmit }: SubmitProps) => {
   const params = useParams<{ communityAddress?: string }>();
   const communities = useDefaultAndSubscriptionsCommunities();
-  const { communityAddress, title, content, publishCommentOptions, setSubmitStore, resetSubmitStore } = useSubmitStore();
+  const { communityAddress, title, content, publishCommentOptions, publishing, setSubmitStore, resetSubmitStore, setPublishing } = useSubmitStore();
   const { index, publishComment } = usePublishCommentWithAbandon(publishCommentOptions);
 
   const navigate = useNavigate();
 
-  const onPublish = () => {
+  const onPublish = async () => {
+    // like useReply: every publishComment call before the pending index arrives publishes another post
+    if (useSubmitStore.getState().publishing) {
+      return;
+    }
     if (!title) {
       alert(`missing title`);
       return;
@@ -94,7 +103,12 @@ const Submit = ({ onSubmit }: SubmitProps) => {
       alert(`missing community`);
       return;
     }
-    publishComment();
+    setPublishing(true);
+    try {
+      await publishComment();
+    } finally {
+      setPublishing(false);
+    }
   };
 
   // redirect to pending post after submitting
@@ -128,7 +142,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
         />
       </div>
       <div className={styles.submitButtonWrapper}>
-        <button onClick={onPublish} className={styles.submitButton}>
+        <button onClick={onPublish} disabled={publishing} className={styles.submitButton}>
           submit
         </button>
       </div>

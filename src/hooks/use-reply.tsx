@@ -15,13 +15,17 @@ interface SetReplyStoreOptions {
 interface ReplyState {
   content: Record<string, string | undefined>;
   publishCommentOptions: Record<string, PublishCommentOptions | undefined>;
+  // set from the reply click until the library reports the pending comment or fails
+  publishing: Record<string, boolean | undefined>;
   setReplyStore: (options: SetReplyStoreOptions) => void;
   resetReplyStore: (parentCid: string) => void;
+  setPublishing: (parentCid: string, publishing: boolean) => void;
 }
 
 const useReplyStore = create<ReplyState>((setState, getState) => ({
   content: {},
   publishCommentOptions: {},
+  publishing: {},
   setReplyStore: ({ communityAddress, parentCid, content, comment }) =>
     setState((state) => {
       const parsedContent = parseContent(content);
@@ -59,6 +63,7 @@ const useReplyStore = create<ReplyState>((setState, getState) => ({
       content: { ...state.content, [parentCid]: undefined },
       publishCommentOptions: { ...state.publishCommentOptions, [parentCid]: undefined },
     })),
+  setPublishing: (parentCid, publishing) => setState((state) => ({ publishing: { ...state.publishing, [parentCid]: publishing } })),
 }));
 
 interface Reply {
@@ -66,6 +71,7 @@ interface Reply {
   setContent: (content: string) => void;
   resetContent: () => void;
   replyIndex: number | undefined;
+  publishing: boolean;
   publishReply: () => Promise<void>;
 }
 
@@ -76,6 +82,8 @@ const useReply = (comment?: Comment): Reply => {
   const publishCommentOptions = useReplyStore((state) => state.publishCommentOptions[parentCid]);
   const setReplyStore = useReplyStore((state) => state.setReplyStore);
   const resetReplyStore = useReplyStore((state) => state.resetReplyStore);
+  const publishing = useReplyStore((state) => Boolean(state.publishing[parentCid]));
+  const setPublishing = useReplyStore((state) => state.setPublishing);
 
   const setContent = useMemo(
     () => (content: string) => setReplyStore({ communityAddress, parentCid, content, comment }),
@@ -86,7 +94,21 @@ const useReply = (comment?: Comment): Reply => {
 
   const { index, publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment);
 
-  return { content, setContent, resetContent, replyIndex: index, publishReply: publishComment };
+  // before the pending index arrives the library can spend up to 30s loading the community, with
+  // nothing changing on screen, and every publishComment call in that window publishes another reply
+  const publishReply = async () => {
+    if (useReplyStore.getState().publishing[parentCid]) {
+      return;
+    }
+    setPublishing(parentCid, true);
+    try {
+      await publishComment();
+    } finally {
+      setPublishing(parentCid, false);
+    }
+  };
+
+  return { content, setContent, resetContent, replyIndex: index, publishing, publishReply };
 };
 
 export default useReply;
