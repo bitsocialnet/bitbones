@@ -192,7 +192,16 @@ export function startLocalServer({ command, args, env, publicUrl }) {
       });
   }
 
+  // A signal sent to the launcher's PID alone (a supervisor or agent stopping it) would otherwise
+  // leave the server running and holding its port or route. Terminal Ctrl-C reaches both anyway.
+  // portless handles only SIGINT and SIGTERM and runs Vite in its own process group, so a hangup
+  // is passed on as SIGTERM: forwarded as is, it would kill portless and leave Vite running.
+  const forwardedSignals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
+  const forward = (signal) => child.kill(signal === 'SIGHUP' ? 'SIGTERM' : signal);
+  for (const signal of forwardedSignals) process.on(signal, forward);
+
   child.on('exit', (code, signal) => {
+    for (const forwardedSignal of forwardedSignals) process.off(forwardedSignal, forward);
     if (signal) {
       process.kill(process.pid, signal);
       return;
