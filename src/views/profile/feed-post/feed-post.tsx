@@ -80,14 +80,9 @@ const FeedPost = ({ post, index }: FeedPostProps) => {
   let labels = useCommentLabels(post, editedPostState);
   let labelStyle = styles.label;
 
-  let state;
-  if (!post?.cid && post?.timestamp) {
-    // if older than 20 minutes without receiving post.cid, consider pending comment failed
-    if (post.timestamp > Date.now() / 1000 - 20 * 60) {
-      state = 'pending';
-    } else {
-      state = 'failed';
-    }
+  // the library marks a comment without cid failed on a publish error or after 20 minutes
+  const state = post?.state === 'pending' || post?.state === 'failed' ? post.state : undefined;
+  if (state) {
     labels = [state];
     labelStyle = styles[`${state}Label`];
   }
