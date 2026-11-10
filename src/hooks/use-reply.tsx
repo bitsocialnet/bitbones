@@ -1,12 +1,9 @@
-import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
-import type { Challenge, ChallengeVerification, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
+import type { ChallengeVerification, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { useMemo } from 'react';
 import { create } from 'zustand';
-import challengesStore from './use-challenges';
+import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { incrementReadReplyCount } from './use-unread-reply-count';
-
-const { addChallenge } = challengesStore.getState();
 
 interface SetReplyStoreOptions {
   communityAddress?: string;
@@ -29,15 +26,15 @@ const useReplyStore = create<ReplyState>((setState, getState) => ({
     setState((state) => {
       const parsedContent = parseContent(content);
       // typed as the library's loose PublishCommentOptions bag: UsePublishCommentOptions declares
-      // onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
-      // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+      // onChallengeVerification as returning Promise<void>, but the library calls it synchronously
+      // and discards the result, so this sync handler does not fit the stricter type.
+      // usePublishCommentWithAbandon adds onChallenge.
       const publishCommentOptions: PublishCommentOptions = {
         communityAddress,
         parentCid,
         postCid: comment?.postCid || parentCid,
         content: parsedContent.content,
         link: parsedContent.link,
-        onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, comment]),
         onChallengeVerification: (challengeVerification: ChallengeVerification, comment?: Comment) => {
           if (challengeVerification?.challengeSuccess === true && comment?.postCid) {
             incrementReadReplyCount(comment.postCid);
@@ -84,7 +81,7 @@ const useReply = (comment?: Comment): Reply => {
 
   const resetContent = useMemo(() => () => resetReplyStore(parentCid), [parentCid, resetReplyStore]);
 
-  const { index, publishComment } = usePublishComment(publishCommentOptions);
+  const { index, publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment);
 
   return { content, setContent, resetContent, replyIndex: index, publishReply: publishComment };
 };

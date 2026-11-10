@@ -1,16 +1,13 @@
 import { useState, useEffect, memo } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './submit.module.css';
-import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
-import type { Challenge, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
+import type { PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { create } from 'zustand';
-import challengesStore from '../../../hooks/use-challenges';
+import usePublishCommentWithAbandon from '../../../hooks/use-publish-comment-with-abandon';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
 import type { SubmitCommunity } from './utils';
 import { alertChallengeVerificationFailed } from '../../../lib/utils';
-
-const { addChallenge } = challengesStore.getState();
 
 interface SetSubmitStoreOptions {
   communityAddress?: string;
@@ -23,8 +20,9 @@ interface SubmitState {
   title: string | undefined;
   content: string | undefined;
   // typed as the library's loose PublishCommentOptions bag: UsePublishCommentOptions declares
-  // onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
-  // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+  // onChallengeVerification as returning Promise<void>, but the library calls it synchronously and
+  // discards the result, so this sync handler does not fit the stricter type.
+  // usePublishCommentWithAbandon adds onChallenge.
   publishCommentOptions: PublishCommentOptions | undefined;
   setSubmitStore: (options: SetSubmitStoreOptions) => void;
   // the implementation takes no argument, but the redirect effect below calls it with one
@@ -52,7 +50,6 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
         communityAddress: nextState.communityAddress,
         title: nextState.title,
         content: nextState.content,
-        onChallenge: (...args: [Challenge, Comment?]) => addChallenge(args),
         onChallengeVerification: alertChallengeVerificationFailed,
         onError: (error: Error) => {
           console.warn(error);
@@ -77,7 +74,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
   const params = useParams<{ communityAddress?: string }>();
   const communities = useDefaultAndSubscriptionsCommunities();
   const { communityAddress, title, content, publishCommentOptions, setSubmitStore, resetSubmitStore } = useSubmitStore();
-  const { index, publishComment } = usePublishComment(publishCommentOptions);
+  const { index, publishComment } = usePublishCommentWithAbandon(publishCommentOptions);
 
   const navigate = useNavigate();
 
