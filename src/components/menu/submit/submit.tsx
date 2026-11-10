@@ -50,6 +50,9 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
         communityAddress: nextState.communityAddress,
         title: nextState.title,
         content: nextState.content,
+        // the pending post holds the draft from here on; reset it here rather than in the submit
+        // form's effect, which never runs if the form was closed before the pending index arrived
+        onPendingComment: () => getState().resetSubmitStore(),
         onChallengeVerification: alertChallengeVerificationFailed,
         onError: (error: Error) => {
           console.warn(error);

@@ -35,6 +35,9 @@ const useReplyStore = create<ReplyState>((setState, getState) => ({
         postCid: comment?.postCid || parentCid,
         content: parsedContent.content,
         link: parsedContent.link,
+        // the pending comment holds the draft from here on; reset it here rather than in the reply
+        // form's effect, which never runs if the form was closed before the pending index arrived
+        onPendingComment: () => getState().resetReplyStore(parentCid),
         onChallengeVerification: (challengeVerification: ChallengeVerification, comment?: Comment) => {
           if (challengeVerification?.challengeSuccess === true && comment?.postCid) {
             incrementReadReplyCount(comment.postCid);
