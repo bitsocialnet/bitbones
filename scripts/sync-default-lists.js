@@ -30,7 +30,7 @@ const fetchJson = async (url) => {
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
+      throw Object.assign(new Error(`HTTP ${response.status}`), { status: response.status });
     }
     return await response.json();
   } finally {
@@ -90,7 +90,11 @@ const load5chanDefaults = async () => {
         // the human-readable title lives in the defaults file, not in the candidate file
         return { address: winner.address, title: defaults.directories[code]?.title, directoryCode: code };
       } catch (error) {
-        // a code can be listed before its candidate file is merged; skip it rather than failing the batch
+        // a code can be listed before its candidate file is merged (404); skip it rather than failing
+        // the batch. Any other failure keeps the whole mirror instead of writing a shortened list.
+        if (error.status !== 404) {
+          throw error;
+        }
         console.warn(`ℹ️  skipping 5chan directory '${code}': ${error.message}`);
         return undefined;
       }
