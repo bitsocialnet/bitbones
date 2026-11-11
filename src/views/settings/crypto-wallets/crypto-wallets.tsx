@@ -132,7 +132,8 @@ const CryptoWallets = () => {
   return (
     <div>
       <div>wallets:</div>
-      <CryptoWalletsForm account={account} />
+      {/* remount per account, the form state is seeded from the account it first rendered */}
+      <CryptoWalletsForm key={account.id} account={account} />
     </div>
   );
 };

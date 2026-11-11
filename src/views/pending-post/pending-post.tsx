@@ -71,15 +71,8 @@ function Post() {
     }
   }, [post?.cid, post?.communityAddress, navigate, post?.parentCid]);
 
-  let state;
-  if (post?.timestamp) {
-    // if older than 20 minutes without receiving post.cid, consider pending comment failed
-    if (post.timestamp > Date.now() / 1000 - 20 * 60) {
-      state = 'pending';
-    } else {
-      state = 'failed';
-    }
-  }
+  // the library marks a comment without cid failed on a publish error or after 20 minutes
+  const state = post?.state === 'pending' || post?.state === 'failed' ? post.state : undefined;
   const stateStyle = styles[`${state}Label`];
 
   const publishingStateString = useStateString(post);
