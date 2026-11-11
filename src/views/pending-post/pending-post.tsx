@@ -5,7 +5,8 @@ import { Link } from 'react-router-dom';
 import Arrow from '../../components/icons/arrow';
 import styles from '../post/post.module.css';
 import { useAccountComment, useAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, UseAccountCommentOptions } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment } from '@bitsocial/bitsocial-react-hooks';
+import { useAccountCommentIndexAfterDeletes } from '../../hooks/use-publish-comment-with-abandon';
 import useStateString from '../../hooks/use-state-string';
 import Embed, { canEmbed } from '../../components/embed';
 
@@ -45,11 +46,11 @@ const PostMedia = ({ post }: PostMediaProps) => {
 };
 
 function Post() {
-  const { accountCommentIndex: commentIndex } = useParams();
+  const { accountCommentIndex } = useParams();
   const navigate = useNavigate();
-  // commentIndex is typed number-only, but useAccountComment normalizes it with Number() at
-  // runtime, so the string route param it is given here is what the hook expects
-  const post = useAccountComment({ commentIndex } as UseAccountCommentOptions);
+  // a cancelled challenge deletes its pending comment and moves the account's later comments down one slot
+  const commentIndex = useAccountCommentIndexAfterDeletes(accountCommentIndex);
+  const post = useAccountComment({ commentIndex });
   const { shortAuthorAddress } = useAuthorAddress({ comment: post });
 
   let hostname;

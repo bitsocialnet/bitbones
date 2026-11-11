@@ -26,7 +26,7 @@ export interface SubmitCommunity {
   displayAddress: string;
 }
 
-export const useDefaultAndSubscriptionsCommunities = (): SubmitCommunity[] => {
+export const useDefaultAndSubscriptionsCommunities = (selectedCommunityAddress?: string): SubmitCommunity[] => {
   const { communityAddress: communityAddressParam } = useParams<{ communityAddress?: string }>();
   const account = useAccount();
   const defaultCommunities = useDefaultCommunities();
@@ -54,6 +54,10 @@ export const useDefaultAndSubscriptionsCommunities = (): SubmitCommunity[] => {
         }
       }
     }
+    // the select must be able to show the community the draft will be published to
+    if (selectedCommunityAddress && !communities[selectedCommunityAddress]) {
+      communities[selectedCommunityAddress] = { address: selectedCommunityAddress, displayAddress: selectedCommunityAddress };
+    }
     return Object.values(communities);
-  }, [account.subscriptions, defaultCommunities, communityAddressParam]);
+  }, [account.subscriptions, defaultCommunities, communityAddressParam, selectedCommunityAddress]);
 };

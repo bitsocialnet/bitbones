@@ -58,9 +58,19 @@ const useTimeFilter = (): TimeFilter => {
   if (timeFilterName && typeof timeFilterName !== 'string') {
     throw new Error(`useTimeFilter timeFilterName argument '${timeFilterName}' not a string`);
   }
-  const timeFilterSeconds = timeFilterNamesToSeconds[timeFilterName];
-  if (timeFilterName && timeFilterName !== 'all' && timeFilterSeconds === undefined) {
-    throw new Error(`useTimeFilter no filter for timeFilterName '${timeFilterName}'`);
+  if (timeFilterName === 'all') {
+    return { timeFilterSeconds: undefined, timeFilterNames };
+  }
+  let timeFilterSeconds = timeFilterNames.includes(timeFilterName) ? timeFilterNamesToSeconds[timeFilterName] : undefined;
+  // only this page load's last visit name is in the table, but a URL can keep an 'Nd' or 'Nw' name
+  // from an earlier load, so read the number of days or weeks from the name itself
+  const dynamicTimeFilterName = timeFilterName.match(/^([1-9]\d*)([dw])$/);
+  if (timeFilterSeconds === undefined && dynamicTimeFilterName) {
+    timeFilterSeconds = Number(dynamicTimeFilterName[1]) * (dynamicTimeFilterName[2] === 'w' ? 7 * day : day);
+  }
+  // an unknown name in the URL shows the default feed instead of throwing during render
+  if (timeFilterSeconds === undefined) {
+    timeFilterSeconds = timeFilterNamesToSeconds[lastVisitTimeFilterName];
   }
   return { timeFilterSeconds, timeFilterNames };
 };
