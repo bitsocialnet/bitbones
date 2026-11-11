@@ -40,8 +40,13 @@ const useReplyStore = create<ReplyState>((setState, getState) => ({
         content: parsedContent.content,
         link: parsedContent.link,
         // the pending comment holds the draft from here on; reset it here rather than in the reply
-        // form's effect, which never runs if the form was closed before the pending index arrived
-        onPendingComment: () => getState().resetReplyStore(parentCid),
+        // form's effect, which never runs if the form was closed before the pending index arrived.
+        // A draft edited since the publish started, in a reopened form, is a newer one, so keep it.
+        onPendingComment: () => {
+          if (getState().content[parentCid] === content) {
+            getState().resetReplyStore(parentCid);
+          }
+        },
         onChallengeVerification: (challengeVerification: ChallengeVerification, comment?: Comment) => {
           if (challengeVerification?.challengeSuccess === true && comment?.postCid) {
             incrementReadReplyCount(comment.postCid);

@@ -55,8 +55,14 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
         title: nextState.title,
         content: nextState.content,
         // the pending post holds the draft from here on; reset it here rather than in the submit
-        // form's effect, which never runs if the form was closed before the pending index arrived
-        onPendingComment: () => getState().resetSubmitStore(),
+        // form's effect, which never runs if the form was closed before the pending index arrived.
+        // A draft edited since the publish started, in a reopened form, is a newer one, so keep it.
+        onPendingComment: () => {
+          const { communityAddress, title, content, resetSubmitStore } = getState();
+          if (communityAddress === nextState.communityAddress && title === nextState.title && content === nextState.content) {
+            resetSubmitStore();
+          }
+        },
         onChallengeVerification: alertChallengeVerificationFailed,
         onError: (error: Error) => {
           console.warn(error);
