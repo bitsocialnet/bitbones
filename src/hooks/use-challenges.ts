@@ -14,7 +14,7 @@ interface QueuedChallenge {
 }
 
 // the library hands onChallenge an open record; stop() ends a publication still waiting for answers
-type StoppablePublication = { stop?: () => Promise<void> };
+export type StoppablePublication = { stop?: () => Promise<void> };
 
 let nextChallengeId = 0;
 

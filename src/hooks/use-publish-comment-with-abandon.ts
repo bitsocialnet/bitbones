@@ -3,7 +3,7 @@ import type { AccountComment, Challenge, Comment, PublishCommentOptions, UsePubl
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { create } from 'zustand';
-import challengesStore from './use-challenges';
+import challengesStore, { type StoppablePublication } from './use-challenges';
 
 const { addChallenge } = challengesStore.getState();
 
@@ -56,10 +56,11 @@ const startPublish = async (publishComment: () => Promise<void>): Promise<void> 
   }
 };
 
-const deletePosition = async (position: PendingCommentPosition): Promise<void> => {
+// resolves to false when the comment is not deleted, because its position was dropped
+const deletePosition = async (position: PendingCommentPosition): Promise<boolean> => {
   // dropped after an earlier delete in its account failed
   if (!pendingCommentPositions.delete(position)) {
-    return;
+    return false;
   }
   // deleteComment updates the store before its first await, so shift the other positions right away
   const deleting = deleteComment(position.index, position.accountName);
@@ -85,16 +86,19 @@ const deletePosition = async (position: PendingCommentPosition): Promise<void> =
     }
     throw error;
   }
+  return true;
 };
 
-const deletePendingComment = (position: PendingCommentPosition): Promise<void> => {
+// resolves to false when the comment's position was dropped, so nothing is deleted. A second
+// cancel of the same publication resolves to true, because the first one handles the delete.
+const deletePendingComment = (position: PendingCommentPosition): Promise<boolean> => {
   if (position.abandoned) {
-    return Promise.resolve();
+    return Promise.resolve(true);
   }
   position.abandoned = true;
   const deleted = lastQueuedDelete.then(
     () =>
-      new Promise<void>((resolve, reject) => {
+      new Promise<boolean>((resolve, reject) => {
         // called again by the last starting publish once it has saved, in the same tick, so no
         // other publish can start between the check and the delete
         const deleteWhenNoPublishIsStarting = () => {
@@ -109,6 +113,21 @@ const deletePendingComment = (position: PendingCommentPosition): Promise<void> =
   );
   lastQueuedDelete = deleted.catch(() => undefined);
   return deleted;
+};
+
+// deleteComment also stops the comment's publication. A skipped or failed delete doesn't, so stop
+// it here, or it keeps waiting for answers that never come.
+const abandonPendingComment = async (position: PendingCommentPosition, publication: StoppablePublication | undefined): Promise<void> => {
+  let deleted: boolean;
+  try {
+    deleted = await deletePendingComment(position);
+  } catch (error) {
+    await publication?.stop?.();
+    throw error;
+  }
+  if (!deleted) {
+    await publication?.stop?.();
+  }
 };
 
 // usePublishComment that queues each challenge with a way to delete its pending comment, so
@@ -137,7 +156,7 @@ const usePublishCommentWithAbandon = (publishCommentOptions: PublishCommentOptio
             },
             onChallenge: (challenge: Challenge, publication?: Comment) => {
               const pendingPosition = pendingPositionRef.current;
-              addChallenge([challenge, publication, publicationTarget], pendingPosition ? () => deletePendingComment(pendingPosition) : undefined);
+              addChallenge([challenge, publication, publicationTarget], pendingPosition ? () => abandonPendingComment(pendingPosition, publication) : undefined);
             },
           }
         : undefined,
