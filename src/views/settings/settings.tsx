@@ -120,12 +120,13 @@ const AccountSettings = () => {
     // the button re-targets the next active account as soon as this one is gone
     setDeleting(true);
     try {
-      console.log('deleting account...');
-      await deleteAccount(accountName);
-      // deleting the last account leaves no active account, so start a new default one
+      // deleting the last account leaves no active account, so create its replacement first:
+      // if that fails nothing is deleted, and the library activates it once this one is gone
       if (accounts.length <= 1) {
         await createAccount();
       }
+      console.log('deleting account...');
+      await deleteAccount(accountName);
     } catch (e) {
       console.warn(e);
       alert(`failed deleting account: ${(e as Error).message}`);
