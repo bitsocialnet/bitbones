@@ -214,9 +214,22 @@ export async function main(argv = process.argv.slice(2)) {
     for (let sample = -warmups; sample < samples; sample++) {
       const order = (sample + warmups) % 2 ? ['combined', 'old'] : ['old', 'combined'];
       for (const transport of order) {
-        let driver;
-        const createDriver = (options) => (driver = variants[transport].createDriver(options));
-        const release = closeOnTermination(() => driver?.close());
+        let driver, opening;
+        // A retained baseline driver can close without waiting for an open that is still starting
+        // its browser, which would release the slot before that browser exists. Wait for it here.
+        const createDriver = (options) =>
+          (driver = variants[transport].createDriver({
+            ...options,
+            execute: (file, args, ...rest) => {
+              const result = options.execute(file, args, ...rest);
+              if (args[0] === 'open') opening = result;
+              return result;
+            },
+          }));
+        const release = closeOnTermination(async () => {
+          await opening?.catch(() => {});
+          await driver?.close();
+        });
         const result = await benchmarkRun(entry.plan, { ...variants[transport], createDriver, client, baseline: !values.jev }).finally(release);
         const run = {
           case: entry.id,

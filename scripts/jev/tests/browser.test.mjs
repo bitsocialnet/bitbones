@@ -4,7 +4,7 @@ import { validatePlan, candidatesFromSnapshot, runBrowserPlan } from '../browser
 import { createJevClient, JevError } from '../client.mjs';
 import { canonicalNavigationAllowed, browserOriginGuard, createPlaywrightDriver, findPlaywrightCli } from '../browser-playwright.mjs';
 import { runInNewContext } from 'node:vm';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -235,6 +235,87 @@ test('terminating a live benchmark closes the running browser session and releas
   assert.equal(result.slotHeld, false);
   assert.equal(result.browserDirectoryLeft, false);
   assert.deepEqual([result.code, result.signal], [143, null]);
+});
+
+test('terminating a benchmark while the retained driver is still opening closes that browser only after it starts', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'jev-signal-test-'));
+  let child;
+  try {
+    const events = path.join(directory, 'events');
+    const lock = path.join(directory, 'lock');
+    const cli = path.join(directory, 'playwright-cli');
+    const planFile = path.join(directory, 'plan.json');
+    const baselineJev = path.join(directory, 'baseline/scripts/jev');
+    const wrapper = fileURLToPath(new URL('../../pw-session.sh', import.meta.url));
+    await mkdir(baselineJev, { recursive: true });
+    await writeFile(
+      cli,
+      `#!/bin/bash
+session="\${1#-s=}"
+case "$2" in
+  open) echo open-start >>"$FAKE_CLI_STATE/events"; sleep 1; echo "open-done $session" >>"$FAKE_CLI_STATE/events" ;;
+  close) echo "close $session" >>"$FAKE_CLI_STATE/events" ;;
+esac
+`,
+      { mode: 0o700 },
+    );
+    await writeFile(planFile, JSON.stringify(basePlan()));
+    // Like a retained pre-change driver: close does not wait for an open that is still starting the browser.
+    await writeFile(
+      path.join(baselineJev, 'browser-playwright.mjs'),
+      `import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+export function createPlaywrightDriver({ execute = promisify(execFile) } = {}) {
+  const session = 'jev-legacy-' + process.pid;
+  let opening = false;
+  return {
+    async open() {
+      opening = true;
+      await execute(${JSON.stringify(wrapper)}, ['open', session, 'about:blank']);
+      await new Promise(() => {});
+    },
+    async close() {
+      if (opening) await execute(${JSON.stringify(wrapper)}, ['close', session]);
+    },
+  };
+}
+`,
+    );
+    await writeFile(
+      path.join(baselineJev, 'browser-plan.mjs'),
+      `export { runBrowserPlan } from ${JSON.stringify(new URL('../browser-plan.mjs', import.meta.url).href)};\n`,
+    );
+    child = spawn(
+      process.execPath,
+      [
+        fileURLToPath(new URL('../browser-benchmark.mjs', import.meta.url)),
+        '--plan',
+        planFile,
+        '--baseline-root',
+        path.join(directory, 'baseline'),
+        '--live',
+        '--samples',
+        '1',
+        '--warmups',
+        '0',
+      ],
+      { env: { ...process.env, PLAYWRIGHT_CLI_BIN: cli, PLAYWRIGHT_RESOURCE_LOCK_DIR: lock, FAKE_CLI_STATE: directory }, stdio: 'ignore' },
+    );
+    const exited = new Promise((resolve) => child.on('exit', (code, killedBy) => resolve({ code, signal: killedBy })));
+    for (let i = 0; i < 200 && !existsSync(events); i++) await delay(50);
+    assert.ok(existsSync(events), 'the retained driver never started opening');
+    child.kill('SIGTERM');
+    const result = await exited;
+    // An open the helper did not wait for keeps running after it exits; let it finish so a late browser start is logged.
+    for (let i = 0; i < 60 && !(await readFile(events, 'utf8')).includes('open-done'); i++) await delay(50);
+    const session = `jev-legacy-${child.pid}`;
+    assert.deepEqual((await readFile(events, 'utf8')).trim().split('\n'), ['open-start', `open-done ${session}`, `close ${session}`]);
+    assert.equal(existsSync(lock), false);
+    assert.deepEqual([result.code, result.signal], [143, null]);
+  } finally {
+    if (child?.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 function fixtureDriver(extra = {}) {
   let stage = 0,
