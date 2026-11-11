@@ -33,9 +33,14 @@ const output = path.resolve(packageRoot, options.output || `.react-perf/${comman
 await mkdir(output, { recursive: true, mode: 0o700 });
 const report = { schemaVersion: 1, command, cpu, samples, viewport: { width: 1280, height: 900 }, output, startedAt: new Date().toISOString(), cases: [], ok: false };
 const abort = new AbortController();
-const interrupt = () => abort.abort(new Error('Profiling interrupted'));
-process.once('SIGINT', interrupt);
-process.once('SIGTERM', interrupt);
+// Stay subscribed for repeated signals: a second Ctrl-C would otherwise kill Node before the
+// finally blocks close the owned browser, stop the server and release the machine-wide slot.
+const interrupt = () => {
+  process.stderr.write('[perf] Interrupted; stopping at the next step and cleaning up the owned browser and server\n');
+  abort.abort(new Error('Profiling interrupted'));
+};
+process.on('SIGINT', interrupt);
+process.on('SIGTERM', interrupt);
 const safeName = (name) => name.replace(/[^a-z0-9._-]/gi, '-');
 
 async function runCase(browser, target, scenario, origin, sample) {
@@ -190,6 +195,7 @@ try {
     if (command === 'selftest' || command === 'check') {
       process.stderr.write('[perf] Validating collector against React compatibility fixtures\n');
       report.selftest = await runSelftest(browser, packageRoot);
+      abort.signal.throwIfAborted();
       if (command === 'selftest') return;
     }
     const config = (await import('./config.mjs')).default;
