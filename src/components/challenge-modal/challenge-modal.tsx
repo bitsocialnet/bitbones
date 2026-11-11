@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useState, type ChangeEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './challenge-modal.module.css';
 import useChallenges, { type PendingChallenge } from '../../hooks/use-challenges';
@@ -51,6 +51,12 @@ const Challenge = ({ challenge, closeModal, abandonModal }: ChallengeProps) => {
     if (challenges[currentChallengeIndex + 1]) setCurrentChallengeIndex((prev) => prev + 1);
     else onSubmit();
   };
+  // the next queued challenge renders its cancel button in the same place, so the second click of
+  // a double click would cancel that challenge too and delete its pending comment
+  const onCancel = (e: MouseEvent<HTMLButtonElement>) => {
+    if (e.detail > 1) return;
+    abandonModal();
+  };
 
   let challengeComponent;
   if (challenges[currentChallengeIndex].type === 'image/png') {
@@ -98,7 +104,7 @@ const Challenge = ({ challenge, closeModal, abandonModal }: ChallengeProps) => {
           {currentChallengeIndex + 1} of {challenges?.length}
         </div>
         <span>
-          {!challenges[currentChallengeIndex - 1] && <button onClick={() => abandonModal()}>cancel</button>}
+          {!challenges[currentChallengeIndex - 1] && <button onClick={onCancel}>cancel</button>}
           {challenges[currentChallengeIndex - 1] && <button onClick={() => setCurrentChallengeIndex((prev) => prev - 1)}>previous</button>}
           {challenges[currentChallengeIndex + 1] && <button onClick={() => setCurrentChallengeIndex((prev) => prev + 1)}>next</button>}
           {!challenges[currentChallengeIndex + 1] && <button onClick={onSubmit}>submit</button>}
