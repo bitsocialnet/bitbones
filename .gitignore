@@ -56,6 +56,9 @@ release-body.txt
 # claude code local config
 .claude/settings.local.json
 
+# Cursor local config
+/.cursor/
+
 # git worktrees created inside the repo by agent workflows
 .claude/worktrees/
 .vercel
