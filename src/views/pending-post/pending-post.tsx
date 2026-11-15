@@ -58,7 +58,10 @@ function Post() {
   } catch (e) {}
 
   // scroll to top on first load
-  useEffect(() => window.scrollTo(0, 0), []);
+  // braces matter: window.scrollTo returns a Promise in current Chrome, and an effect that returns one breaks unmount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   // redirect to post when post.cid is received, or to parent post if post is a reply
   useEffect(() => {

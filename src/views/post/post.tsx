@@ -244,10 +244,15 @@ function Post() {
 
   // keep track of unread reply counts
   const [, setRepliesToRead] = useUnreadReplyCount(post);
-  useEffect(() => setRepliesToRead(), [post?.replyCount, setRepliesToRead]);
+  useEffect(() => {
+    setRepliesToRead();
+  }, [post?.replyCount, setRepliesToRead]);
 
   // scroll to top on first load
-  useEffect(() => window.scrollTo(0, 0), []);
+  // braces matter: window.scrollTo returns a Promise in current Chrome, and an effect that returns one breaks unmount
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   let scoreNumber: string | number = post?.upvoteCount - post?.downvoteCount;
   const negativeScoreNumber = scoreNumber < 0;
