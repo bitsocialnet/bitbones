@@ -115,6 +115,11 @@ export default {
       // Copy build folder to temp folder with correct name
       await fsPromises.cp(buildFolder, tempFolder, { recursive: true });
 
+      // bitsocial-cli reads the manifest inside the archive to check the web UI is the release it
+      // pinned. The copy next to the archive is published as its own release asset.
+      const { generateReleaseManifest } = await import('./scripts/generate-release-manifest.mjs');
+      await generateReleaseManifest({ buildDir: buildFolder, outDirs: [tempFolder, path.resolve('.', 'out', 'make')] });
+
       // Create zip from parent directory so folder name is included
       const result = spawnSync('zip', ['-r', `${folderName}.zip`, folderName], {
         cwd: path.resolve('.', 'out', 'make'),

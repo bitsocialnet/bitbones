@@ -100,7 +100,7 @@ jobs:
             sleep 5
             [ "$i" = "3" ] && exit 1
           done
-      # forge.config.js's postMake hook also produces the static html archive on linux
+      # forge.config.js's postMake hook also produces the static html archive and its release manifest on linux
       - name: Build Electron app for Linux
         run: yarn electron:make:linux
       - run: ls -la out/make/AppImage/x64/ out/make/
@@ -120,6 +120,11 @@ jobs:
           [ -n "$HTML_ZIP_PATH" ] || exit 1
           cp "$APPIMAGE_PATH" "release-assets/bitbones-${VERSION}-x64.AppImage"
           cp "$HTML_ZIP_PATH" "release-assets/bitbones-html-${VERSION}.zip"
+          # bitsocial-cli rejects a web UI whose archive has no manifest for the pinned release tag
+          unzip -p "$HTML_ZIP_PATH" "bitbones-html-${VERSION}/bitbones-release-manifest.json" > archived-manifest.json
+          node -e "const m = require('./archived-manifest.json'); if (m.releaseTag !== process.env.GITHUB_REF_NAME) { console.error('::error::manifest releaseTag ' + m.releaseTag + ' is not ' + process.env.GITHUB_REF_NAME); process.exit(1); }"
+          cmp archived-manifest.json out/make/bitbones-release-manifest.json
+          cp out/make/bitbones-release-manifest.json release-assets/bitbones-release-manifest.json
           ls -la release-assets
       - uses: actions/upload-artifact@v4
         with:
