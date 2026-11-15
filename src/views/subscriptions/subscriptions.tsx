@@ -62,7 +62,8 @@ function Subscriptions() {
   }, [sortType]);
   const lastVirtuosoState = lastVirtuosoStates?.[sortType];
 
-  const hookCall = `useFeed({\n  communities: [${communities.length}],\n  sortType: '${sortType}',\n  postsPerPage: 10,\n  newerThan: ${timeFilterSeconds}\n})`;
+  // the 'all' time filter leaves newerThan out of the call
+  const hookCall = `useFeed({\n  communities: [${communities.length}],\n  sortType: '${sortType}',\n  postsPerPage: 10${timeFilterSeconds ? `,\n  newerThan: ${timeFilterSeconds}` : ''}\n})`;
 
   return (
     <Panes
