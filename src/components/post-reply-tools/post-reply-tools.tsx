@@ -17,7 +17,7 @@ interface MenuProps {
 }
 
 const Menu = ({ reply, onPublished }: MenuProps) => {
-  const { content, setContent, resetContent, replyIndex, publishReply } = useReply(reply);
+  const { content, setContent, resetContent, replyIndex, publishing, publishReply } = useReply(reply);
 
   const onPublish = () => {
     if (!content) {
@@ -54,7 +54,7 @@ const Menu = ({ reply, onPublished }: MenuProps) => {
         />
       </div>
       <div className={styles.submitButtonWrapper}>
-        <button onClick={onPublish} className={styles.submitButton}>
+        <button onClick={onPublish} disabled={publishing} className={styles.submitButton}>
           reply
         </button>
       </div>
