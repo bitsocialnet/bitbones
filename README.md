@@ -4,11 +4,21 @@
 
 # bitbones
 
-bitbones is a bare bones GUI client for the [Bitsocial protocol](https://bitsocial.net) — the smallest useful surface over [`@bitsocial/bitsocial-react-hooks`](https://github.com/bitsocialnet/bitsocial-react-hooks). It exists to make the protocol legible: almost no styling, no product opinions, and every view a thin wrapper over one hook, so it is the fastest place to reproduce a bug or try a hooks change against real communities.
+bitbones is a developer client for the [Bitsocial protocol](https://bitsocial.net). It works like a browser's devtools for Bitsocial: every view is a thin wrapper over [`@bitsocial/bitsocial-react-hooks`](https://github.com/bitsocialnet/bitsocial-react-hooks), and it shows the hook call and the protocol data behind what you see, so it is the fastest place to reproduce a bug, watch a community load, or try a hooks change against real communities.
 
 - Web version: https://bitbones.app
 - Desktop version (full p2p bitsocial node, seeds automatically): available for Mac/Windows/Linux, [download from the release page](https://github.com/bitsocialnet/bitbones/releases/latest)
 - Mobile version: available for Android, [download from the release page](https://github.com/bitsocialnet/bitbones/releases/latest)
+
+## What it shows
+
+- **Three panes.** The left pane lists the communities behind the current feed, each with the age of its last update or its loading state, and the `useFeed` call that built the feed. On community and post pages it shows the community, its rules and its record (`publicKey`, `updatedAt`, `protocolVersion`, challenges, roles, client states). The right pane inspects whatever post or reply you click: its fields, which clients are working on it, and the raw JSON. With nothing clicked it shows the `useFeed` result.
+- **Verbose mode** (topbar toggle, on by default) adds one line under each post and reply: short cid, protocol version, signature type, update age and votes.
+- **Media** is collapsed behind `[+]` by default. The **expand media** toggle in the topbar expands or collapses everything at once and is remembered for new posts; a single `[+]`/`[−]` still overrides it.
+- **`/stats`** tables `useCommunityStats` (active users, posts and replies per hour, day, week, month, year or all time) for the default list and your subscriptions, plus `useCommunitiesStates` and the client urls from `pkcOptions`.
+- **`/log`** records the pkc-js and hooks debug logs (trace level excluded) and shows them in the app instead of the browser console, with filters and search. Recording is off by default, survives reloads until stopped, and redacts fields that look like secrets.
+- **Themes** are one block of CSS variables each in [`src/themes.css`](src/themes.css): dark (the default), light, auto, classic (the original verdana look), none (browser defaults), term and contrast. Settings also takes custom CSS, applied after the theme.
+- The status bar shows the active account, how many clients of each kind `pkcOptions` lists, and the pkc-js, hooks and bitbones versions.
 
 ## Switching default community lists
 
@@ -17,7 +27,7 @@ bitbones does not curate its own default communities. The feed reads whichever c
 - **seedit** — [`seedit-default-subscriptions.json`](https://github.com/bitsocialnet/lists/blob/master/seedit-default-subscriptions.json), the exact communities new Seedit accounts subscribe to.
 - **5chan** — [`5chan-directories/`](https://github.com/bitsocialnet/lists/tree/master/5chan-directories), resolved the way 5chan resolves it: one winning board per directory code, ranked by score, then by when it was added, then by address.
 
-The switch sits at the left of the menu bar on the `p/all` feed and shows both client marks, the active one lit. The selection persists in `localStorage` under `bitbonesDefaultList`. Both lists are also vendored into `src/data/` at build time by `yarn sync:lists`, so bitbones still has a feed when GitHub is unreachable.
+The switch sits at the top of the communities pane on the `p/all` feed and shows both client marks, the active one lit. The selection persists in `localStorage` under `bitbonesDefaultList`. Both lists are also vendored into `src/data/` at build time by `yarn sync:lists`, so bitbones still has a feed when GitHub is unreachable.
 
 seedit is the default because its list is 10 communities against 5chan's 64, and every extra community is another name resolution and page fetch on a cold peer-to-peer start.
 

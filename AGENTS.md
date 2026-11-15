@@ -8,7 +8,7 @@ Define completion for non-trivial work and continue through implementation, appr
 
 ## Product and source of truth
 
-bitbones is a bare bones GUI client for the Bitsocial protocol. Its minimalism is the product: every view should keep the protocol hook and result legible, without unrelated styling opinions or product features. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
+bitbones is a developer client for the Bitsocial protocol, like devtools for it. Legibility is the product: every view stays a thin wrapper over a protocol hook and shows the hook call and the data behind it (panes, inspector, verbose lines, `/stats`, `/log`). Keep the UI dense and functional, style only through the theme tokens in `src/themes.css`, and add no product features unrelated to inspecting the protocol. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
 
 Source, manifests, tests, docs, and runtime evidence establish behavior. AGENTS, skills, playbooks, task logs, and generated `llms*.txt` orient the agent; verify technical claims against source. Check the installed dependency version before assuming a sibling repository provides its implementation.
 

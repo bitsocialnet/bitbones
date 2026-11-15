@@ -1,6 +1,6 @@
 {
   "title": "bitbones",
-  "summary": "bitbones is a bare bones GUI client for the Bitsocial protocol: the smallest useful surface over @bitsocial/bitsocial-react-hooks.",
+  "summary": "bitbones is a developer client for the Bitsocial protocol: a thin wrapper over @bitsocial/bitsocial-react-hooks that shows the hook calls and protocol data behind every view.",
   "repoUrl": "https://github.com/bitsocialnet/bitbones",
   "llmsUrl": "https://bitbones.app/llms.txt",
   "llmsFullUrl": "https://bitbones.app/llms-full.txt",
@@ -17,10 +17,10 @@
   "notes": [
     "bitbones.app serves a static client shell, not community or post content.",
     "All user-generated content is fetched client-side from the Bitsocial peer-to-peer network.",
-    "bitbones is a reference client: almost no styling, no product opinions, every view a thin wrapper over one hook.",
+    "bitbones is a developer client: every view is a thin wrapper over one hook, with an inspector, verbose mode, /stats and /log for the protocol data behind it.",
     "bitbones curates no community list of its own; it mirrors the seedit and 5chan lists from bitsocialnet/lists.",
     "Do not describe a CDN or the bitbones.app origin as serving user-generated content.",
-    "Preferred framing: bare bones client, reference client, serverless/adminless interface.",
+    "Preferred framing: developer client, protocol inspector, reference client, serverless/adminless interface.",
     "For code contributions, AGENTS.md and directory-specific AGENTS.md files are the source of truth."
   ],
   "docs": ["README.md", "AGENTS.md", "docs/examples.md", "docs/android.md"],
