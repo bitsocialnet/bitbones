@@ -10,6 +10,8 @@ import useUpvote from '../../hooks/use-upvote';
 import useDownvote from '../../hooks/use-downvote';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
+import useVerbose from '../../hooks/use-verbose';
+import { CommentDetails } from '../protocol-details';
 
 interface FeedPostMediaProps {
   mediaType: CommentMediaType | undefined;
@@ -133,6 +135,7 @@ const FeedPost = ({ post, updatedPost, index }: FeedPostProps) => {
   }
 
   const labels = useCommentLabels(updatedPost, editedPostState);
+  const [verbose] = useVerbose();
 
   const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-';
 
@@ -204,6 +207,7 @@ const FeedPost = ({ post, updatedPost, index }: FeedPostProps) => {
               {updatedPost?.replyCount || 0} comments <span className={styles.unreadReplyCount}>{unreadReplyCountText}</span>
             </Link>
           </div>
+          {verbose && <CommentDetails comment={post} updatedComment={updatedPost} />}
         </div>
       </div>
       <div className={hidden || post?.removed ? styles.hidden : undefined}>

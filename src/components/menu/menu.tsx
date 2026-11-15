@@ -8,8 +8,9 @@ import GoToCommunityModal from './go-to-community-modal';
 import DefaultListSwitch from './default-list-switch';
 import { useTranslation } from 'react-i18next';
 import useTimeFilter from '../../hooks/use-time-filter';
+import useVerbose from '../../hooks/use-verbose';
 
-const pages = new Set(['profile', 'settings', 'communities', 'about', 'inbox', 'u']);
+const pages = new Set(['profile', 'settings', 'communities', 'about', 'inbox', 'u', 'stats']);
 const defaultFeeds = new Set(['all', 'subscriptions']);
 
 const PostMenu = () => {
@@ -35,6 +36,7 @@ const PostMenu = () => {
 const Menu = () => {
   const { timeFilterNames } = useTimeFilter();
   const [goToCommunityModalIsOpen, setGoToCommunityModalIsOpen] = useState(false);
+  const [verbose, setVerbose] = useVerbose();
   const navigate = useNavigate();
   const params = useParams<{ commentCid?: string; sortType?: string; timeFilterName?: string }>();
   const { pathname, key } = useLocation();
@@ -123,6 +125,17 @@ const Menu = () => {
           <Link to={showCatalogLink ? catalogLink : feedLink} className={styles.menuItem}>
             {showCatalogLink ? 'catalog' : 'feed'}
           </Link>{' '}
+          {pathNames[1] !== 'stats' ? (
+            <>
+              <Link to='/stats' className={styles.menuItem}>
+                stats
+              </Link>{' '}
+            </>
+          ) : undefined}
+          <label className={[styles.menuItem, styles.verbose].join(' ')} title='show the protocol data behind each view'>
+            <input type='checkbox' checked={verbose} onChange={(event) => setVerbose(event.target.checked)} />
+            verbose
+          </label>{' '}
           <Submit className={styles.menuItem} /> <AccountMenu className={styles.menuItem} />
         </span>
 

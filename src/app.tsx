@@ -15,6 +15,7 @@ import PendingPost from './views/pending-post';
 import NotFound from './views/not-found';
 import Profile from './views/profile';
 import About from './views/about';
+import Stats from './views/stats';
 import Inbox from './views/inbox';
 import Author from './views/author';
 import Communities from './views/communities';
@@ -84,6 +85,7 @@ function App() {
           <Route path='/settings' element={<Settings />} />
           <Route path='/communities' element={<Communities />} />
           <Route path='/about' element={<About />} />
+          <Route path='/stats/:period?' element={<Stats />} />
 
           {/* author post history page */}
           <Route path='/u/:authorAddress/c/:commentCid?' element={<Author />} />

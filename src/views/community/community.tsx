@@ -4,6 +4,8 @@ import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
+import { CommunityDetails, FeedDetails } from '../../components/protocol-details';
+import useVerbose from '../../hooks/use-verbose';
 import { useParams } from 'react-router-dom';
 import styles from './community.module.css';
 import { Link } from 'react-router-dom';
@@ -47,6 +49,7 @@ const CommunityInfo = ({ communityAddress }: CommunityInfoProps) => {
   const stats = useCommunityStats(communityIdentifier ? { community: communityIdentifier } : undefined);
   const { subscribed, subscribe, unsubscribe } = useSubscribe({ communityAddress });
   const toggleSubscribe = () => (!subscribed ? subscribe() : unsubscribe());
+  const [verbose] = useVerbose();
 
   let description = community?.title || '';
   if (community?.description) {
@@ -74,6 +77,7 @@ const CommunityInfo = ({ communityAddress }: CommunityInfoProps) => {
         </div>
         <div className={styles.stats}>{stats.hourActiveUserCount} users here now</div>
       </div>
+      {verbose && <CommunityDetails community={community} />}
       {description && <div className={styles.description}>{description}</div>}
       {community.rules && (
         <ol className={styles.rules}>
@@ -103,7 +107,9 @@ function Community() {
   // single sub feeds only need time filter for sort type top and controversial
   const newerThan = sortType === 'topAll' || sortType === 'controversialAll' ? timeFilterSeconds : undefined;
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, newerThan, accountComments }) as FeedResult;
+  const feedResult = useFeed({ communities, sortType, newerThan, accountComments }) as FeedResult;
+  const { feed, updatedFeed, hasMore, loadMore } = feedResult;
+  const [verbose] = useVerbose();
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
   let Footer;
@@ -137,6 +143,7 @@ function Community() {
   return (
     <div>
       <CommunityInfo communityAddress={communityAddress} />
+      {verbose && <FeedDetails feedResult={feedResult} communityCount={communities.length} sortType={sortType} newerThan={newerThan} stateString={loadingStateString} />}
       <Virtuoso
         increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={feed?.length || 0}

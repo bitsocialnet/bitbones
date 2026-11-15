@@ -17,6 +17,8 @@ import useCommentLabels from '../../hooks/use-comment-labels';
 import useStateString from '../../hooks/use-state-string';
 import ReplyMedia from './reply-media';
 import Embed, { canEmbed } from '../../components/embed';
+import { CommentDetails } from '../../components/protocol-details';
+import useVerbose from '../../hooks/use-verbose';
 
 interface AuthorAvatarProps {
   comment?: Comment;
@@ -97,6 +99,7 @@ const Reply = ({ reply, updatedReply, depth, isLast }: ReplyProps) => {
   const publishingStateString = useStateString(state === 'pending' && accountReply);
 
   const labels = useCommentLabels(reply, editedReplyState);
+  const [verbose] = useVerbose();
 
   const _loadMore = (event: MouseEvent<HTMLSpanElement>) => {
     event.stopPropagation(); // don't trigger the reply typing modal
@@ -148,6 +151,7 @@ const Reply = ({ reply, updatedReply, depth, isLast }: ReplyProps) => {
             )}
           </div>
 
+          {verbose && <CommentDetails comment={reply} updatedComment={updatedReply} compact={true} />}
           {useRepliesOptions.flat && reply.depth > 1 && <ReplyQuote commentCid={reply.parentCid} />}
           <span className={styles.replyContent}>{reply?.content?.trim?.()}</span>
           <ReplyMedia reply={reply} />
@@ -262,6 +266,7 @@ function Post() {
   }
 
   const labels = useCommentLabels(post, editedPostState);
+  const [verbose] = useVerbose();
 
   const stateString = useStateString(post);
 
@@ -333,6 +338,7 @@ function Post() {
               {post?.communityAddress}
             </Link>
           </div>
+          {verbose && <CommentDetails comment={post} />}
           <div className={styles.footer}>
             <span className={[styles.replyCount, styles.button].join(' ')}>{post?.replyCount} comments</span>
             <span className={styles.button}>

@@ -1,0 +1,65 @@
+.stats {
+  font-size: 12px;
+  padding: 4px 2px 24px 2px;
+}
+
+.periods {
+  margin: 2px 0 0 0;
+}
+
+.periods a {
+  text-decoration: underline;
+}
+
+.heading {
+  font-size: 13px;
+  color: var(--light1);
+  margin: 16px 0 4px 0;
+}
+
+.hook {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--light2);
+}
+
+/* wide tables scroll inside their box on phones instead of the page */
+.tableWrapper {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  font-weight: normal;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+  padding: 2px 12px 2px 0;
+  border-bottom: 1px solid var(--dark3);
+}
+
+.table td {
+  white-space: nowrap;
+  padding: 2px 12px 2px 0;
+  border-bottom: 1px solid var(--dark2);
+  vertical-align: top;
+}
+
+.table td a {
+  color: var(--light1);
+}
+
+.table .number {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.table .wrap {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

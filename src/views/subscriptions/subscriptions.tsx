@@ -4,6 +4,8 @@ import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
+import { FeedDetails } from '../../components/protocol-details';
+import useVerbose from '../../hooks/use-verbose';
 import { useParams } from 'react-router-dom';
 import useFeedStateString from '../../hooks/use-feed-state-string';
 import useTimeFilter from '../../hooks/use-time-filter';
@@ -24,7 +26,9 @@ function Subscriptions() {
   const sortType = params?.sortType || 'hot';
   const { timeFilterSeconds } = useTimeFilter();
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
+  const feedResult = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
+  const { feed, updatedFeed, hasMore, loadMore } = feedResult;
+  const [verbose] = useVerbose();
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
   let Footer;
@@ -56,6 +60,9 @@ function Subscriptions() {
 
   return (
     <div>
+      {verbose && (
+        <FeedDetails feedResult={feedResult} communityCount={communities.length} sortType={sortType} newerThan={timeFilterSeconds} stateString={loadingStateString} />
+      )}
       <Virtuoso
         increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={feed?.length || 0}
