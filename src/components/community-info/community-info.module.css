@@ -1,0 +1,74 @@
+.header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.names {
+  min-width: 0;
+}
+
+.address {
+  display: block;
+  color: var(--fg);
+  font-weight: bold;
+  overflow-wrap: anywhere;
+}
+
+.title {
+  color: var(--dim);
+}
+
+.actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 8px 0 4px 0;
+}
+
+.actions button {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font: inherit;
+  padding: 1px 10px;
+  cursor: pointer;
+}
+
+.actions button:hover {
+  border-color: var(--fg);
+}
+
+.actions a {
+  color: var(--link);
+}
+
+.counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  color: var(--dim);
+}
+
+.description {
+  margin: 8px 0 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rules {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--dim);
+}
+
+.rules li {
+  margin-bottom: 3px;
+}

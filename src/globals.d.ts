@@ -36,8 +36,6 @@ declare global {
     // exposed by electron/preload.js, and settable from src/main.tsx for local experiments
     defaultPkcOptions?: Record<string, unknown>;
     pkcRpcAuthKey?: string;
-    // guards the one-time sticky-menu scroll listener in src/components/menu/menu.tsx
-    STICKY_MENU_SCROLL_LISTENER?: boolean;
     // set by the profiler via addInitScript before the app loads, to suppress the Agentation toolbar
     __PROFILING__?: boolean;
     // element-source bridge used by the `inspect-elements` skill

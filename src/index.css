@@ -1,15 +1,14 @@
 html, body {
-  /* no horizontal scrolling */
+  /* no horizontal scrolling. clip, not hidden: hidden makes body a scroll container and breaks the sticky panes */
   max-width: 100%;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
-  /* reset margin */
   margin: 0;
 
   /* put background color in body to fix white flash when scrolling too fast */
-  background-color: var(--dark1);
+  background-color: var(--bg);
 }
 
 /* remove default link styles */
@@ -18,9 +17,14 @@ a {
   text-decoration: unset;
 }
 
-/* remove outlines on focus */
-select:focus, input:focus, textarea:focus, video:focus, a:focus {
+/* keyboard focus stays visible, mouse focus does not */
+:focus {
   outline: 0;
+}
+
+:focus-visible {
+  outline: 1px solid var(--link);
+  outline-offset: 1px;
 }
 
 @supports (-webkit-overflow-scrolling: touch) {

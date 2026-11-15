@@ -1,139 +1,144 @@
 /*
-  every theme is one block of variables, components read nothing else.
+  every theme is one block of tokens, components read nothing else.
   the class is set on .app and on body by app.tsx.
+
+  --bg       page
+  --bg2      panels, hover, code
+  --border   pane and row separators
+  --fg       text
+  --dim      secondary text, field names (4.5:1 on --bg)
+  --link     links and the selected state
+  --warn     loading and retrying states
+  --error    failed states
+  --sel      selected row background
 */
 
-/* no theme */
-:root {
-  --dark1: black;
-  --dark1b: black;
-  --dark2: black;
-  --dark3: black;
-  --light1: white;
-  --light2: white;
-  --red1: red;
-  --red2: red;
-  --orange1: orange;
-  --orange2: orange;
-  --font: verdana, arial, helvetica, sans-serif;
+/* dark, the default */
+.dark,
+.auto {
+  --bg: #111111;
+  --bg2: #191919;
+  --border: #2a2a2a;
+  --fg: #e2e2e2;
+  --dim: #9a9a9a;
+  --link: #9ecbff;
+  --warn: #e3a35b;
+  --error: #ff7b72;
+  --sel: #1f2a36;
+  --font: ui-monospace, menlo, consolas, monospace;
   --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: dark;
 }
 
-/* dark mode theme, also auto when the OS is dark */
-:root .dark,
-:root .auto {
-  --dark1: #181818;
-  --dark1b: #161616;
-  --dark2: #212121;
-  --dark3: #3d3d3d;
-  --light1: #f1f1f1;
-  --light2: #aaaaaa;
-  --red1: #ad3636;
-  --red2: #492121;
-  --orange1: #b2832d;
-  --orange2: #3a301d;
+.light {
+  --bg: #fbfbf9;
+  --bg2: #f0f0ec;
+  --border: #d9d9d3;
+  --fg: #1d1d1f;
+  --dim: #5f5f5f;
+  --link: #0b55b4;
+  --warn: #8a4a00;
+  --error: #b3261e;
+  --sel: #e3ecf7;
+  --font: ui-monospace, menlo, consolas, monospace;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: light;
+}
+
+/* auto follows the OS */
+@media (prefers-color-scheme: light) {
+  .auto {
+    --bg: #fbfbf9;
+    --bg2: #f0f0ec;
+    --border: #d9d9d3;
+    --fg: #1d1d1f;
+    --dim: #5f5f5f;
+    --link: #0b55b4;
+    --warn: #8a4a00;
+    --error: #b3261e;
+    --sel: #e3ecf7;
+    color-scheme: light;
+  }
+}
+
+/* the original bitbones look: verdana on dark grey */
+.classic {
+  --bg: #181818;
+  --bg2: #212121;
+  --border: #3d3d3d;
+  --fg: #f1f1f1;
+  --dim: #aaaaaa;
+  --link: #f1f1f1;
+  --warn: #b2832d;
+  --error: #e06c6c;
+  --sel: #2a2a2a;
   --font: verdana, arial, helvetica, sans-serif;
   --font-mono: ui-monospace, menlo, consolas, monospace;
   color-scheme: dark;
 }
 
-/* light mode theme, also auto when the OS is light */
-:root .light {
-  --dark1: #f9faf2;
-  --dark1b: #f2f4ee;
-  --dark2: #edf1eb;
-  --dark3: #cccccc;
-  --light1: #0e4861;
-  --light2: #3b3b3b;
-  --red1: darkred;
-  --red2: #a0312f;
-  --orange1: darkorange;
-  --orange2: #fda83d;
-  --font: verdana, arial, helvetica, sans-serif;
-  --font-mono: ui-monospace, menlo, consolas, monospace;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: light) {
-  :root .auto {
-    --dark1: #f9faf2;
-    --dark1b: #f2f4ee;
-    --dark2: #edf1eb;
-    --dark3: #cccccc;
-    --light1: #0e4861;
-    --light2: #3b3b3b;
-    --red1: darkred;
-    --red2: #a0312f;
-    --orange1: darkorange;
-    --orange2: #fda83d;
-    color-scheme: light;
-  }
-}
-
-/* browser defaults: system colors and the default font, follows the OS light/dark setting */
-:root .none {
-  --dark1: Canvas;
-  --dark1b: Canvas;
-  --dark2: Canvas;
-  --dark3: GrayText;
-  --light1: LinkText;
-  --light2: CanvasText;
-  --red1: red;
-  --red2: red;
-  --orange1: darkorange;
-  --orange2: darkorange;
+/* browser defaults: system colors and the default font */
+.none {
+  --bg: Canvas;
+  --bg2: Canvas;
+  --border: GrayText;
+  --fg: CanvasText;
+  --dim: GrayText;
+  --link: LinkText;
+  --warn: darkorange;
+  --error: red;
+  --sel: Highlight;
   --font: initial;
   --font-mono: monospace;
   color-scheme: light dark;
 }
 
-/* black on white, monospace */
-:root .mono {
-  --dark1: #ffffff;
-  --dark1b: #f4f4f4;
-  --dark2: #eeeeee;
-  --dark3: #999999;
-  --light1: #000000;
-  --light2: #333333;
-  --red1: #b00000;
-  --red2: #b00000;
-  --orange1: #8a4b00;
-  --orange2: #8a4b00;
-  --font: ui-monospace, menlo, consolas, monospace;
-  --font-mono: ui-monospace, menlo, consolas, monospace;
-  color-scheme: light;
-}
-
-/* white on black, monospace */
-:root .term {
-  --dark1: #000000;
-  --dark1b: #0a0a0a;
-  --dark2: #141414;
-  --dark3: #3a3a3a;
-  --light1: #ffffff;
-  --light2: #c7c7c7;
-  --red1: #ff6b6b;
-  --red2: #ff6b6b;
-  --orange1: #e3a35b;
-  --orange2: #e3a35b;
+.term {
+  --bg: #000000;
+  --bg2: #0d0d0d;
+  --border: #262626;
+  --fg: #d0d0d0;
+  --dim: #8f8f8f;
+  --link: #ffffff;
+  --warn: #e3a35b;
+  --error: #ff6b6b;
+  --sel: #1c1c1c;
   --font: ui-monospace, menlo, consolas, monospace;
   --font-mono: ui-monospace, menlo, consolas, monospace;
   color-scheme: dark;
 }
 
-/* high contrast */
-:root .contrast {
-  --dark1: #000000;
-  --dark1b: #000000;
-  --dark2: #1a1a1a;
-  --dark3: #ffffff;
-  --light1: #ffe14d;
-  --light2: #ffffff;
-  --red1: #ff8080;
-  --red2: #ff8080;
-  --orange1: #ffb347;
-  --orange2: #ffb347;
+.contrast {
+  --bg: #000000;
+  --bg2: #000000;
+  --border: #ffffff;
+  --fg: #ffffff;
+  --dim: #d6d6d6;
+  --link: #ffe14d;
+  --warn: #ffb347;
+  --error: #ff8080;
+  --sel: #333300;
   --font: verdana, arial, helvetica, sans-serif;
   --font-mono: ui-monospace, menlo, consolas, monospace;
   color-scheme: dark;
+}
+
+/* names the older component styles still use, declared on the themed element so they resolve per theme */
+.dark,
+.auto,
+.light,
+.classic,
+.none,
+.term,
+.contrast {
+  --dark1: var(--bg);
+  --dark1b: var(--bg2);
+  --dark2: var(--bg2);
+  --dark3: var(--border);
+  --light1: var(--fg);
+  --light2: var(--dim);
+  --red1: var(--error);
+  --red2: var(--error);
+  --orange1: var(--warn);
+  --orange2: var(--warn);
 }

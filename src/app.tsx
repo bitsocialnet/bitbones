@@ -24,8 +24,9 @@ import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import styles from './app.module.css';
 import useTheme, { useCustomCss } from './hooks/use-theme';
 import { useEffect } from 'react';
-import Menu from './components/menu';
-import Footer from './components/footer';
+import Topbar from './components/topbar';
+import StatusBar from './components/status-bar';
+import Log from './views/log';
 import ChallengeModal from './components/challenge-modal';
 import PKC from '@pkcprotocol/pkc-js';
 
@@ -50,12 +51,14 @@ function App() {
   }, [unreadNotificationCount]);
 
   const layout = (
-    <div>
+    <>
       <ChallengeModal />
-      <Menu />
-      <Outlet />
-      <Footer />
-    </div>
+      <Topbar />
+      <main className={styles.main}>
+        <Outlet />
+      </main>
+      <StatusBar />
+    </>
   );
 
   return (
@@ -86,6 +89,7 @@ function App() {
           <Route path='/communities' element={<Communities />} />
           <Route path='/about' element={<About />} />
           <Route path='/stats/:period?' element={<Stats />} />
+          <Route path='/log' element={<Log />} />
 
           {/* author post history page */}
           <Route path='/u/:authorAddress/c/:commentCid?' element={<Author />} />

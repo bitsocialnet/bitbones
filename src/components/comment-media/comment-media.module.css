@@ -1,0 +1,30 @@
+.commentMedia {
+  margin-top: 3px;
+}
+
+.toggle {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.toggle:hover {
+  text-decoration: underline;
+}
+
+.media {
+  margin-top: 4px;
+}
+
+.media img,
+.media video {
+  display: block;
+  max-width: 100%;
+  /* a preview, the image links to full size */
+  max-height: 360px;
+  background-color: var(--bg2);
+}

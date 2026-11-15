@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export const themes = ['auto', 'dark', 'light', 'none', 'mono', 'term', 'contrast'] as const;
+export const themes: string[] = ['dark', 'light', 'auto', 'classic', 'none', 'term', 'contrast'];
 
 const readStorage = (key: string): string | null => {
   try {
@@ -24,7 +24,8 @@ interface ThemeState {
 }
 
 const useThemeStore = create<ThemeState>((setState) => ({
-  theme: readStorage('bitbonesTheme') || 'dark',
+  // a theme from an older version that no longer exists falls back to the default
+  theme: themes.find((theme) => theme === readStorage('bitbonesTheme')) || 'dark',
   customCss: readStorage('bitbonesCustomCss') || '',
   setTheme: (theme) => {
     writeStorage('bitbonesTheme', theme);

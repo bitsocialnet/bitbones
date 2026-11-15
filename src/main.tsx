@@ -1,3 +1,5 @@
+// first, so a protocol log recording resumes before pkc-js starts logging
+import './hooks/use-protocol-log';
 import { Profiler, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';

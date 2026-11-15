@@ -13,7 +13,7 @@
 
 .heading {
   font-size: 13px;
-  color: var(--light1);
+  color: var(--fg);
   margin: 16px 0 4px 0;
 }
 
@@ -21,7 +21,7 @@
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: normal;
-  color: var(--light2);
+  color: var(--dim);
 }
 
 /* wide tables scroll inside their box on phones instead of the page */
@@ -40,18 +40,18 @@
   font-size: 10px;
   white-space: nowrap;
   padding: 2px 12px 2px 0;
-  border-bottom: 1px solid var(--dark3);
+  border-bottom: 1px solid var(--border);
 }
 
 .table td {
   white-space: nowrap;
   padding: 2px 12px 2px 0;
-  border-bottom: 1px solid var(--dark2);
+  border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
 
 .table td a {
-  color: var(--light1);
+  color: var(--fg);
 }
 
 .table .number {
@@ -62,4 +62,8 @@
 .table .wrap {
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.table .loading {
+  color: var(--warn);
 }

@@ -7233,6 +7233,7 @@ __metadata:
     cross-env: "npm:7.0.3"
     cross-spawn: "npm:7.0.6"
     cz-conventional-changelog: "npm:3.3.0"
+    debug: "npm:4.4.3"
     electron: "npm:44.9.3"
     electron-context-menu: "npm:3.3.0"
     electron-is-dev: "npm:2.0.0"

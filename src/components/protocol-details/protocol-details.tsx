@@ -4,102 +4,100 @@ import type { Comment, Community, UseFeedResult } from '@bitsocial/bitsocial-rea
 import utils from '../../lib/utils';
 import styles from './protocol-details.module.css';
 
-// verbose mode blocks: print the protocol data a view was rendered from, field names as pkc-js names them
+// protocol data as tables, field names as pkc-js names them
 
-const getHost = (url: string): string => {
-  try {
-    return new URL(url).host || url;
-  } catch {
-    return url;
-  }
-};
+export const PaneHeading = ({ children }: { children: ReactNode }) => <h2 className={styles.heading}>{children}</h2>;
 
-const formatTime = (timestamp?: number) => (typeof timestamp === 'number' ? `${timestamp} (${utils.getFormattedTime(timestamp)})` : undefined);
-
-interface FieldProps {
+export interface Field {
   name: string;
   value?: ReactNode;
 }
 
-// skip empty values so a line only lists what the record actually has
-const Field = ({ name, value }: FieldProps) => {
-  if (value === undefined || value === null || value === '') {
+const hasValue = (value: ReactNode) => value !== undefined && value !== null && value !== '' && value !== false;
+
+// rows without a value are skipped, so a table only lists what the record has
+export const KeyValueTable = ({ fields }: { fields: Field[] }) => (
+  <table className={styles.kv}>
+    <tbody>
+      {fields
+        .filter(({ value }) => hasValue(value))
+        .map(({ name, value }) => (
+          <tr key={name}>
+            <th scope='row'>{name}</th>
+            <td>{value}</td>
+          </tr>
+        ))}
+    </tbody>
+  </table>
+);
+
+// '1794734400 (5 hours ago)'
+export const Timestamp = ({ timestamp }: { timestamp?: number }) => {
+  if (typeof timestamp !== 'number') {
     return null;
   }
   return (
-    <span className={styles.field}>
-      <span className={styles.name}>{name}</span> <span className={styles.value}>{value}</span>
-    </span>
+    <>
+      {timestamp} <span className={styles.dim}>({utils.getFormattedTime(timestamp)})</span>
+    </>
   );
 };
 
-interface ClientsStatesProps {
+interface ClientsStatesTableProps {
   comment?: Comment;
   community?: Community;
 }
 
 // which gateway, pubsub provider or name resolver is doing what for this record right now
-const ClientsStates = ({ comment, community }: ClientsStatesProps) => {
+export const ClientsStatesTable = ({ comment, community }: ClientsStatesTableProps) => {
   const { states, peers } = useClientsStates(comment ? { comment } : community ? { community } : undefined);
-  const parts: string[] = [];
+  const fields: Field[] = [];
   for (const state in states) {
     if (states[state]?.length) {
-      parts.push(`${state} ${states[state].map(getHost).join(', ')}`);
+      fields.push({ name: state, value: states[state].map(utils.getHost).join(', ') });
     }
   }
   let peerCount = 0;
   for (const clientUrl in peers) {
     peerCount += peers[clientUrl]?.length || 0;
   }
-  return (
-    <div>
-      <Field name='clients' value={parts.join(' · ') || 'idle'} />
-      <Field name='peers' value={peerCount || undefined} />
-    </div>
-  );
+  if (peerCount) {
+    fields.push({ name: 'peers', value: peerCount });
+  }
+  if (!fields.length) {
+    return <p className={styles.dim}>no client is working on it right now</p>;
+  }
+  return <KeyValueTable fields={fields} />;
 };
 
-const commentFlags = ['pinned', 'locked', 'archived', 'removed', 'deleted', 'spoiler', 'nsfw'];
-
-interface CommentDetailsProps {
+interface CommentLineProps {
   comment?: Comment;
   updatedComment?: Comment;
-  // replies skip the author/votes line and the client states subscription
-  compact?: boolean;
 }
 
-export const CommentDetails = ({ comment, updatedComment, compact }: CommentDetailsProps) => {
+// one mono line under a feed row or reply when verbose is on, the inspector has the rest
+export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
   if (!comment) {
     return null;
   }
   const updated = updatedComment || comment;
-  const flags = commentFlags.filter((flag) => updated?.[flag]).join(' ');
+  const parts: [string, ReactNode][] = [
+    ['cid', comment.cid ? utils.getShortCid(comment.cid) : `pending #${comment.index}`],
+    ['v', comment.protocolVersion],
+    ['sig', comment.signature?.type],
+    ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : 'none yet'],
+    ['votes', typeof updated.upvoteCount === 'number' ? `+${updated.upvoteCount} -${updated.downvoteCount || 0}` : undefined],
+    ['flags', utils.getCommentFlags(updated)],
+  ];
   return (
-    <div className={styles.details}>
-      <div>
-        <Field name='cid' value={comment.cid || (comment.index !== undefined ? `pending, account comment #${comment.index}` : undefined)} />
-        <Field name='depth' value={comment.depth} />
-        <Field name='protocolVersion' value={comment.protocolVersion} />
-        <Field name='signature' value={comment.signature?.type} />
-        <Field name='flags' value={flags} />
-        {compact && <Field name='updatedAt' value={updated.updatedAt ? utils.getFormattedTime(updated.updatedAt) : undefined} />}
-      </div>
-      {!compact && (
-        <>
-          <div>
-            <Field name='author.address' value={comment.author?.address} />
-            <Field name='timestamp' value={formatTime(comment.timestamp)} />
-          </div>
-          <div>
-            <Field name='updatedAt' value={formatTime(updated.updatedAt) || 'no update yet'} />
-            <Field name='upvoteCount' value={updated.upvoteCount} />
-            <Field name='downvoteCount' value={updated.downvoteCount} />
-            <Field name='replyCount' value={updated.replyCount} />
-            <Field name='link' value={comment.link} />
-          </div>
-          <ClientsStates comment={comment} />
-        </>
-      )}
+    <div className={styles.line}>
+      {parts
+        .filter(([, value]) => hasValue(value))
+        .map(([name, value]) => (
+          <span key={name} className={styles.part}>
+            <span className={styles.dim}>{name}</span> {value}
+          </span>
+        ))}
     </div>
   );
 };
@@ -113,32 +111,27 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
     return null;
   }
   // a challenge's type is the media type of what it asks for (text/plain, image/png, url/iframe)
-  const challengeTypes: string[] = [...new Set<string>(community.challenges?.map?.((challenge: { type?: string }) => challenge?.type) || [])];
-  const challenges = community.challenges?.length ? `${community.challenges.length} (${challengeTypes.join(', ')})` : undefined;
-  const roleCount = community.roles ? Object.keys(community.roles).length : undefined;
+  const challengeTypes = [...new Set<string>(community.challenges?.map?.((challenge: { type?: string }) => challenge?.type) || [])];
   return (
-    <div className={styles.details}>
-      <div>
-        <Field name='address' value={community.address} />
-        <Field name='publicKey' value={community.publicKey} />
-        <Field name='state' value={community.state} />
-        <Field name='updatingState' value={community.updatingState} />
-      </div>
-      <div>
-        <Field name='updatedAt' value={formatTime(community.updatedAt) || 'not loaded'} />
-        <Field name='createdAt' value={formatTime(community.createdAt)} />
-        <Field name='protocolVersion' value={community.protocolVersion} />
-        <Field name='encryption' value={community.encryption?.type} />
-      </div>
-      <div>
-        <Field name='challenges' value={challenges || (community.updatedAt ? 'none' : undefined)} />
-        <Field name='roles' value={roleCount} />
-        <Field name='pubsubTopic' value={community.pubsubTopic} />
-        <Field name='lastPostCid' value={community.lastPostCid} />
-        <Field name='statsCid' value={community.statsCid} />
-      </div>
-      <ClientsStates community={community} />
-    </div>
+    <>
+      <KeyValueTable
+        fields={[
+          { name: 'address', value: community.address },
+          { name: 'publicKey', value: community.publicKey },
+          { name: 'updatingState', value: community.updatingState },
+          { name: 'updatedAt', value: community.updatedAt ? <Timestamp timestamp={community.updatedAt} /> : undefined },
+          { name: 'createdAt', value: community.createdAt ? <Timestamp timestamp={community.createdAt} /> : undefined },
+          { name: 'protocolVersion', value: community.protocolVersion },
+          { name: 'encryption', value: community.encryption?.type },
+          { name: 'challenges', value: community.challenges?.length ? `${community.challenges.length} (${challengeTypes.join(', ')})` : undefined },
+          { name: 'roles', value: community.roles ? Object.keys(community.roles).length : undefined },
+          { name: 'lastPostCid', value: community.lastPostCid },
+          { name: 'statsCid', value: community.statsCid },
+        ]}
+      />
+      <PaneHeading>clients</PaneHeading>
+      <ClientsStatesTable community={community} />
+    </>
   );
 };
 
@@ -150,29 +143,27 @@ interface FeedDetailsProps {
   stateString?: string;
 }
 
-// summary of the useFeed call a feed view renders
+// the useFeed call behind a feed view and what it returned
 export const FeedDetails = ({ feedResult, communityCount, sortType, newerThan, stateString }: FeedDetailsProps) => {
   const { feed, bufferedFeed, hasMore, communityKeysWithMore, communityKeysWithUnavailableSort, communityKeysWithNewerPosts } = feedResult;
   return (
-    <div className={[styles.details, styles.feedDetails].join(' ')}>
-      <div>
-        <span className={styles.name}>useFeed</span> <Field name='communities' value={communityCount} />
-        <Field name='sortType' value={sortType} />
-        <Field name='newerThan' value={newerThan ? `${newerThan}s` : undefined} />
-        <Field name='feed' value={feed?.length || 0} />
-        <Field name='bufferedFeed' value={bufferedFeed?.length || 0} />
-        <Field name='hasMore' value={String(hasMore)} />
-      </div>
-      <div>
-        <Field name='communityKeysWithMore' value={communityKeysWithMore?.length || undefined} />
-        <Field name='communityKeysWithNewerPosts' value={communityKeysWithNewerPosts?.length || undefined} />
-        <Field name='communityKeysWithUnavailableSort' value={communityKeysWithUnavailableSort?.length ? communityKeysWithUnavailableSort.join(', ') : undefined} />
-      </div>
-      {hasMore && (
-        <div>
-          <Field name='states' value={stateString || 'loading...'} />
-        </div>
-      )}
-    </div>
+    <>
+      <PaneHeading>useFeed</PaneHeading>
+      <KeyValueTable
+        fields={[
+          { name: 'communities', value: communityCount },
+          { name: 'sortType', value: sortType },
+          { name: 'newerThan', value: newerThan ? `${newerThan}s` : 'unset' },
+          { name: 'feed', value: `${feed?.length || 0} posts` },
+          { name: 'bufferedFeed', value: `${bufferedFeed?.length || 0} posts` },
+          { name: 'hasMore', value: String(hasMore) },
+          { name: 'communityKeysWithMore', value: communityKeysWithMore?.length || undefined },
+          { name: 'communityKeysWithNewerPosts', value: communityKeysWithNewerPosts?.length || undefined },
+          { name: 'communityKeysWithUnavailableSort', value: communityKeysWithUnavailableSort?.length ? communityKeysWithUnavailableSort.join(', ') : undefined },
+          { name: 'states', value: hasMore ? stateString || 'loading...' : undefined },
+        ]}
+      />
+      <p className={styles.dim}>click a post to inspect it</p>
+    </>
   );
 };

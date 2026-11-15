@@ -1,0 +1,105 @@
+.log {
+  font-family: var(--font-mono);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding-bottom: 10px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.button,
+.chip {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font: inherit;
+  padding: 1px 8px;
+  cursor: pointer;
+}
+
+.button:hover,
+.chip:hover {
+  border-color: var(--fg);
+}
+
+.recording {
+  color: var(--warn);
+  border-color: var(--warn);
+}
+
+.filters {
+  display: flex;
+  gap: 6px;
+}
+
+.chip {
+  color: var(--dim);
+}
+
+.on {
+  color: var(--fg);
+  border-color: var(--fg);
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.search input {
+  width: 180px;
+  background-color: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  font: inherit;
+  padding: 1px 4px;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.line {
+  display: grid;
+  grid-template-columns: 12ch 30ch minmax(0, 1fr);
+  gap: 14px;
+  padding: 1px 0;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.time {
+  color: var(--dim);
+}
+
+.namespace {
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message {
+  overflow-wrap: anywhere;
+}
+
+.error .message,
+.error .namespace {
+  color: var(--error);
+}
+
+@media (max-width: 760px) {
+  .line {
+    grid-template-columns: 12ch minmax(0, 1fr);
+  }
+
+  .namespace {
+    display: none;
+  }
+}

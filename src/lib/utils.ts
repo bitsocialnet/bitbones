@@ -55,6 +55,46 @@ export const getFormattedTime = (timestamp: number): string => {
   }
 };
 
+// 'QmXk9D…rT4p', for tables and one-line summaries where the full cid is in the inspector
+export const getShortCid = (cid?: string): string => (cid && cid.length > 14 ? `${cid.substring(0, 6)}…${cid.substring(cid.length - 4)}` : cid || '');
+
+// '41s', '5m', '3h', '2d', '3w', '4mo', '1y', a column-width version of getFormattedTime
+export const getShortAge = (timestamp?: number): string => {
+  if (typeof timestamp !== 'number') {
+    return '';
+  }
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - timestamp));
+  const units: [number, string][] = [
+    [60 * 60 * 24 * 365, 'y'],
+    [60 * 60 * 24 * 30, 'mo'],
+    [60 * 60 * 24 * 7, 'w'],
+    [60 * 60 * 24, 'd'],
+    [60 * 60, 'h'],
+    [60, 'm'],
+  ];
+  for (const [unitSeconds, unit] of units) {
+    if (seconds >= unitSeconds) {
+      return `${Math.floor(seconds / unitSeconds)}${unit}`;
+    }
+  }
+  return `${seconds}s`;
+};
+
+export const getHost = (url?: string): string => {
+  if (!url) {
+    return '';
+  }
+  try {
+    return new URL(url).host.replace(/^www\./, '') || url;
+  } catch {
+    return url;
+  }
+};
+
+// 'pinned locked', the moderation and author flags a comment carries
+const commentFlags = ['pinned', 'locked', 'archived', 'removed', 'deleted', 'spoiler', 'nsfw'];
+export const getCommentFlags = (comment?: Comment): string => commentFlags.filter((flag) => comment?.[flag]).join(' ');
+
 export const alertChallengeVerificationFailed = (challengeVerification?: ChallengeVerification, publication?: Comment | Vote): void => {
   if (challengeVerification?.challengeSuccess === false) {
     console.warn(challengeVerification, publication);
@@ -71,6 +111,10 @@ const utils = {
   getCommentMediaType,
   catalogCommentsFilter,
   getFormattedTime,
+  getShortCid,
+  getShortAge,
+  getHost,
+  getCommentFlags,
   alertChallengeVerificationFailed,
 };
 

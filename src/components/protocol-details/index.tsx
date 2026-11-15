@@ -1,1 +1,1 @@
-export { CommentDetails, CommunityDetails, FeedDetails } from './protocol-details';
+export { ClientsStatesTable, CommentLine, CommunityDetails, FeedDetails, KeyValueTable, PaneHeading, Timestamp } from './protocol-details';

@@ -20,3 +20,15 @@ declare module 'ext-name' {
 
   export = extName;
 }
+
+// debug ships no typings. Only what src/lib/protocol-log.ts uses: the shared module that pkc-js and the
+// hooks log through, its enable/disable switches and the log function every instance falls back to.
+declare module 'debug' {
+  interface Debug {
+    enable(namespaces: string): void;
+    disable(): string;
+    log: (...args: unknown[]) => void;
+  }
+  const debug: Debug;
+  export default debug;
+}

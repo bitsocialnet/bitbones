@@ -1,86 +1,60 @@
-import { useComment, useEditedComment, useAccountComment, useAuthorAvatar, useReplies } from '@bitsocial/bitsocial-react-hooks';
+import { useEffect, useState, type MouseEvent } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useComment, useEditedComment, useAccountComment, useReplies, useBlock, useAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
 import Arrow from '../../components/icons/arrow';
-import styles from './post.module.css';
 import PostTools from '../../components/post-tools';
 import PostReplyTools from '../../components/post-reply-tools';
 import ReplyTools from '../../components/reply-tools';
-import { useBlock, useAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
+import Panes from '../../components/panes';
+import Inspector from '../../components/inspector';
+import CommunityInfo from '../../components/community-info';
+import CommentMedia from '../../components/comment-media';
+import { CommentLine } from '../../components/protocol-details';
 import useUnreadReplyCount from '../../hooks/use-unread-reply-count';
 import useUpvote from '../../hooks/use-upvote';
 import useDownvote from '../../hooks/use-downvote';
 import useRepliesSortType from '../../hooks/use-replies-sort-type';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import useStateString from '../../hooks/use-state-string';
-import ReplyMedia from './reply-media';
-import Embed, { canEmbed } from '../../components/embed';
-import { CommentDetails } from '../../components/protocol-details';
 import useVerbose from '../../hooks/use-verbose';
+import useInspectedComment, { getCommentKey } from '../../hooks/use-inspected-comment';
+import styles from './post.module.css';
 
-interface AuthorAvatarProps {
-  comment?: Comment;
+interface ReplyQuoteProps {
+  commentCid?: string;
 }
 
-const AuthorAvatar = ({ comment }: AuthorAvatarProps) => {
-  const { imageUrl } = useAuthorAvatar({ author: comment?.author });
-  // if comment.author.avatar is defined, load empty space even without imageUrl
-  // to not displace the feed after image loads
-  if (!comment?.author?.avatar) {
-    return;
+// in flat reply sorts, the reply being answered, cut to 60 chars until clicked
+const ReplyQuote = ({ commentCid }: ReplyQuoteProps) => {
+  const comment = useComment({ commentCid, onlyIfCached: true });
+  const { shortAuthorAddress } = useAuthorAddress({ comment });
+  const [isOpen, setIsOpen] = useState(false);
+  const content: string | undefined = comment?.content?.trim?.();
+  if (!content) {
+    return null;
   }
+  const tooLong = content.length > 60;
   return (
-    <span className={styles.authorAvatarWrapper}>
-      <img className={styles.authorAvatar} alt='' src={imageUrl} />
-    </span>
+    <blockquote className={styles.quote}>
+      <span className={styles.dim}>u/{shortAuthorAddress}: </span>
+      {isOpen || !tooLong ? content : `${content.substring(0, 60).trim()}…`}
+      {tooLong && !isOpen && (
+        <button type='button' className={styles.linkButton} onClick={() => setIsOpen(true)}>
+          [+]
+        </button>
+      )}
+    </blockquote>
   );
-};
-
-interface PostMediaProps {
-  post?: Comment;
-}
-
-const PostMedia = ({ post }: PostMediaProps) => {
-  if (!post?.link) {
-    return <div className={styles.noMedia}></div>;
-  }
-  const mediaType = utils.getCommentMediaType(post);
-  if (mediaType === 'image') {
-    return (
-      <div className={styles.mediaWrapper}>
-        <img className={styles.media} src={post?.link} alt='' />
-      </div>
-    );
-  }
-  if (mediaType === 'video') {
-    return <video className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
-  }
-  if (mediaType === 'audio') {
-    return <audio className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
-  }
-  try {
-    const parsedUrl = new URL(post?.link);
-    if (canEmbed(parsedUrl)) {
-      return (
-        <div className={styles.mediaWrapper}>
-          <Embed parsedUrl={parsedUrl} />
-        </div>
-      );
-    }
-  } catch (e) {}
-  return <div className={styles.noMedia}></div>;
 };
 
 interface ReplyProps {
   reply: Comment;
   updatedReply?: Comment;
-  depth?: number;
-  isLast?: boolean;
 }
 
-const Reply = ({ reply, updatedReply, depth, isLast }: ReplyProps) => {
+const Reply = ({ reply, updatedReply }: ReplyProps) => {
   // handle pending mod or author edit
   const { state: editedReplyState, editedComment: editedReply } = useEditedComment({ comment: reply });
   if (editedReply) {
@@ -91,129 +65,65 @@ const Reply = ({ reply, updatedReply, depth, isLast }: ReplyProps) => {
   const { shortAuthorAddress } = useAuthorAddress({ comment: reply });
   const { useRepliesOptions } = useRepliesSortType();
   const { replies, bufferedReplies, updatedReplies, loadMore, hasMore } = useReplies({ ...useRepliesOptions, comment: reply });
-  const replyDepthEven = depth !== undefined && depth % 2 === 0;
 
-  // publishing states exist only on account comment
+  // publishing states exist only on account comments
   const accountReply = useAccountComment({ commentIndex: reply.index });
   const state = accountReply?.state === 'pending' || accountReply?.state === 'failed' ? accountReply?.state : undefined;
   const publishingStateString = useStateString(state === 'pending' && accountReply);
 
   const labels = useCommentLabels(reply, editedReplyState);
   const [verbose] = useVerbose();
+  const [inspectedComment, setInspectedComment] = useInspectedComment();
+  const inspected = getCommentKey(inspectedComment) === getCommentKey(reply);
+  const inspect = () => setInspectedComment(updatedReply || reply);
 
-  const _loadMore = (event: MouseEvent<HTMLSpanElement>) => {
-    event.stopPropagation(); // don't trigger the reply typing modal
+  const score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
+  const loadNewReplies = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
     loadMore();
   };
 
-  let score: string | number = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
-  if (score === 0) {
-    score = '';
-  } else if (score > 0) {
-    score = `+${score}`;
-  }
-
   return (
     <div className={styles.reply}>
-      <ReplyTools reply={reply}>
-        <div className={[styles.replyWrapper, replyDepthEven ? styles.replyDepthEven : undefined, isLast ? styles.replyIsLast : undefined].join(' ')}>
-          <div className={styles.replyHeader}>
-            <span className={styles.replyScore}>{score} </span>
-            <AuthorAvatar comment={reply} />
-            <span className={styles.replyAuthor}>{shortAuthorAddress}</span>
-            <span className={styles.replyTimestamp}> {utils.getFormattedTime(reply?.timestamp)}</span>
-            {labels.map((label) => (
-              <>
-                {' '}
-                <span key={label} className={styles.label}>
-                  {label}
-                </span>
-              </>
-            ))}
-            {state && (
-              <>
-                {' '}
-                <span className={styles.label}>{state}</span>
-              </>
-            )}
-            {publishingStateString && (
-              <>
-                {' '}
-                <span>{publishingStateString}</span>
-              </>
-            )}
-            {hasMore && bufferedReplies?.length !== 0 && (
-              // must be at the end because position: absolute
-              <span onClick={_loadMore} className={styles.newRepliesButton}>
-                {' '}
-                ({bufferedReplies?.length} new {bufferedReplies.length === 1 ? 'reply' : 'replies'})
-              </span>
-            )}
-          </div>
-
-          {verbose && <CommentDetails comment={reply} updatedComment={updatedReply} compact={true} />}
-          {useRepliesOptions.flat && reply.depth > 1 && <ReplyQuote commentCid={reply.parentCid} />}
-          <span className={styles.replyContent}>{reply?.content?.trim?.()}</span>
-          <ReplyMedia reply={reply} />
+      {/* the click is a mouse shortcut, the inspect button is the keyboard path */}
+      <div className={[styles.replyBody, inspected ? styles.inspected : undefined].join(' ')} onClick={inspect}>
+        <div className={styles.replyHeader}>
+          <span className={score < 0 ? styles.negative : score > 0 ? styles.positive : styles.dim}>{score > 0 ? `+${score}` : score}</span>
+          <Link to={`/u/${reply?.author?.address}/c/${reply?.cid}`} className={styles.author}>
+            u/{shortAuthorAddress}
+          </Link>
+          <span className={styles.dim}>{utils.getFormattedTime(reply?.timestamp)}</span>
+          {labels.map((label) => (
+            <span key={label} className={styles.label}>
+              {label}
+            </span>
+          ))}
+          {state && <span className={styles.label}>{state}</span>}
+          {publishingStateString && <span className={styles.dim}>{publishingStateString}</span>}
+          <ReplyTools reply={reply}>
+            <span className={styles.linkButton}>reply</span>
+          </ReplyTools>
+          <button type='button' className={[styles.linkButton, styles.inspect].join(' ')} onClick={inspect}>
+            inspect
+          </button>
+          {hasMore && bufferedReplies?.length !== 0 && (
+            <button type='button' className={styles.linkButton} onClick={loadNewReplies}>
+              {bufferedReplies?.length} new {bufferedReplies.length === 1 ? 'reply' : 'replies'}
+            </button>
+          )}
         </div>
-      </ReplyTools>
-      <div className={styles.replies}>
-        {replies.map((reply, index) => (
-          <Reply
-            key={reply?.index || reply?.cid}
-            depth={(depth || 1) + 1}
-            reply={reply}
-            updatedReply={updatedReplies[index]}
-            isLast={reply?.replyCount > 0 || replies.length === index + 1}
-          />
-        ))}
+        {useRepliesOptions.flat && reply.depth > 1 && <ReplyQuote commentCid={reply.parentCid} />}
+        <div className={styles.replyContent}>{reply?.content?.trim?.()}</div>
+        <CommentMedia comment={reply} />
+        {verbose && <CommentLine comment={reply} updatedComment={updatedReply} />}
       </div>
-    </div>
-  );
-};
-
-interface ReplyQuoteProps {
-  commentCid?: string;
-}
-
-const ReplyQuote = ({ commentCid }: ReplyQuoteProps) => {
-  const comment = useComment({ commentCid, onlyIfCached: true });
-  // show the unverified author address for a few ms until the verified arrives
-  const { shortAuthorAddress } = useAuthorAddress({ comment });
-  const [isOpen, setIsOpen] = useState(false);
-
-  let content = comment?.content?.trim?.();
-  if (!content) {
-    return '';
-  }
-  let ellipsis: ReactNode = '';
-
-  const tooLong = content.length > 60;
-  if (!isOpen && tooLong) {
-    content = content.substring(0, 60).trim();
-    ellipsis = <span className={styles.quoteEllipsis}>..... [+]</span>;
-  }
-  const open = (event: MouseEvent<HTMLDivElement>) => {
-    if (isOpen || !tooLong) {
-      return;
-    }
-    event.stopPropagation(); // don't trigger the reply typing modal
-    setIsOpen(true);
-  };
-
-  return (
-    <div onClick={open} className={styles.quote}>
-      <div className={styles.reply}>
-        <div className={[styles.replyDepthEven, styles.replyIsLast].join(' ')}>
-          <div className={styles.replyHeader}>
-            <span className={styles.replyAuthor}>{shortAuthorAddress}</span>
-          </div>
-          <span className={[styles.replyContent, !isOpen ? styles.quoteClosed : undefined].join(' ')}>
-            {content}
-            {ellipsis}
-          </span>
+      {replies.length > 0 && (
+        <div className={styles.children}>
+          {replies.map((childReply, index) => (
+            <Reply key={childReply?.index || childReply?.cid} reply={childReply} updatedReply={updatedReplies[index]} />
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -228,23 +138,16 @@ function Post() {
     post = editedPost;
   }
 
-  let hostname;
-  try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
-  } catch (e) {}
-
   const { repliesSortType, repliesSortTypes, setRepliesSortType, useRepliesOptions } = useRepliesSortType();
-  let { replies, bufferedReplies, updatedReplies, hasMore, loadMore } = useReplies({ ...useRepliesOptions, comment: post });
-  const replyComponents =
-    replies.map((reply, index) => <Reply key={reply?.index || reply?.cid} reply={reply} updatedReply={updatedReplies[index]} isLast={reply?.replyCount === 0} />) || '';
-
+  const { replies, bufferedReplies, updatedReplies, hasMore, loadMore } = useReplies({ ...useRepliesOptions, comment: post });
   const { blocked: hidden } = useBlock({ cid: post?.cid });
-
   const [upvoted, upvote] = useUpvote(post);
   const [downvoted, downvote] = useDownvote(post);
-
   // show the unverified author address for a few ms until the verified arrives
   const { shortAuthorAddress } = useAuthorAddress({ comment: post });
+  const labels = useCommentLabels(post, editedPostState);
+  const stateString = useStateString(post);
+  const [verbose] = useVerbose();
 
   // keep track of unread reply counts
   const [, setRepliesToRead] = useUnreadReplyCount(post);
@@ -257,18 +160,6 @@ function Post() {
   useEffect(() => {
     window.scrollTo(0, 0);
   }, []);
-
-  let scoreNumber: string | number = post?.upvoteCount - post?.downvoteCount;
-  const negativeScoreNumber = scoreNumber < 0;
-  const largeScoreNumber = String(scoreNumber).length > 3;
-  if (isNaN(scoreNumber)) {
-    scoreNumber = '-';
-  }
-
-  const labels = useCommentLabels(post, editedPostState);
-  const [verbose] = useVerbose();
-
-  const stateString = useStateString(post);
 
   // redirect to parent post if any
   const navigate = useNavigate();
@@ -283,91 +174,88 @@ function Post() {
     return 'wrong community address';
   }
 
+  const score = (post?.upvoteCount || 0) - (post?.downvoteCount || 0);
+  const host = post?.link ? utils.getHost(post.link) : '';
+
   return (
-    <div className={styles.post}>
-      <div className={styles.textWrapper}>
-        <div className={styles.column}>
+    <Panes aside={<CommunityInfo communityAddress={communityAddress} />} asideTitle={`p/${communityAddress}`} inspector={<Inspector defaultComment={post} />}>
+      <article className={[styles.post, hidden ? styles.hidden : undefined].join(' ')}>
+        <div className={styles.postHeader}>
           <div className={styles.score}>
-            <div onClick={upvote} className={[styles.upvote, upvoted ? styles.voteSelected : undefined].join(' ')}>
+            <button type='button' className={[styles.vote, upvoted ? styles.voted : undefined].join(' ')} onClick={upvote} aria-label='upvote' aria-pressed={upvoted}>
               <Arrow />
-            </div>
+            </button>
             <PostTools post={post}>
-              <div
-                className={[
-                  styles.scoreNumber,
-                  largeScoreNumber ? styles.largeScoreNumber : undefined,
-                  negativeScoreNumber ? styles.negativeScoreNumber : undefined,
-                ].join(' ')}
-              >
-                {scoreNumber}
-              </div>
+              <span className={[styles.scoreNumber, score < 0 ? styles.negative : undefined].join(' ')} title='post tools'>
+                {post ? score : '-'}
+              </span>
             </PostTools>
-            <div onClick={downvote} className={[styles.downvote, downvoted ? styles.voteSelected : undefined].join(' ')}>
+            <button
+              type='button'
+              className={[styles.vote, styles.downvote, downvoted ? styles.voted : undefined].join(' ')}
+              onClick={downvote}
+              aria-label='downvote'
+              aria-pressed={downvoted}
+            >
               <Arrow />
-            </div>
+            </button>
           </div>
-        </div>
-        <div className={[styles.column, hidden ? styles.hidden : undefined].join(' ')}>
-          <div className={styles.header}>
-            <Link to={post?.link} target={post?.link ? '_blank' : undefined} rel='noreferrer' className={styles.title}>
-              {post?.title?.trim?.() || '-'}
-            </Link>
-            {labels.map((label) => (
-              <>
-                {' '}
+          <div className={styles.headerBody}>
+            <h1 className={styles.title}>{post?.title?.trim?.() || (post ? '-' : 'loading...')}</h1>
+            <div className={styles.meta}>
+              {labels.map((label) => (
                 <span key={label} className={styles.label}>
                   {label}
                 </span>
-              </>
-            ))}
-            {hostname && (
-              <Link to={post?.link} target='_blank' rel='noreferrer'>
-                {' '}
-                {hostname}
-              </Link>
-            )}
+              ))}
+              {post && (
+                <>
+                  {utils.getFormattedTime(post.timestamp)} by <Link to={`/u/${post.author?.address}/c/${post.cid}`}>u/{shortAuthorAddress}</Link> to{' '}
+                  <Link to={`/p/${post.communityAddress}`}>p/{post.shortCommunityAddress || post.communityAddress}</Link>
+                </>
+              )}
+              {host && (
+                <a href={post?.link} target='_blank' rel='noreferrer' className={styles.host}>
+                  {host}
+                </a>
+              )}
+            </div>
           </div>
-          <div>
-            <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
-            <span className={styles.author}>
-              {' '}
-              by <AuthorAvatar comment={post} />
-              <Link to={`/u/${post?.author?.address}/c/${post?.cid}`}>{shortAuthorAddress}</Link> to{' '}
-            </span>
-            <Link to={`/p/${post?.communityAddress}`} className={styles.community}>
-              {post?.communityAddress}
-            </Link>
-          </div>
-          {verbose && <CommentDetails comment={post} />}
-          <div className={styles.footer}>
-            <span className={[styles.replyCount, styles.button].join(' ')}>{post?.replyCount} comments</span>
-            <span className={styles.button}>
-              <select onChange={(event) => setRepliesSortType(event.target.value)} value={repliesSortType} className={styles.repliesSortType}>
-                {repliesSortTypes.map((repliesSortType) => (
-                  <option key={repliesSortType} value={repliesSortType}>
-                    {repliesSortType}
+        </div>
+        <div className={styles.postBody}>
+          {post?.content?.trim?.() && <div className={styles.content}>{post.content.trim()}</div>}
+          <CommentMedia comment={post} defaultOpen={true} />
+          {verbose && <CommentLine comment={post} />}
+          <div className={styles.actions}>
+            <span>{post?.replyCount ?? 0} comments</span>
+            <label>
+              <span className={styles.dim}>sort </span>
+              <select onChange={(event) => setRepliesSortType(event.target.value)} value={repliesSortType} className={styles.select}>
+                {repliesSortTypes.map((sortType) => (
+                  <option key={sortType} value={sortType}>
+                    {sortType}
                   </option>
                 ))}
               </select>
-            </span>
+            </label>
             <PostReplyTools reply={post}>
-              <span className={styles.button}>reply</span>
+              <span className={styles.linkButton}>reply</span>
             </PostReplyTools>
           </div>
-          {post?.content?.trim?.() && <div className={styles.content}>{post?.content?.trim?.()}</div>}
+          {stateString && <div className={styles.stateString}>{stateString}</div>}
         </div>
+      </article>
+      <div className={styles.replies}>
+        {replies.map((reply, index) => (
+          <Reply key={reply?.index || reply?.cid} reply={reply} updatedReply={updatedReplies[index]} />
+        ))}
       </div>
-      <div className={hidden ? styles.hidden : undefined}>
-        <PostMedia post={post} />
-      </div>
-      {stateString && <div className={styles.stateString}>{stateString}</div>}
-      <div className={styles.replies}>{replyComponents}</div>
       {hasMore && bufferedReplies?.length !== 0 && (
-        <div onClick={loadMore} className={styles.button}>
-          <span className={styles.footer}>load more comments</span> ({bufferedReplies?.length} replies)
-        </div>
+        <button type='button' className={[styles.linkButton, styles.loadMore].join(' ')} onClick={loadMore}>
+          load more comments ({bufferedReplies?.length})
+        </button>
       )}
-    </div>
+    </Panes>
   );
 }
 

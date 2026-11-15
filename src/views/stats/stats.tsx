@@ -26,7 +26,7 @@ const StatsRow = ({ communityAddress, period }: StatsRowProps) => {
         <Link to={`/p/${communityAddress}`}>{communityAddress}</Link>
       </td>
       <td>{community?.title}</td>
-      <td>{community?.updatingState || community?.state}</td>
+      <td className={community?.updatedAt ? undefined : styles.loading}>{community?.updatingState || community?.state}</td>
       <td>{community?.updatedAt ? utils.getFormattedTime(community.updatedAt) : ''}</td>
       <td className={styles.number}>{stats?.[`${period}ActiveUserCount`]}</td>
       <td className={styles.number}>{stats?.[`${period}PostCount`]}</td>
