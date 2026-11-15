@@ -1,14 +1,30 @@
+<div align="center">
+
+<img src="docs/assets/readme-logo.png" alt="bitbones logo" width="128" height="128" />
+
+# bitbones
+
+A developer client for Bitsocial that shows the protocol data behind every view.
+
+[Web app](https://bitbones.app) · [Desktop and Android](https://github.com/bitsocialnet/bitbones/releases/latest) · [Bitsocial](https://bitsocial.net) · [React hooks](https://github.com/bitsocialnet/bitsocial-react-hooks)
+
 [![Release](https://img.shields.io/github/v/release/bitsocialnet/bitbones)](https://github.com/bitsocialnet/bitbones/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0--or--later-red.svg)](https://github.com/bitsocialnet/bitbones/blob/master/LICENSE)
 [![Commitizen friendly](https://img.shields.io/badge/commitizen-friendly-brightgreen.svg)](http://commitizen.github.io/cz-cli/)
 
-# bitbones
+</div>
 
-bitbones is a developer client for the [Bitsocial protocol](https://bitsocial.net). It works like a browser's devtools for Bitsocial: every view is a thin wrapper over [`@bitsocial/bitsocial-react-hooks`](https://github.com/bitsocialnet/bitsocial-react-hooks), and it shows the hook call and the protocol data behind what you see, so it is the fastest place to reproduce a bug, watch a community load, or try a hooks change against real communities.
+![bitbones on p/all: the default communities with the age of their last update on the left, the hot feed in the middle with a protocol line under each post and one video expanded, and the inspector on the right showing the selected post's fields](docs/assets/readme-screenshot.png)
 
-- Web version: https://bitbones.app
-- Desktop version (full p2p bitsocial node, seeds automatically): available for Mac/Windows/Linux, [download from the release page](https://github.com/bitsocialnet/bitbones/releases/latest)
-- Mobile version: available for Android, [download from the release page](https://github.com/bitsocialnet/bitbones/releases/latest)
+bitbones works like a browser's devtools for the [Bitsocial protocol](https://bitsocial.net). Every view is a thin wrapper over [`@bitsocial/bitsocial-react-hooks`](https://github.com/bitsocialnet/bitsocial-react-hooks) and shows the hook call and the protocol data behind it, so it is the fastest place to reproduce a bug, watch a community load, or try a hooks change against real communities.
+
+## Download
+
+| Platform | Where | Notes |
+| --- | --- | --- |
+| Web | [bitbones.app](https://bitbones.app) | static client, content comes from peers |
+| Mac, Windows, Linux | [release page](https://github.com/bitsocialnet/bitbones/releases/latest) | runs a full peer-to-peer Bitsocial node and seeds automatically |
+| Android | [release page](https://github.com/bitsocialnet/bitbones/releases/latest) | |
 
 ## What it shows
 
@@ -43,7 +59,7 @@ yarn start
 
 | command | what it does |
 | --- | --- |
-| `yarn start` | vite dev server on http://localhost:5173 |
+| `yarn start` | vite dev server at https://bitbones.localhost through portless, or http://localhost:5173 with `PORTLESS=0` |
 | `yarn build` | production build into `build/` |
 | `yarn sync:lists` | refresh the vendored default community lists from bitsocialnet/lists |
 | `yarn lint` | oxlint |
