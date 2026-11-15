@@ -104,7 +104,7 @@ select.sortType, select.feedName {
   padding: 0;
 
   /* firefox messes the font */
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 
   /* must specify font size of select again for some reason */
   font-size: 12px;

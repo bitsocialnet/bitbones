@@ -232,7 +232,7 @@ select.repliesSortType {
   padding: 0;
 
   /* firefox messes the font */
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 
   /* must specify font size and weight of select again for some reason */
   font-size: 10px;

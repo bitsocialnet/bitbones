@@ -1,3 +1,8 @@
+/*
+  every theme is one block of variables, components read nothing else.
+  the class is set on .app and on body by app.tsx.
+*/
+
 /* no theme */
 :root {
   --dark1: black;
@@ -10,10 +15,13 @@
   --red2: red;
   --orange1: orange;
   --orange2: orange;
+  --font: verdana, arial, helvetica, sans-serif;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
 }
 
-/* dark mode theme */
-:root .dark {
+/* dark mode theme, also auto when the OS is dark */
+:root .dark,
+:root .auto {
   --dark1: #181818;
   --dark1b: #161616;
   --dark2: #212121;
@@ -24,9 +32,12 @@
   --red2: #492121;
   --orange1: #b2832d;
   --orange2: #3a301d;
+  --font: verdana, arial, helvetica, sans-serif;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: dark;
 }
 
-/* light mode theme */
+/* light mode theme, also auto when the OS is light */
 :root .light {
   --dark1: #f9faf2;
   --dark1b: #f2f4ee;
@@ -38,4 +49,91 @@
   --red2: #a0312f;
   --orange1: darkorange;
   --orange2: #fda83d;
+  --font: verdana, arial, helvetica, sans-serif;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: light) {
+  :root .auto {
+    --dark1: #f9faf2;
+    --dark1b: #f2f4ee;
+    --dark2: #edf1eb;
+    --dark3: #cccccc;
+    --light1: #0e4861;
+    --light2: #3b3b3b;
+    --red1: darkred;
+    --red2: #a0312f;
+    --orange1: darkorange;
+    --orange2: #fda83d;
+    color-scheme: light;
+  }
+}
+
+/* browser defaults: system colors and the default font, follows the OS light/dark setting */
+:root .none {
+  --dark1: Canvas;
+  --dark1b: Canvas;
+  --dark2: Canvas;
+  --dark3: GrayText;
+  --light1: LinkText;
+  --light2: CanvasText;
+  --red1: red;
+  --red2: red;
+  --orange1: darkorange;
+  --orange2: darkorange;
+  --font: initial;
+  --font-mono: monospace;
+  color-scheme: light dark;
+}
+
+/* black on white, monospace */
+:root .mono {
+  --dark1: #ffffff;
+  --dark1b: #f4f4f4;
+  --dark2: #eeeeee;
+  --dark3: #999999;
+  --light1: #000000;
+  --light2: #333333;
+  --red1: #b00000;
+  --red2: #b00000;
+  --orange1: #8a4b00;
+  --orange2: #8a4b00;
+  --font: ui-monospace, menlo, consolas, monospace;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: light;
+}
+
+/* white on black, monospace */
+:root .term {
+  --dark1: #000000;
+  --dark1b: #0a0a0a;
+  --dark2: #141414;
+  --dark3: #3a3a3a;
+  --light1: #ffffff;
+  --light2: #c7c7c7;
+  --red1: #ff6b6b;
+  --red2: #ff6b6b;
+  --orange1: #e3a35b;
+  --orange2: #e3a35b;
+  --font: ui-monospace, menlo, consolas, monospace;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: dark;
+}
+
+/* high contrast */
+:root .contrast {
+  --dark1: #000000;
+  --dark1b: #000000;
+  --dark2: #1a1a1a;
+  --dark3: #ffffff;
+  --light1: #ffe14d;
+  --light2: #ffffff;
+  --red1: #ff8080;
+  --red2: #ff8080;
+  --orange1: #ffb347;
+  --orange2: #ffb347;
+  --font: verdana, arial, helvetica, sans-serif;
+  --font-mono: ui-monospace, menlo, consolas, monospace;
+  color-scheme: dark;
 }

@@ -35,9 +35,9 @@
   font-size: 13px;
   background-color: var(--dark1);
   color: var(--light2);
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 }
 
 .submitTitle, .submitContent {
-  font-family: monospace;
+  font-family: var(--font-mono);
 }

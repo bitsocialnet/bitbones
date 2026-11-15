@@ -97,11 +97,11 @@
   /* must redefine for some reason */
   font-size: 13px;
   color: var(--light2);
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 }
 
 .submitContent {
-  font-family: monospace;
+  font-family: var(--font-mono);
   width: 100%;
   box-sizing: border-box;
 }

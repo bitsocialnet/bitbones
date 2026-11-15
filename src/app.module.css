@@ -2,7 +2,7 @@
   /* text */
   color: var(--light2);
   font-size: 10px;
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 
   /* container */
   padding: 0 2px;

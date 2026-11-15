@@ -13,7 +13,7 @@
 }
 
 .title {
-  font-family: arial, verdana, helvetica, sans-serif;
+  font-family: var(--font);
   font-size: 19px;
   font-weight: bold;
   color: var(--light1);

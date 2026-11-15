@@ -1,21 +1,52 @@
 import { create } from 'zustand';
 
+export const themes = ['auto', 'dark', 'light', 'none', 'mono', 'term', 'contrast'] as const;
+
+const readStorage = (key: string): string | null => {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+};
+
+const writeStorage = (key: string, value: string) => {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+};
+
 interface ThemeState {
   theme: string;
+  customCss: string;
   setTheme: (theme: string) => void;
+  setCustomCss: (customCss: string) => void;
 }
 
-const useThemeStore = create<ThemeState>((setState, getState) => ({
-  theme: localStorage.getItem('bitbonesTheme') || 'dark',
+const useThemeStore = create<ThemeState>((setState) => ({
+  theme: readStorage('bitbonesTheme') || 'dark',
+  customCss: readStorage('bitbonesCustomCss') || '',
   setTheme: (theme) => {
-    localStorage.setItem('bitbonesTheme', theme);
-    setState((state) => ({ theme }));
+    writeStorage('bitbonesTheme', theme);
+    setState({ theme });
+  },
+  setCustomCss: (customCss) => {
+    writeStorage('bitbonesCustomCss', customCss);
+    setState({ customCss });
   },
 }));
 
 const useTheme = (): [string, (theme: string) => void] => {
-  const { theme, setTheme } = useThemeStore();
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
   return [theme, setTheme];
+};
+
+// user CSS applied after the theme, edited in settings
+export const useCustomCss = (): [string, (customCss: string) => void] => {
+  const customCss = useThemeStore((state) => state.customCss);
+  const setCustomCss = useThemeStore((state) => state.setCustomCss);
+  return [customCss, setCustomCss];
 };
 
 export default useTheme;

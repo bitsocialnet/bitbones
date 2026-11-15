@@ -21,7 +21,7 @@ import Communities from './views/communities';
 import CommunitySettings from './views/community-settings';
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import styles from './app.module.css';
-import useTheme from './hooks/use-theme';
+import useTheme, { useCustomCss } from './hooks/use-theme';
 import { useEffect } from 'react';
 import Menu from './components/menu';
 import Footer from './components/footer';
@@ -33,6 +33,7 @@ window.PkcJs = PKC;
 
 function App() {
   const [theme] = useTheme();
+  const [customCss] = useCustomCss();
 
   // add theme className to body so it can set the correct body background in index.css
   useEffect(() => {
@@ -58,6 +59,8 @@ function App() {
 
   return (
     <div className={[styles.app, theme].join(' ')}>
+      {/* user CSS from settings, after the theme so it can override any variable */}
+      {customCss ? <style>{customCss}</style> : undefined}
       <Routes>
         <Route element={layout}>
           {/* post page */}

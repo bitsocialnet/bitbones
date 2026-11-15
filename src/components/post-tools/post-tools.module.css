@@ -33,10 +33,10 @@
   color: var(--light2);
   box-sizing: border-box;
   font-size: 13px;
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 }
 
 .modTools input {
-  font-family: monospace;
+  font-family: var(--font-mono);
   accent-color: var(--dark1);
 }
