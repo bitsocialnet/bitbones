@@ -68,6 +68,8 @@ export function createPlaywrightDriver({ execute = exec } = {}) {
     cli,
     plan,
     started,
+    opened,
+    closing,
     combinedObservation = false,
     opening = false;
   const childEnv = { ...process.env };
@@ -76,6 +78,7 @@ export function createPlaywrightDriver({ execute = exec } = {}) {
   delete childEnv.JEV_CONFIG_FILE;
   delete childEnv.JEV_MODEL;
   async function command(args, wrapper = false, cleanup = false) {
+    if (closing && !cleanup) throw new JevError('browser_closed');
     const remaining = cleanup ? 15_000 : plan.limits.deadlineMs - (Date.now() - started);
     if (remaining <= 0) throw new JevError('deadline_exceeded');
     try {
@@ -124,7 +127,8 @@ export function createPlaywrightDriver({ execute = exec } = {}) {
       await writeFile(config, JSON.stringify({ browser: { isolated: true, contextOptions: { serviceWorkers: 'block' } }, outputDir: directory }), { mode: 0o600 });
       opening = true;
       // Start blank so navigation guards exist before the plan URL is visited.
-      await command(['open', session, 'about:blank', '--browser=chrome', `--config=${config}`], true);
+      opened = command(['open', session, 'about:blank', '--browser=chrome', `--config=${config}`], true);
+      await opened;
       const capabilities = await code(`
         const origin = ${JSON.stringify(plan.origin)};
         const navigationAllowed = ${canonicalNavigationAllowed.toString()};
@@ -201,12 +205,40 @@ export function createPlaywrightDriver({ execute = exec } = {}) {
     async reload() {
       await code(`${guard()} await page.reload({waitUntil: 'domcontentloaded'}); return true;`);
     },
-    async close() {
-      try {
-        if (opening) await command(['close', session], true, true);
-      } finally {
-        if (directory) await rm(directory, { recursive: true, force: true });
-      }
+    close() {
+      // A termination handler can call this while the plan is mid-command or already cleaning up:
+      // let an in-flight open finish so its browser is closed too, and close only once.
+      closing ||= (async () => {
+        try {
+          await opened?.catch(() => {});
+          if (opening) await command(['close', session], true, true);
+        } finally {
+          if (directory) await rm(directory, { recursive: true, force: true });
+        }
+      })();
+      return closing;
     },
+  };
+}
+
+// A killed helper never reaches the plan's own cleanup, while the detached browser keeps the
+// machine-wide slot. Close first, then exit with the conventional signal status; a second signal
+// exits at once. Returns a function that removes the handlers after a normal close.
+export function closeOnTermination(close) {
+  let terminating = false;
+  const listeners = Object.entries({ SIGINT: 130, SIGTERM: 143 }).map(([signal, code]) => {
+    const listener = () => {
+      if (terminating) process.exit(code);
+      terminating = true;
+      Promise.resolve()
+        .then(close)
+        .catch(() => {})
+        .finally(() => process.exit(code));
+    };
+    process.on(signal, listener);
+    return [signal, listener];
+  });
+  return () => {
+    for (const [signal, listener] of listeners) process.off(signal, listener);
   };
 }

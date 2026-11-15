@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs, promisify } from 'node:util';
 import { execFile } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
-import { createPlaywrightDriver, findPlaywrightCli } from './browser-playwright.mjs';
+import { createPlaywrightDriver, findPlaywrightCli, closeOnTermination } from './browser-playwright.mjs';
 import { runBrowserPlan, validatePlan } from './browser-plan.mjs';
 import { createJevClient } from './client.mjs';
 
@@ -31,6 +31,10 @@ const median = (values) => {
   return sorted.length ? (sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2) : null;
 };
 
+// Deterministic runs never make the advisory semantic calls, so a plan with semantic checks
+// always ends incomplete/semantic_not_run there even though its exact flow completed.
+const flowFinished = (run) => run?.status === 'completed' || (run?.flowCompleted === true && run.reason === 'semantic_not_run');
+
 export function summarizePairs(runs) {
   const pairs = new Map();
   for (const run of runs.filter((run) => !run.warmup)) {
@@ -43,8 +47,8 @@ export function summarizePairs(runs) {
     const selected = [...pairs.values()].filter((pair) => (pair.old || pair.combined)?.mode === mode);
     const comparable = selected.filter(
       ({ old, combined }) =>
-        old?.status === 'completed' &&
-        combined?.status === 'completed' &&
+        flowFinished(old) &&
+        flowFinished(combined) &&
         JSON.stringify(old.actions) === JSON.stringify(combined.actions) &&
         JSON.stringify(old.assertions) === JSON.stringify(combined.assertions),
     );
@@ -210,7 +214,23 @@ export async function main(argv = process.argv.slice(2)) {
     for (let sample = -warmups; sample < samples; sample++) {
       const order = (sample + warmups) % 2 ? ['combined', 'old'] : ['old', 'combined'];
       for (const transport of order) {
-        const result = await benchmarkRun(entry.plan, { ...variants[transport], client, baseline: !values.jev });
+        let driver, opening;
+        // A retained baseline driver can close without waiting for an open that is still starting
+        // its browser, which would release the slot before that browser exists. Wait for it here.
+        const createDriver = (options) =>
+          (driver = variants[transport].createDriver({
+            ...options,
+            execute: (file, args, ...rest) => {
+              const result = options.execute(file, args, ...rest);
+              if (args[0] === 'open') opening = result;
+              return result;
+            },
+          }));
+        const release = closeOnTermination(async () => {
+          await opening?.catch(() => {});
+          await driver?.close();
+        });
+        const result = await benchmarkRun(entry.plan, { ...variants[transport], createDriver, client, baseline: !values.jev }).finally(release);
         const run = {
           case: entry.id,
           plan: entry.file,
@@ -250,7 +270,7 @@ export async function main(argv = process.argv.slice(2)) {
         evidence: values.evidence,
         samples,
         warmups,
-        note: 'Lifecycle includes browser setup, navigation, exact assertions, and owned-session cleanup. Control calls count helper subprocess invocations (wrapper open/close each count once), not CDP messages. Components overlap control time and must not be added to it. Warmups retained but excluded; only completed pairs with identical actions and assertions enter timing summaries. Small local measurements, not general browser speed claims.',
+        note: 'Lifecycle includes browser setup, navigation, exact assertions, and owned-session cleanup. Control calls count helper subprocess invocations (wrapper open/close each count once), not CDP messages. Components overlap control time and must not be added to it. Warmups retained but excluded; only pairs whose flows both completed with identical actions and assertions enter timing summaries (without --jev, semantic_not_run alone does not exclude a pair). Small local measurements, not general browser speed claims.',
         runs,
         summary: summarizePairs(runs),
         usage: client?.stats() || null,
@@ -259,7 +279,7 @@ export async function main(argv = process.argv.slice(2)) {
       2,
     ),
   );
-  return runs.every((run) => run.status === 'completed') ? 0 : 2;
+  return runs.every(flowFinished) ? 0 : 2;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href)
