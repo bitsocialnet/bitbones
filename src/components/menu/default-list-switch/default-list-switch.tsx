@@ -26,7 +26,7 @@ const DefaultListSwitch = ({ className }: DefaultListSwitchProps) => {
       className={[styles.defaultListSwitch, failed ? styles.failed : '', className].join(' ')}
     >
       {['5chan', 'seedit'].map((list) => (
-        <img key={list} alt={list} src={icons[list]} width='12' height='12' className={[styles.icon, list === defaultList ? styles.active : styles.inactive].join(' ')} />
+        <img key={list} alt={list} src={icons[list]} width='16' height='16' className={[styles.icon, list === defaultList ? styles.active : styles.inactive].join(' ')} />
       ))}
     </button>
   );

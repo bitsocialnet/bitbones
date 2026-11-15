@@ -5,6 +5,7 @@ import Submit from '../menu/submit';
 import GoToCommunityModal from '../menu/go-to-community-modal';
 import useTimeFilter from '../../hooks/use-time-filter';
 import useVerbose from '../../hooks/use-verbose';
+import useMediaExpanded from '../../hooks/use-media-expanded';
 import styles from './topbar.module.css';
 
 // routes that are not feeds, the sort and time controls don't apply to them
@@ -67,6 +68,7 @@ const NavItem = ({ to, current, children }: NavItemProps) => (
 const Topbar = () => {
   const { timeFilterNames } = useTimeFilter();
   const [verbose, setVerbose] = useVerbose();
+  const { expanded: mediaExpanded, setExpanded: setMediaExpanded } = useMediaExpanded();
   const [goToCommunityModalIsOpen, setGoToCommunityModalIsOpen] = useState(false);
   const navigate = useNavigate();
   const params = useParams<{ commentCid?: string; sortType?: string; timeFilterName?: string }>();
@@ -144,6 +146,10 @@ const Topbar = () => {
       <label className={styles.item} title='print the protocol data behind each row'>
         <input type='checkbox' className={styles.checkbox} checked={verbose} onChange={(event) => setVerbose(event.target.checked)} />
         verbose
+      </label>
+      <label className={styles.item} title='expand or collapse all images, videos and embeds, and keep that for new ones'>
+        <input type='checkbox' className={styles.checkbox} checked={mediaExpanded} onChange={(event) => setMediaExpanded(event.target.checked)} />
+        expand media
       </label>
       <Submit className={styles.item} />
       <AccountMenu className={[styles.item, styles.account].join(' ')} />
