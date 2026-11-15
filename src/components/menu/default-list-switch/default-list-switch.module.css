@@ -13,7 +13,7 @@
 .icon {
   display: inline-block;
   vertical-align: middle;
-  /* favicon size, the sources are 16px */
+  /* favicon size, drawn from 64px sources */
 }
 
 .active {
