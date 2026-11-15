@@ -106,7 +106,13 @@ jobs:
             sleep 5
             [ "$i" = "3" ] && exit 1
           done
+      # Electron 44's V8 headers put [[deprecated]] before __attribute__ in class heads, which GCC
+      # only parses from 13 (bug 69585); ubuntu-22.04 tops out at GCC 12, so native modules build with clang
+      # and keep the 22.04 glibc/libstdc++ baseline.
       - name: Package Electron app
+        env:
+          CC: clang-15
+          CXX: clang++-15
         run: yarn electron:package
       - run: ls -la out/
 
