@@ -50,6 +50,35 @@ export async function freePort() {
   return port;
 }
 
+// A terminal Ctrl-C reaches the runner's whole process group. The runner handles it itself, so the
+// cleanup close runs in its own group: killed halfway, it would leave the owned browser running and
+// the machine-wide slot held.
+function closeInOwnGroup(wrapper, session, { cwd, env, timeout }) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('bash', [wrapper, 'close', session], { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => (stdout += chunk));
+    child.stderr.on('data', (chunk) => (stderr += chunk));
+    const timer = setTimeout(() => {
+      try {
+        process.kill(process.platform === 'win32' ? child.pid : -child.pid, 'SIGTERM');
+      } catch {
+        /* Already exited. */
+      }
+    }, timeout);
+    child.once('error', (error) => {
+      clearTimeout(timer);
+      reject(error);
+    });
+    child.once('close', (code, signal) => {
+      clearTimeout(timer);
+      if (code === 0) resolve({ stdout, stderr });
+      else reject(new Error(`Browser wrapper close failed (${signal || `exit ${code}`}): ${stderr.trim()}`));
+    });
+  });
+}
+
 export async function withBrowser(packageRoot, headed, run) {
   const driver = browserDriver();
   const { stdout } = await exec('git', ['rev-parse', '--show-toplevel'], { cwd: packageRoot });
@@ -103,7 +132,7 @@ export async function withBrowser(packageRoot, headed, run) {
     }
     if (attempted && !busy) {
       try {
-        const result = await exec('bash', [wrapper, 'close', session], { cwd: repoRoot, env, timeout: 30000 });
+        const result = await closeInOwnGroup(wrapper, session, { cwd: repoRoot, env, timeout: 30000 });
         process.stderr.write(result.stdout);
       } catch (error) {
         failures.push(error);
