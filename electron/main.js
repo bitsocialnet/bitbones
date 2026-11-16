@@ -47,6 +47,8 @@ let fakeUserAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
 if (process.platform === 'darwin') fakeUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36';
 if (process.platform === 'linux') fakeUserAgent = 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36';
 const realUserAgent = `bitbones/${packageJson.version}`;
+// same id as appBundleId in forge.config.js
+const youtubeEmbedReferrer = 'https://bitbones.desktop/';
 
 // electron-context-menu 3.x copies urls with clipboard.write({ bookmark, text }), which Electron 44 rejects
 // (it only accepts ClipboardItem arrays), so "Copy Link" and "Copy Image Address" are rebuilt here
@@ -128,6 +130,11 @@ const createMainWindow = () => {
   // set custom user agent and other headers for window.fetch requests to prevent origin errors
   mainWindow.webContents.session.webRequest.onBeforeSendHeaders({ urls: ['*://*/*'] }, (details, callback) => {
     const isIframe = !!details.frame?.parent;
+    // youtube refuses to play an embed that arrives without a referrer (error 153), and the packaged
+    // app loads from file://, which never sends one, so identify the app by its bundle id instead
+    if (details.resourceType === 'subFrame' && !details.requestHeaders.Referer && new URL(details.url).hostname === 'www.youtube-nocookie.com') {
+      details.requestHeaders.Referer = youtubeEmbedReferrer;
+    }
     // if not a fetch request (or fetch request is from within iframe), do nothing, filtering webRequest by types doesn't seem to work
     if (details.resourceType !== 'xhr' || isIframe) {
       return callback({ requestHeaders: details.requestHeaders });
