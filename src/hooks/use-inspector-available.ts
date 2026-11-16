@@ -1,7 +1,11 @@
+import { createContext, useContext } from 'react';
 import { create } from 'zustand';
 
-// Whether the inspector pane is on screen. panes.module.css hides it at max-width 1100px, so rows
-// only become inspectable (and highlighted) from 1101px. One media query listener serves every row.
+// Whether the inspector pane is on screen: the page renders one (Panes provides InspectorMountedContext;
+// inbox and author pages reuse feed rows without one), and the window is wide enough to show it.
+// panes.module.css hides it at max-width 1100px. One media query listener serves every row.
+export const InspectorMountedContext = createContext(false);
+
 const query = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia('(min-width: 1101px)') : undefined;
 
 const useInspectorAvailableStore = create<{ available: boolean }>(() => ({ available: query?.matches ?? true }));
@@ -14,6 +18,10 @@ if (typeof window !== 'undefined') {
   window.addEventListener('resize', update);
 }
 
-const useInspectorAvailable = (): boolean => useInspectorAvailableStore((state) => state.available);
+const useInspectorAvailable = (): boolean => {
+  const inspectorMounted = useContext(InspectorMountedContext);
+  const wideEnough = useInspectorAvailableStore((state) => state.available);
+  return inspectorMounted && wideEnough;
+};
 
 export default useInspectorAvailable;

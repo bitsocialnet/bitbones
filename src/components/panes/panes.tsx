@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import useWindowWidth from '../../hooks/use-window-width';
+import { InspectorMountedContext } from '../../hooks/use-inspector-available';
 import styles from './panes.module.css';
 
 interface PanesProps {
@@ -26,7 +27,9 @@ const Panes = ({ aside, asideTitle, inspector, children }: PanesProps) => {
         ) : (
           <aside className={styles.aside}>{aside}</aside>
         ))}
-      <div className={styles.content}>{children}</div>
+      <div className={styles.content}>
+        <InspectorMountedContext.Provider value={!!inspector && !isPhone}>{children}</InspectorMountedContext.Provider>
+      </div>
       {inspector && !isPhone && (
         <aside className={styles.inspector} aria-label='inspector'>
           {inspector}

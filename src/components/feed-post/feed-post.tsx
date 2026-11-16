@@ -102,9 +102,11 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
             {updatedPost?.replyCount || 0} comments
           </Link>
           {typeof unreadReplyCount === 'number' && unreadReplyCount > 0 && <span className={styles.unread}> +{unreadReplyCount}</span>}
-          <button type='button' className={styles.inspect} onClick={inspect}>
-            inspect
-          </button>
+          {inspectorAvailable && (
+            <button type='button' className={styles.inspect} onClick={inspect}>
+              inspect
+            </button>
+          )}
         </div>
         {verbose && <CommentLine comment={post} updatedComment={updatedPost} />}
         <CommentMedia comment={post} />
