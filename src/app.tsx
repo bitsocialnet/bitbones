@@ -15,16 +15,18 @@ import PendingPost from './views/pending-post';
 import NotFound from './views/not-found';
 import Profile from './views/profile';
 import About from './views/about';
+import Stats from './views/stats';
 import Inbox from './views/inbox';
 import Author from './views/author';
 import Communities from './views/communities';
 import CommunitySettings from './views/community-settings';
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import styles from './app.module.css';
-import useTheme from './hooks/use-theme';
+import useTheme, { useCustomCss } from './hooks/use-theme';
 import { useEffect } from 'react';
-import Menu from './components/menu';
-import Footer from './components/footer';
+import Topbar from './components/topbar';
+import StatusBar from './components/status-bar';
+import Log from './views/log';
 import ChallengeModal from './components/challenge-modal';
 import PKC from '@pkcprotocol/pkc-js';
 
@@ -33,6 +35,7 @@ window.PkcJs = PKC;
 
 function App() {
   const [theme] = useTheme();
+  const [customCss] = useCustomCss();
 
   // add theme className to body so it can set the correct body background in index.css
   useEffect(() => {
@@ -48,16 +51,20 @@ function App() {
   }, [unreadNotificationCount]);
 
   const layout = (
-    <div>
+    <>
       <ChallengeModal />
-      <Menu />
-      <Outlet />
-      <Footer />
-    </div>
+      <Topbar />
+      <main className={styles.main}>
+        <Outlet />
+      </main>
+      <StatusBar />
+    </>
   );
 
   return (
     <div className={[styles.app, theme].join(' ')}>
+      {/* user CSS from settings, after the theme so it can override any variable */}
+      {customCss ? <style>{customCss}</style> : undefined}
       <Routes>
         <Route element={layout}>
           {/* post page */}
@@ -81,6 +88,8 @@ function App() {
           <Route path='/settings' element={<Settings />} />
           <Route path='/communities' element={<Communities />} />
           <Route path='/about' element={<About />} />
+          <Route path='/stats/:period?' element={<Stats />} />
+          <Route path='/log' element={<Log />} />
 
           {/* author post history page */}
           <Route path='/u/:authorAddress/c/:commentCid?' element={<Author />} />

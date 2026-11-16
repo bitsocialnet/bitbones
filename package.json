@@ -5,7 +5,7 @@
   "engines": {
     "node": ">=22.12.0"
   },
-  "description": "bare bones gui client for bitsocial",
+  "description": "developer gui client for bitsocial that shows the protocol data behind every view",
   "type": "module",
   "author": "Bitsocial Forge",
   "license": "GPL-3.0-or-later",
@@ -69,6 +69,7 @@
     "@dnd-kit/utilities": "3.2.2",
     "@floating-ui/react": "0.26.1",
     "@pkcprotocol/pkc-js": "0.0.148",
+    "debug": "4.4.3",
     "electron-context-menu": "3.3.0",
     "electron-is-dev": "2.0.0",
     "env-paths": "3.0.0",
@@ -141,7 +142,7 @@
   },
   "resolutions": {
     "@pkcprotocol/pkc-js": "0.0.148",
-    "@libp2p/gossipsub": "17.0.1",
+    "@libp2p/gossipsub": "17.2.1",
     "@libp2p/kad-dht": "16.4.4",
     "elliptic": "6.6.1",
     "protobufjs": "7.6.5",

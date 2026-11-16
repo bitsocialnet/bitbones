@@ -4,7 +4,8 @@ import react from '@vitejs/plugin-react';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 import { VitePWA } from 'vite-plugin-pwa';
 
-const appVersion = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')).version;
+const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
+const appVersion = packageJson.version;
 const isProfilingBuild = process.env.REACT_PERF_PROFILE === '1';
 const commitRef = process.env.VITE_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_SHA || '';
 
@@ -39,6 +40,9 @@ function appVersionMetadataPlugin() {
 export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    // shown in the status bar, the dependencies are pinned to exact versions
+    'import.meta.env.VITE_PKC_JS_VERSION': JSON.stringify(packageJson.dependencies['@pkcprotocol/pkc-js']),
+    'import.meta.env.VITE_HOOKS_VERSION': JSON.stringify(packageJson.dependencies['@bitsocial/bitsocial-react-hooks']),
   },
 
   plugins: [

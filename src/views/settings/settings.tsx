@@ -3,7 +3,7 @@ import styles from './settings.module.css';
 import { useAccount, useAccounts, setAccount, createAccount, deleteAccount, useResolvedAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
 import type { Account } from '@bitsocial/bitsocial-react-hooks';
 import stringify from 'json-stringify-pretty-compact';
-import useTheme from '../../hooks/use-theme';
+import useTheme, { themes, useCustomCss } from '../../hooks/use-theme';
 import NftAvatar from './nft-avatar';
 import CryptoWallets from './crypto-wallets';
 
@@ -13,9 +13,40 @@ const Theme = () => {
     <div>
       <div>theme:</div>
       <select aria-label='Theme' value={theme} onChange={(e) => setTheme(e.target.value)}>
-        <option value='dark'>dark</option>
-        <option value='light'>light</option>
+        {themes.map((themeName) => (
+          <option key={themeName} value={themeName}>
+            {themeName}
+          </option>
+        ))}
       </select>
+    </div>
+  );
+};
+
+const CustomCss = () => {
+  const [customCss, setCustomCss] = useCustomCss();
+  const [draft, setDraft] = useState<string>();
+  return (
+    <div>
+      <label htmlFor='custom-css'>custom CSS, applied after the theme:</label>
+      <textarea
+        id='custom-css'
+        autoCorrect='off'
+        spellCheck={false}
+        rows={4}
+        placeholder={':root .dark { --light1: orange; }'}
+        value={draft ?? customCss}
+        onChange={(e) => setDraft(e.target.value)}
+      />
+      <button onClick={() => setCustomCss(draft ?? customCss)}>save</button>{' '}
+      <button
+        onClick={() => {
+          setDraft(undefined);
+          setCustomCss('');
+        }}
+      >
+        reset
+      </button>
     </div>
   );
 };
@@ -151,6 +182,7 @@ function Settings() {
   return (
     <div className={styles.settings}>
       <Theme />
+      <CustomCss />
       <BitbonesSettings />
       <AuthorAddress />
       <NftAvatar />

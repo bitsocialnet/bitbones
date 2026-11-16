@@ -1,0 +1,55 @@
+.panes {
+  display: flex;
+  align-items: flex-start;
+}
+
+.aside,
+.inspector {
+  position: sticky;
+  top: var(--topbar-height);
+  /* fixed to the viewport so the pane borders run the full height even when the pane is short */
+  height: calc(100vh - var(--topbar-height) - var(--statusbar-height));
+  overflow-y: auto;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  padding: 10px 12px 16px 12px;
+}
+
+.aside {
+  width: 260px;
+  border-right: 1px solid var(--border);
+}
+
+.inspector {
+  width: 380px;
+  border-left: 1px solid var(--border);
+}
+
+.content {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* keeps the left and right borders full height when the feed is short */
+  min-height: calc(100vh - var(--topbar-height) - var(--statusbar-height));
+}
+
+.asidePhone {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.asidePhone summary {
+  cursor: pointer;
+  color: var(--dim);
+}
+
+@media (max-width: 1100px) {
+  .inspector {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .panes {
+    display: block;
+  }
+}

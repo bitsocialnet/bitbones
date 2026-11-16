@@ -4,6 +4,11 @@ import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
+import { FeedDetails } from '../../components/protocol-details';
+import Panes from '../../components/panes';
+import Inspector from '../../components/inspector';
+import CommunitiesPane from '../../components/communities-pane';
+import FeedHeader, { FeedFooter } from '../../components/feed-header';
 import { useParams } from 'react-router-dom';
 import useFeedStateString from '../../hooks/use-feed-state-string';
 import useTimeFilter from '../../hooks/use-time-filter';
@@ -11,20 +16,23 @@ import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
 
 const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
-const NoSubscriptions = () => 'no subscriptions';
-const NoPosts = () => 'no posts';
+const NoSubscriptions = () => <FeedFooter>no subscriptions, join communities from their page</FeedFooter>;
+const NoPosts = () => <FeedFooter>no posts</FeedFooter>;
 
 // show own pending posts at the top for 12 hours
 const accountComments = { newerThan: 60 * 60 * 12 };
 
 function Subscriptions() {
-  const params = useParams<{ sortType?: string }>();
+  const params = useParams<{ sortType?: string; timeFilterName?: string }>();
   const account = useAccount();
   const communityAddresses = account?.subscriptions;
+  const subscriptionAddresses: string[] = communityAddresses || [];
   const sortType = params?.sortType || 'hot';
-  const { timeFilterSeconds } = useTimeFilter();
+  const { timeFilterSeconds, timeFilterNames } = useTimeFilter();
+  const timeFilterName = params?.timeFilterName || timeFilterNames[0];
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
+  const feedResult = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
+  const { feed, updatedFeed, hasMore, loadMore } = feedResult;
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
   let Footer;
@@ -35,7 +43,7 @@ function Subscriptions() {
     Footer = NoSubscriptions;
   }
   if (hasMore || !account) {
-    Footer = () => loadingStateString;
+    Footer = () => <FeedFooter>{loadingStateString}</FeedFooter>;
   }
 
   // save last virtuoso state on each scroll
@@ -54,8 +62,22 @@ function Subscriptions() {
   }, [sortType]);
   const lastVirtuosoState = lastVirtuosoStates?.[sortType];
 
+  // the 'all' time filter leaves newerThan out of the call
+  const hookCall = `useFeed({\n  communities: [${communities.length}],\n  sortType: '${sortType}',\n  postsPerPage: 10${timeFilterSeconds ? `,\n  newerThan: ${timeFilterSeconds}` : ''}\n})`;
+
   return (
-    <div>
+    <Panes
+      aside={<CommunitiesPane communityAddresses={subscriptionAddresses} hookCall={hookCall} />}
+      asideTitle={`communities (${subscriptionAddresses.length})`}
+      inspector={
+        <Inspector
+          fallback={
+            <FeedDetails feedResult={feedResult} communityCount={communities.length} sortType={sortType} newerThan={timeFilterSeconds} stateString={loadingStateString} />
+          }
+        />
+      }
+    >
+      <FeedHeader feedResult={feedResult} sortType={sortType} timeFilterName={timeFilterName} stateString={loadingStateString} />
       <Virtuoso
         increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={feed?.length || 0}
@@ -68,7 +90,7 @@ function Subscriptions() {
         restoreStateFrom={lastVirtuosoState}
         initialScrollTop={lastVirtuosoState?.scrollTop}
       />
-    </div>
+    </Panes>
   );
 }
 

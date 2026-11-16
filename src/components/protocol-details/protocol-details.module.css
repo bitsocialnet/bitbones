@@ -1,0 +1,55 @@
+.heading {
+  margin: 14px 0 6px 0;
+  font-size: 11px;
+  font-weight: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+
+.heading:first-child {
+  margin-top: 0;
+}
+
+.kv {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.kv th {
+  /* as narrow as the longest field name, which never breaks */
+  width: 1%;
+  padding: 2px 12px 2px 0;
+  color: var(--dim);
+  font-weight: normal;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.kv td {
+  padding: 2px 0;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.line {
+  margin-top: 3px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.part {
+  display: inline-block;
+  margin-right: 12px;
+  /* wrap between fields, never between a field name and its value */
+  white-space: nowrap;
+}

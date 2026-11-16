@@ -1,0 +1,83 @@
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.close {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  color: var(--dim);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  color: var(--fg);
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.tabs {
+  display: flex;
+  gap: 14px;
+  margin: 0 0 10px 0;
+}
+
+.tab {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  padding: 2px 0;
+  color: var(--dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tab:hover,
+.current {
+  color: var(--fg);
+}
+
+.current {
+  border-bottom-color: var(--fg);
+}
+
+.json {
+  margin: 0;
+  padding: 8px;
+  background-color: var(--bg2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 14px;
+}
+
+.actions a,
+.actions button {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.actions a:hover,
+.actions button:hover {
+  text-decoration: underline;
+}

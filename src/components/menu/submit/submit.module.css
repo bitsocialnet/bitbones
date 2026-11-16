@@ -7,6 +7,7 @@
 }
 
 .submit {
+  border: 1px solid var(--border);
   text-align: left;
   padding: 0 2px;
   width: 480px;
@@ -35,9 +36,9 @@
   font-size: 13px;
   background-color: var(--dark1);
   color: var(--light2);
-  font-family: verdana, arial, helvetica, sans-serif;
+  font-family: var(--font);
 }
 
 .submitTitle, .submitContent {
-  font-family: monospace;
+  font-family: var(--font-mono);
 }

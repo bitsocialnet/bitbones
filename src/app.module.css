@@ -1,19 +1,22 @@
 .app {
-  /* text */
-  color: var(--light2);
-  font-size: 10px;
-  font-family: verdana, arial, helvetica, sans-serif;
+  --topbar-height: 33px;
+  --statusbar-height: 25px;
 
-  /* container */
-  padding: 0 2px;
-  background-color: var(--dark1);
-
-  /* fix scrolling glitch */
-  overflow-y: hidden;
-
-  /* needed, don't know why */
-  overflow-x: hidden;
-
-  /* even if app is empty, fill to bottom */
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+  color: var(--fg);
+  background-color: var(--bg);
+  font-family: var(--font);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.main {
+  flex: 1 1 auto;
+}
+
+/* pages without panes (settings, profile, inbox...) get the same gutter as the panes */
+.main > :not([data-panes]) {
+  padding: 10px 12px;
 }

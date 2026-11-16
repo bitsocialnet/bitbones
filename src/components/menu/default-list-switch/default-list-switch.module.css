@@ -1,8 +1,10 @@
 .defaultListSwitch {
+  display: inline-flex;
+  gap: 2px;
   background: none;
-  border: 1px solid var(--light2);
-  padding: 0 1px;
-  margin: -1px 0 0 0;
+  border: 1px solid var(--border);
+  padding: 1px 2px;
+  margin: 0;
   line-height: 0;
   cursor: pointer;
   vertical-align: middle;
@@ -11,8 +13,7 @@
 .icon {
   display: inline-block;
   vertical-align: middle;
-  /* the sources are 16px drawn at 12px */
-  image-rendering: pixelated;
+  /* favicon size, drawn from 64px sources */
 }
 
 .active {

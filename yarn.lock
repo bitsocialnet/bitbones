@@ -3638,15 +3638,15 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libp2p/gossipsub@npm:17.0.1":
-  version: 17.0.1
-  resolution: "@libp2p/gossipsub@npm:17.0.1"
+"@libp2p/gossipsub@npm:17.2.1":
+  version: 17.2.1
+  resolution: "@libp2p/gossipsub@npm:17.2.1"
   dependencies:
-    "@libp2p/crypto": "npm:^5.1.23"
-    "@libp2p/interface": "npm:^3.3.0"
-    "@libp2p/interface-internal": "npm:^3.1.12"
-    "@libp2p/peer-id": "npm:^6.0.15"
-    "@libp2p/utils": "npm:^7.4.0"
+    "@libp2p/crypto": "npm:^5.2.0"
+    "@libp2p/interface": "npm:^3.4.0"
+    "@libp2p/interface-internal": "npm:^3.2.2"
+    "@libp2p/peer-id": "npm:^6.0.18"
+    "@libp2p/utils": "npm:^7.4.5"
     "@multiformats/multiaddr": "npm:^13.0.3"
     denque: "npm:^2.1.0"
     it-length-prefixed: "npm:^11.0.1"
@@ -3656,7 +3656,7 @@ __metadata:
     protons-runtime: "npm:^7.0.0"
     uint8arraylist: "npm:^3.0.2"
     uint8arrays: "npm:^6.1.1"
-  checksum: 10c0/d5de277d47b47a2756d10b7f819c364ee34c7de162cc1c31b96e82d4f0a9fbfa325909cc5f8a7a154203d823907a707e37329f2229534dfee62ac446942596e3
+  checksum: 10c0/7636be558e65078265c60845c3683bdf9bf7909c53277f52d7ea9b96ead0acd66ecf879568a727642d44ff8ca30869421eb1fa3ce38603444cf5bfa7aa123667
   languageName: node
   linkType: hard
 
@@ -7233,6 +7233,7 @@ __metadata:
     cross-env: "npm:7.0.3"
     cross-spawn: "npm:7.0.6"
     cz-conventional-changelog: "npm:3.3.0"
+    debug: "npm:4.4.3"
     electron: "npm:44.9.3"
     electron-context-menu: "npm:3.3.0"
     electron-is-dev: "npm:2.0.0"
