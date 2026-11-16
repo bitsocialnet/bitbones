@@ -61,6 +61,21 @@ test('the direct-Vite fallback skips a port that is already bound on 127.0.0.1',
   assert.notEqual(await resolvedPort(t, port), port);
 });
 
+test('the direct-Vite fallback skips a port that is bound only on ::1', async (t) => {
+  const server = net.createServer();
+  const listening = await new Promise((resolve) => {
+    server.once('error', () => resolve(false));
+    server.listen(0, '::1', () => resolve(true));
+  });
+  if (!listening) {
+    t.skip('no IPv6 loopback on this machine');
+    return;
+  }
+  t.after(() => server.close());
+  const port = server.address().port;
+  assert.notEqual(await resolvedPort(t, port), port);
+});
+
 test('an explicit PORT is used as given, so a busy one fails instead of moving', async (t) => {
   const port = await holdLoopbackPort(t);
   assert.equal(await resolvedPort(t, port + 1, { PORT: String(port) }), port);

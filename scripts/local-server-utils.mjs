@@ -50,14 +50,28 @@ function sanitizeLabel(value) {
     .replace(/-{2,}/g, '-');
 }
 
-// Probe the address Vite binds: on macOS a wildcard listen succeeds even while 127.0.0.1 holds the port.
-function checkPort(port) {
+// A port is free only if nothing holds it on any address the printed localhost URL can reach.
+// 127.0.0.1 is what Vite binds, and on macOS a wildcard listen succeeds even while 127.0.0.1 holds
+// the port. ::1 is where `localhost` often resolves first, and another dev server can listen there
+// alone. The wildcard catches the rest. A machine without IPv6 skips ::1.
+const probeHosts = [fallbackHost, '::1', undefined];
+
+function canListen(port, host) {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.once('error', () => resolve(false));
+    server.once('error', (error) => resolve(host === '::1' && (error.code === 'EADDRNOTAVAIL' || error.code === 'EAFNOSUPPORT')));
     server.once('listening', () => server.close(() => resolve(true)));
-    server.listen(port, fallbackHost);
+    server.listen(port, host);
   });
+}
+
+async function checkPort(port) {
+  for (const host of probeHosts) {
+    if (!(await canListen(port, host))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 async function resolvePort(requestedPort) {
