@@ -317,6 +317,33 @@ jobs:
           done
       # Keep the same sequence as electron:make:windows, but expose native rebuild progress
       # separately: the CLI's spinner does not print its phase updates in CI.
+      - name: Adapt the pinned node-gyp fork to Glob 10
+        shell: bash
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          // This old build-tool fork expects Glob 8 callbacks; the lockfile resolves Glob 10.
+          // Its promisify wrapper never settles during Windows .sln discovery. Adapt only
+          // the installed build helper, preserving the tagged app source and dependency lock.
+          assert.equal(require('@electron/node-gyp/package.json').version, '10.2.0-electron.1');
+          const file = require.resolve('@electron/node-gyp/lib/glob.js');
+          const source = fs.readFileSync(file, 'utf8');
+          assert(source.includes('glob: promisify(glob)'), 'Reassess the node-gyp compatibility patch');
+          fs.writeFileSync(file, source.replace('glob: promisify(glob)', 'glob'));
+          const timer = setTimeout(() => {
+            console.error('node-gyp file discovery did not resolve');
+            process.exit(1);
+          }, 5000);
+          require(file).glob('package.json').then((files) => {
+            assert.deepEqual(files, ['package.json']);
+            clearTimeout(timer);
+            console.log('node-gyp file discovery verified');
+          }).catch((error) => {
+            console.error(error);
+            process.exit(1);
+          });
+          NODE
       - name: Build web app for Windows
         run: yarn build
       - name: Rebuild native modules for Electron
@@ -326,6 +353,13 @@ jobs:
         run: yarn electron:rebuild-native
       - name: Verify Electron native modules
         run: yarn electron:verify-native
+      - name: Verify SQLite ABI and query
+        shell: pwsh
+        env:
+          ELECTRON_RUN_AS_NODE: '1'
+        run: |
+          $electronBinary = node -p "require('electron')"
+          & $electronBinary -e "const Database = require('better-sqlite3'); const db = new Database(':memory:'); const row = db.prepare('SELECT 1 AS value').get(); db.close(); if (row.value !== 1) process.exit(1); console.log('SQLite ABI and query verified');"
       - name: Build Windows installers
         env:
           DEBUG: electron-rebuild
