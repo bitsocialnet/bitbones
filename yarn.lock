@@ -1233,12 +1233,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@bitsocial/bitsocial-react-hooks@npm:0.2.3":
-  version: 0.2.3
-  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.2.3"
+"@bitsocial/bitsocial-react-hooks@npm:0.2.4":
+  version: 0.2.4
+  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.2.4"
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.10"
-    "@pkcprotocol/pkc-js": "npm:0.0.142"
+    "@pkcprotocol/pkc-js": "npm:0.0.148"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     ethers: "npm:5.8.0"
     localforage: "npm:1.10.0"
@@ -1253,7 +1253,7 @@ __metadata:
     zustand: "npm:4.5.7"
   peerDependencies:
     react: ">=16.8"
-  checksum: 10c0/90404093f482612913b6e4ce2a99b06cc04a0895c301c694348b1b98214cdba51abe4abe4a755fec7d138a628bc69ee4f3c4b201185b8d248419748d656b5b5c
+  checksum: 10c0/5431de1bf47e197344bafaa3a55395a5c68905e4e3c6835cc6a6b0baff7449810304ea9dc97337eef651f8a0ef1bb3bea8c2a9b097a1d482fadaeb6218348fdd
   languageName: node
   linkType: hard
 
@@ -5562,9 +5562,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.146":
-  version: 0.0.146
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.146"
+"@pkcprotocol/pkc-js@npm:0.0.148":
+  version: 0.0.148
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.148"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/bitswap": "npm:4.0.20"
@@ -5632,7 +5632,7 @@ __metadata:
     uuid: "npm:14.0.3"
     ws: "npm:8.22.0"
     zod: "npm:4.6.7"
-  checksum: 10c0/a0ed060a1ebbce3240c075b1838e2db0b9b898c47127283b8ec49aca8499cfc1a049673d4a576b8b743da61583f343fe540bd3551e9c2a85eca8317e819b9a2c
+  checksum: 10c0/b532299e54d35b13f88d99b218410109ecda167694e114243d19b70e8e5f988aae5fdc078fb998da593d6aca9a24f1728acde89bc6de344a867eb4ed273a21e7
   languageName: node
   linkType: hard
 
@@ -7202,7 +7202,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "bitbones@workspace:."
   dependencies:
-    "@bitsocial/bitsocial-react-hooks": "npm:0.2.3"
+    "@bitsocial/bitsocial-react-hooks": "npm:0.2.4"
     "@bitsocial/bso-resolver": "npm:0.0.10"
     "@capacitor/android": "npm:7.6.9"
     "@capacitor/app": "npm:7.0.1"
@@ -7217,7 +7217,7 @@ __metadata:
     "@electron-forge/maker-zip": "npm:7.8.0"
     "@electron/rebuild": "npm:3.7.2"
     "@floating-ui/react": "npm:0.26.1"
-    "@pkcprotocol/pkc-js": "npm:0.0.146"
+    "@pkcprotocol/pkc-js": "npm:0.0.148"
     "@playwright/cli": "npm:0.1.19"
     "@reforged/maker-appimage": "npm:5.1.1"
     "@types/memoizee": "npm:0.4.12"
@@ -14814,11 +14814,11 @@ __metadata:
   linkType: hard
 
 "p-event@npm:^8.0.1":
-  version: 8.0.2
-  resolution: "p-event@npm:8.0.2"
+  version: 8.0.1
+  resolution: "p-event@npm:8.0.1"
   dependencies:
-    p-timeout: "npm:^8.0.0"
-  checksum: 10c0/33e19862e940b1ac0507d6b94e10a14c07986723035783d131fd3f795f3a341591ec1a1500135a4e7ba8339a55e17520f57c38bb1b8ab364ccf8aac8b23e3e27
+    p-timeout: "npm:^7.0.2"
+  checksum: 10c0/2689f18952aeaca16def8f067af079ddfedc2597de91278bba4d32d82e9b448a7adadde04429f8d20868d47f710be03f7864939faec370fbdd4d8cd1ff79fc0c
   languageName: node
   linkType: hard
 
@@ -14979,10 +14979,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"p-timeout@npm:^8.0.0":
-  version: 8.1.0
-  resolution: "p-timeout@npm:8.1.0"
-  checksum: 10c0/7e40be84d7f558d76f16a84c5ba1cc4e83759beb1136829ff9f45b32d6b8672c4edcd84452a29878c3f5c8652d5bf684dbd5e417531a39a5bf1e77bdffb321ad
+"p-timeout@npm:^7.0.2":
+  version: 7.0.2
+  resolution: "p-timeout@npm:7.0.2"
+  checksum: 10c0/26595bbda27361a15231a82d8d3ef4f277bb3e9647aaa4a554b90012d03d22aaf28165b60afffe9425fb1326bd40b93f145d76eb23adb6b76d07d5f5d4c7964a
   languageName: node
   linkType: hard
 
@@ -16511,21 +16511,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"sanitize-filename@npm:^1.6.3":
+"sanitize-filename@npm:^1.6.3, sanitize-filename@npm:^1.6.4":
   version: 1.6.4
   resolution: "sanitize-filename@npm:1.6.4"
   dependencies:
     truncate-utf8-bytes: "npm:^1.0.0"
   checksum: 10c0/b56415a95e4f90dc992cd126b5f45c7b39d178662fbd0dc48f03203e35c58ab8e9eb3f5cebfaabc46f1438093d65a3a3cc96875e2b036a1474e19593bee9a540
-  languageName: node
-  linkType: hard
-
-"sanitize-filename@npm:^1.6.4":
-  version: 1.6.5
-  resolution: "sanitize-filename@npm:1.6.5"
-  dependencies:
-    truncate-utf8-bytes: "npm:^1.0.0"
-  checksum: 10c0/20479a6bb6e550a99b25e1e590cf985fe7e41363a363e7f27c0dd783fd91587846901763570d5e2ebdd53b3c63d37f8807671d654d87f1afd52b6a54819215f8
   languageName: node
   linkType: hard
 
