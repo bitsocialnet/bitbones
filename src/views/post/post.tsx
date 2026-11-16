@@ -20,6 +20,7 @@ import useCommentLabels from '../../hooks/use-comment-labels';
 import useStateString from '../../hooks/use-state-string';
 import useVerbose from '../../hooks/use-verbose';
 import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
+import useInspectorAvailable from '../../hooks/use-inspector-available';
 import styles from './post.module.css';
 
 interface ReplyQuoteProps {
@@ -74,7 +75,9 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
   const labels = useCommentLabels(reply, editedReplyState);
   const [verbose] = useVerbose();
   const [inspectedComment, setInspectedComment] = useInspectedComment();
-  const inspected = isSameComment(inspectedComment, reply);
+  // without the inspector pane on screen, a click would select a reply nothing shows
+  const inspectorAvailable = useInspectorAvailable();
+  const inspected = inspectorAvailable && isSameComment(inspectedComment, reply);
   const inspect = () => setInspectedComment(updatedReply || reply);
 
   const score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
@@ -86,7 +89,7 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
   return (
     <div className={styles.reply}>
       {/* the click is a mouse shortcut, the inspect button is the keyboard path */}
-      <div className={[styles.replyBody, inspected ? styles.inspected : undefined].join(' ')} onClick={inspect}>
+      <div className={[styles.replyBody, inspected ? styles.inspected : undefined].join(' ')} onClick={inspectorAvailable ? inspect : undefined}>
         <div className={styles.replyHeader}>
           <span className={score < 0 ? styles.negative : score > 0 ? styles.positive : styles.dim}>{score > 0 ? `+${score}` : score}</span>
           <Link to={`/u/${reply?.author?.address}/c/${reply?.cid}`} className={styles.author}>

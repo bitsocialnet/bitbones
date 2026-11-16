@@ -12,6 +12,7 @@ import useDownvote from '../../hooks/use-downvote';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import useVerbose from '../../hooks/use-verbose';
 import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
+import useInspectorAvailable from '../../hooks/use-inspector-available';
 import styles from './feed-post.module.css';
 
 interface FeedPostProps {
@@ -44,7 +45,9 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
   const labels = useCommentLabels(updatedPost, editedPostState);
   const [verbose] = useVerbose();
   const [inspectedComment, setInspectedComment] = useInspectedComment();
-  const inspected = isSameComment(inspectedComment, post);
+  // without the inspector pane on screen, a click would select a row nothing shows
+  const inspectorAvailable = useInspectorAvailable();
+  const inspected = inspectorAvailable && isSameComment(inspectedComment, post);
 
   const score = (updatedPost?.upvoteCount || 0) - (updatedPost?.downvoteCount || 0);
   const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-';
@@ -53,7 +56,10 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
 
   return (
     // the row click is a mouse shortcut, the inspect button below is the keyboard path
-    <div className={[styles.feedPost, inspected ? styles.inspected : undefined, hidden || post?.removed ? styles.hidden : undefined].join(' ')} onClick={inspect}>
+    <div
+      className={[styles.feedPost, inspected ? styles.inspected : undefined, hidden || post?.removed ? styles.hidden : undefined].join(' ')}
+      onClick={inspectorAvailable ? inspect : undefined}
+    >
       <div className={styles.score}>
         <button type='button' className={[styles.vote, upvoted ? styles.voted : undefined].join(' ')} onClick={upvote} aria-label='upvote' aria-pressed={upvoted}>
           <Arrow />
