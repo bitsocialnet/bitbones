@@ -60,6 +60,12 @@ jobs:
         run: |
           ls -la build/
           test -f build/index.html
+      - name: Test the release manifest generator
+        run: yarn release:manifest:test
+      - name: Verify the release manifest covers the build
+        run: |
+          yarn release:manifest --build-dir build --out-dir "$RUNNER_TEMP/release-manifest"
+          node -e "const m = require(process.argv[1]); if (!m.files.some((f) => f.path === 'index.html')) { console.error('::error::index.html is missing from the release manifest'); process.exit(1); }" "$RUNNER_TEMP/release-manifest/bitbones-release-manifest.json"
       - name: Verify forge config
         run: node -e "import('./forge.config.js').then((c) => console.log('forge config loaded, makers:', c.default.makers?.length || 0)).catch((e) => { console.error(e); process.exit(1); })"
       - name: Verify the dev-only inspectors stayed out of the bundle
