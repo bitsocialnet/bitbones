@@ -83,8 +83,11 @@ test('an explicit PORT is used as given, so a busy one fails instead of moving',
 
 // Starts `server` (a Node script that prints `server pid=<pid>`) through startLocalServer and
 // returns the launcher plus a check that waits up to a second for that server PID to be gone.
-async function launchServer(t, server) {
-  const launcher = runLauncher(t, `utils.startLocalServer({ command: process.execPath, args: ['-e', ${JSON.stringify(server)}], env: process.env, publicUrl: null });`);
+async function launchServer(t, server, ownProcessGroup = false) {
+  const launcher = runLauncher(
+    t,
+    `utils.startLocalServer({ command: process.execPath, args: ['-e', ${JSON.stringify(server)}], env: process.env, publicUrl: null, ownProcessGroup: ${ownProcessGroup} });`,
+  );
   const serverPid = Number((await launcher.line(/server pid=(\d+)/))[1]);
   const alive = () => {
     try {
@@ -126,4 +129,13 @@ test('a hangup sent to the launcher also stops a server run behind portless', as
   launcher.child.kill('SIGHUP');
   await launcher.exited;
   assert.equal(await stopped(), true, 'the server behind the portless-like child outlived its launcher');
+});
+
+// Closing a terminal hangs up the foreground process group, not only the launcher.
+test('a hangup sent to the whole process group also stops a server run behind portless', async (t) => {
+  const { launcher, stopped } = await launchServer(t, portlessLike, true);
+
+  process.kill(-launcher.child.pid, 'SIGHUP');
+  await launcher.exited;
+  assert.equal(await stopped(), true, 'the server behind the portless-like child outlived the hangup');
 });

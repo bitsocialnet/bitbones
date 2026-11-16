@@ -171,7 +171,9 @@ const createMainWindow = () => {
     callback({ responseHeaders: details.responseHeaders });
   });
 
-  const startURL = isDev ? 'http://localhost:5173' : `file://${path.join(dirname, '../build/index.html')}`;
+  // `yarn electron:dev` passes the url of the dev server it started, which is not on 5173 when
+  // another checkout already serves there
+  const startURL = isDev ? process.env.BITBONES_DEV_SERVER_URL || 'http://localhost:5173' : `file://${path.join(dirname, '../build/index.html')}`;
 
   mainWindow.loadURL(startURL);
 

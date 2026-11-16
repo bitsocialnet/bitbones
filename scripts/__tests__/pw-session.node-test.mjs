@@ -127,6 +127,29 @@ test('an abandoned ownerless lock and a dead launcher are still reclaimed', (t) 
   assert.equal(owner(), 'third');
 });
 
+test('a slot whose owner process was killed is reclaimed, and its orphaned browser closed', async (t) => {
+  const { env, workspace, run, owner, closed } = fixture(t);
+  const directory = workspace('repo');
+  const ownerProcess = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  t.after(() => ownerProcess.kill('SIGKILL'));
+  const ownerEnv = { ...env, PW_SESSION_OWNER_PID: String(ownerProcess.pid) };
+  const opened = spawnSync('bash', [wrapper, 'open', 'perf-owner', 'about:blank'], { cwd: directory, env: ownerEnv, encoding: 'utf8' });
+  assert.equal(opened.status, 0, opened.stdout + opened.stderr);
+
+  const busy = run(directory, 'open', 'second', 'about:blank');
+  assert.equal(busy.status, 75, busy.stdout + busy.stderr);
+  assert.deepEqual(closed(), []);
+
+  const exited = new Promise((resolve) => ownerProcess.once('exit', resolve));
+  ownerProcess.kill('SIGKILL');
+  await exited;
+  assert.match(run(directory, 'status').stdout, /owner process is gone/);
+  const reclaimed = run(directory, 'open', 'second', 'about:blank');
+  assert.equal(reclaimed.status, 0, reclaimed.stdout + reclaimed.stderr);
+  assert.deepEqual(closed(), ['perf-owner']);
+  assert.equal(owner(), 'second');
+});
+
 test('close from another workspace leaves a same-named holder and its browser alone', (t) => {
   const { lock, workspace, run, owner, closed } = fixture(t);
   const holder = workspace('holder');

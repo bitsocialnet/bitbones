@@ -105,7 +105,9 @@ export async function withBrowser(packageRoot, headed, run) {
       },
     }),
   );
-  const env = { ...process.env, PLAYWRIGHT_CLI_BIN: driver.cli };
+  // names this process as the slot's owner, so if it is killed before the cleanup below runs, the
+  // next open closes the browser it left and takes the slot
+  const env = { ...process.env, PLAYWRIGHT_CLI_BIN: driver.cli, PW_SESSION_OWNER_PID: String(process.pid) };
   let attempted = false;
   let busy = false;
   let primaryError;

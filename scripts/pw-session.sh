@@ -27,6 +27,15 @@ umask 077
 # on its second line, and a lock with a live opener is never reclaimed. Older
 # copies of this script read only the first line.
 #
+# A browser outlives the process that drives it, so a killed owner (SIGKILL, a
+# crash) leaves an open browser that keeps the slot looking held. A long-lived
+# owner can pass its PID to `open` as PW_SESSION_OWNER_PID. Once that process is
+# gone the lock is stale even though its browser is still open, and the next
+# `open` closes that browser and reclaims the slot. The PID is stored with the
+# process start time, so a recycled PID does not count as the owner. Only use it
+# with a session name no other caller picks, as the perf runner does: the
+# orphaned browser is closed by name.
+#
 # PW_SESSION_POLL_SECONDS overrides how often `--wait` re-checks the slot.
 
 usage() {
@@ -69,6 +78,7 @@ fi
 owner_file="$lock_dir/owner"
 started_file="$lock_dir/started-at"
 workspace_file="$lock_dir/workspace"
+owner_process_file="$lock_dir/owner-process"
 default_wait_seconds=300
 poll_seconds="${PW_SESSION_POLL_SECONDS:-5}"
 
@@ -111,6 +121,22 @@ opener_running() {
   [[ "$opener" =~ ^[0-9]+$ ]] && kill -0 "$opener" 2>/dev/null
 }
 
+process_started() {
+  ps -o lstart= -p "$1" 2>/dev/null || true
+}
+
+# Succeeds when the lock names an owner process that no longer exists. A lock
+# without one, or one whose record cannot be read, never counts as orphaned.
+owner_process_gone() {
+  local pid started
+
+  pid="$(sed -n '1p' "$owner_process_file" 2>/dev/null || true)"
+  started="$(sed -n '2p' "$owner_process_file" 2>/dev/null || true)"
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  [ -n "$started" ] || return 1
+  [ "$(process_started "$pid")" != "$started" ]
+}
+
 # Echoes `live`, `dead`, or `unknown` for a session name. `unknown` means the
 # browser list could not be read, and callers must treat the lock as held.
 session_state() {
@@ -142,12 +168,19 @@ session_state() {
 }
 
 # Like session_state, but `launching` while the holder is still starting its
-# browser.
+# browser, and `orphaned` when its browser is open but its owner process is gone.
 holder_state() {
+  local state
+
   if opener_running; then
     echo launching
+    return 0
+  fi
+  state="$(session_state "$1")"
+  if [ "$state" = live ] && owner_process_gone; then
+    echo orphaned
   else
-    session_state "$1"
+    echo "$state"
   fi
 }
 
@@ -155,6 +188,19 @@ write_lock_metadata() {
   printf '%s\n%s\n' "$1" "$$" >"$owner_file"
   date -u '+%Y-%m-%dT%H:%M:%SZ' >"$started_file"
   printf '%s\n' "$workspace" >"$workspace_file"
+  record_owner_process
+}
+
+record_owner_process() {
+  local pid="${PW_SESSION_OWNER_PID:-}" started
+
+  [ -n "$pid" ] || return 0
+  started="$([[ "$pid" =~ ^[0-9]+$ ]] && process_started "$pid" || true)"
+  if [ -z "$started" ]; then
+    echo "pw-session: warning: PW_SESSION_OWNER_PID '$pid' is not a running process; the slot will not be reclaimed if its owner dies" >&2
+    return 0
+  fi
+  printf '%s\n%s\n' "$pid" "$started" >"$owner_process_file"
 }
 
 # Drops the opener PID once the browser is listed, so a recycled PID can never
@@ -184,7 +230,7 @@ print_status() {
 
   case "$state" in
     live | launching) echo "pw-session: browser slot is held" ;;
-    dead) echo "pw-session: browser slot is held by a stale lock" ;;
+    dead | orphaned) echo "pw-session: browser slot is held by a stale lock" ;;
     *) echo "pw-session: browser slot is held (browser state unverifiable)" ;;
   esac
 
@@ -199,6 +245,9 @@ print_status() {
     dead)
       echo "Browser: not running — the next 'open' reclaims this slot automatically"
       ;;
+    orphaned)
+      echo "Browser: running, but its owner process is gone — the next 'open' closes it and reclaims this slot"
+      ;;
     *)
       echo "Browser: unverifiable — '$playwright_cli list --all' failed, so the lock is left alone"
       ;;
@@ -207,17 +256,24 @@ print_status() {
 
 # Atomically drop a lock we have confirmed is stale. Renaming first means only
 # one racing reclaimer can win, so a concurrent fresh lock is never deleted.
+# An orphaned lock's browser is still open, so the winner closes it as well.
 reclaim_stale_lock() {
-  local owner="$1" staged="${lock_dir}.stale.$$"
+  local owner="$1" state="$2" staged="${lock_dir}.stale.$$"
 
   if mv "$lock_dir" "$staged" 2>/dev/null; then
     rm -rf "$staged"
-    echo "pw-session: reclaimed stale slot from '$owner' (its browser is no longer running)" >&2
+    if [ "$state" = orphaned ]; then
+      "$playwright_cli" -s="$owner" close >/dev/null 2>&1 ||
+        echo "pw-session: warning: could not close the orphaned browser '$owner'" >&2
+      echo "pw-session: reclaimed stale slot from '$owner' (its owner process is gone; closed its browser)" >&2
+    else
+      echo "pw-session: reclaimed stale slot from '$owner' (its browser is no longer running)" >&2
+    fi
   fi
 }
 
 acquire() {
-  local session="$1" wait_seconds="$2" owner state reclaims=0 ownerless=0
+  local session="$1" wait_seconds="$2" owner state stale reclaims=0 ownerless=0
 
   validate_session "$session"
   mkdir -p "$(dirname "$lock_dir")"
@@ -242,13 +298,18 @@ acquire() {
     state="$([ -n "$owner" ] && holder_state "$owner" || echo dead)"
 
     # Bounded so an unremovable lock directory fails loudly instead of spinning.
-    if [ "$state" = dead ] && [ "$reclaims" -lt 3 ]; then
+    if [ "$state" = dead ] || [ "$state" = orphaned ]; then
+      stale=1
+    else
+      stale=0
+    fi
+    if [ "$stale" -eq 1 ] && [ "$reclaims" -lt 3 ]; then
       reclaims=$((reclaims + 1))
-      reclaim_stale_lock "${owner:-unknown}"
+      reclaim_stale_lock "${owner:-unknown}" "$state"
       continue
     fi
 
-    if [ "$state" = dead ]; then
+    if [ "$stale" -eq 1 ]; then
       print_status >&2
       echo "pw-session: could not reclaim the stale slot at $lock_dir; remove it by hand" >&2
       return 75
@@ -282,7 +343,7 @@ release() {
   owner="$(current_owner)"
   if [ "$owner" != "$session" ]; then
     echo "pw-session: '$session' cannot release the slot held by '${owner:-unknown}'" >&2
-    if [ -n "$owner" ] && [ "$(holder_state "$owner")" = dead ]; then
+    if [ -n "$owner" ] && [[ "$(holder_state "$owner")" =~ ^(dead|orphaned)$ ]]; then
       echo "pw-session: that lock is stale; the next 'open' reclaims it automatically" >&2
     fi
     return 1
@@ -294,7 +355,7 @@ release() {
     return 1
   fi
 
-  rm -f "$owner_file" "$started_file" "$workspace_file"
+  rm -f "$owner_file" "$started_file" "$workspace_file" "$owner_process_file"
   rmdir "$lock_dir"
   echo "pw-session: released browser slot for '$session'"
 }

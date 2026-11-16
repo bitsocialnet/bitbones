@@ -161,11 +161,12 @@ export async function resolveLocalServer(viteArgs, fallbackPort) {
       args: [appName, 'vite', ...viteArgs],
       env: portlessEnv,
       publicUrl: `https://${appName}.localhost`,
+      ownProcessGroup: true,
     };
   }
 
-  // An explicit PORT is kept even when busy, so --strictPort fails loudly: `yarn electron:dev` loads
-  // a fixed http://localhost:5173 and would otherwise show whichever server already holds it.
+  // An explicit PORT is kept even when busy, so --strictPort fails loudly instead of the caller
+  // reaching whichever server already holds that port.
   const port = explicitPort ? requestedPort : await resolvePort(requestedPort);
   const url = `http://${fallbackUrlHost}:${port}`;
 
@@ -184,16 +185,20 @@ export async function resolveLocalServer(viteArgs, fallbackPort) {
     env: process.env,
     // no auto-open: Vite already prints and opens the local url itself in this mode
     publicUrl: null,
+    url,
   };
 }
 
 /** Spawns the resolved server, opens the portless url once it answers, and mirrors its exit code. */
-export function startLocalServer({ command, args, env, publicUrl }) {
+export function startLocalServer({ command, args, env, publicUrl, ownProcessGroup = false }) {
   if (publicUrl) {
     console.log(`Serving at ${publicUrl}`);
   }
 
-  const child = spawn(command, args, { cwd: repoRoot, stdio: 'inherit', env });
+  // Closing the terminal hangs up its whole foreground process group. portless does not handle
+  // SIGHUP and runs Vite in another group, so a hangup that reached portless directly would kill it
+  // and leave Vite running. In its own group portless only gets the signals forwarded below.
+  const child = spawn(command, args, { cwd: repoRoot, stdio: 'inherit', env, detached: ownProcessGroup && !isWindows });
 
   if (publicUrl && process.env.BROWSER !== 'none') {
     waitForUrlReady(publicUrl, 30_000)
@@ -207,7 +212,8 @@ export function startLocalServer({ command, args, env, publicUrl }) {
   }
 
   // A signal sent to the launcher's PID alone (a supervisor or agent stopping it) would otherwise
-  // leave the server running and holding its port or route. Terminal Ctrl-C reaches both anyway.
+  // leave the server running and holding its port or route. Terminal Ctrl-C reaches a server in the
+  // launcher's process group anyway, and one in its own group only through this.
   // portless handles only SIGINT and SIGTERM and runs Vite in its own process group, so a hangup
   // is passed on as SIGTERM: forwarded as is, it would kill portless and leave Vite running.
   const forwardedSignals = ['SIGINT', 'SIGTERM', 'SIGHUP'];
@@ -226,7 +232,7 @@ export function startLocalServer({ command, args, env, publicUrl }) {
   return child;
 }
 
-async function waitForUrlReady(url, timeoutMs) {
+export async function waitForUrlReady(url, timeoutMs) {
   const startedAt = Date.now();
 
   while (Date.now() - startedAt < timeoutMs) {
