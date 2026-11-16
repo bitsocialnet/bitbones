@@ -39,8 +39,26 @@ const spawnAsync = (...args) =>
     spawedProcess.stderr.on('data', (data) => console.error(data.toString()));
     spawedProcess.stdin.on('data', (data) => console.log(data.toString()));
     spawedProcess.stdout.on('data', (data) => console.log(data.toString()));
-    spawedProcess.on('error', (data) => console.error(data.toString()));
+    // a failed spawn (e.g. EACCES) emits 'error' without 'exit'
+    spawedProcess.on('error', (error) => {
+      console.error(error.toString());
+      reject(error);
+    });
   });
+
+// the kubo daemon this app spawned, until it exits. kubo is spawned directly, so its pid is the daemon itself.
+let runningIpfsDaemon;
+process.on('exit', () => {
+  // a spawn that failed has no pid
+  if (!runningIpfsDaemon?.pid) {
+    return;
+  }
+  try {
+    ps.kill(runningIpfsDaemon.pid);
+  } catch (e) {
+    console.log(e);
+  }
+});
 
 const startIpfs = async () => {
   const ipfsPath = await getKuboPath();
@@ -95,24 +113,18 @@ const startIpfs = async () => {
           resolve();
         }
       });
-      ipfsProcess.on('error', (data) => console.error(data.toString()));
+      ipfsProcess.on('error', (error) => {
+        console.error(error.toString());
+        reject(error);
+      });
       ipfsProcess.on('exit', () => {
         console.error(`ipfs process with pid ${ipfsProcess.pid} exited`);
+        if (runningIpfsDaemon === ipfsProcess) {
+          runningIpfsDaemon = undefined;
+        }
         reject(Error(lastError));
       });
-      process.on('exit', () => {
-        try {
-          ps.kill(ipfsProcess.pid);
-        } catch (e) {
-          console.log(e);
-        }
-        try {
-          // sometimes ipfs doesnt exit unless we kill pid +1
-          ps.kill(ipfsProcess.pid + 1);
-        } catch (e) {
-          console.log(e);
-        }
-      });
+      runningIpfsDaemon = ipfsProcess;
     });
   await startIpfsDaemon();
 };
@@ -132,6 +144,8 @@ const startIpfsAutoRestart = async () => {
       if (!started) {
         await startIpfs();
       }
+      // ipfs is running, started by this client or another one; exported callback, can be undefined
+      DefaultExport.onStarted?.();
     } catch (e) {
       console.log('failed starting ipfs', e);
       try {
