@@ -34,6 +34,20 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: corepack enable
+      - name: Resolve Yarn cache path
+        id: yarn-cache
+        shell: bash
+        run: |
+          if yarn_cache_dir=$(corepack yarn config get cacheFolder) && [ -n "$yarn_cache_dir" ]; then
+            echo "dir=$yarn_cache_dir" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache Yarn package tarballs
+        if: steps.yarn-cache.outputs.dir != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: ${{ runner.os }}-${{ runner.arch }}-yarn-v2-${{ hashFiles('yarn.lock', 'package.json', '.yarnrc.yml') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-yarn-v2-
       - name: Install dependencies
         run: |
           for i in 1 2 3; do
@@ -86,13 +100,13 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: react-performance
-          path: .react-perf/
+          path: .react-perf/ci/
+          include-hidden-files: true
           if-no-files-found: warn
 
   package-linux:
     name: Package Linux
     runs-on: ubuntu-22.04
-    needs: quality
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -100,6 +114,20 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: corepack enable
+      - name: Resolve Yarn cache path
+        id: yarn-cache
+        shell: bash
+        run: |
+          if yarn_cache_dir=$(corepack yarn config get cacheFolder) && [ -n "$yarn_cache_dir" ]; then
+            echo "dir=$yarn_cache_dir" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache Yarn package tarballs
+        if: steps.yarn-cache.outputs.dir != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: ${{ runner.os }}-${{ runner.arch }}-yarn-v2-${{ hashFiles('yarn.lock', 'package.json', '.yarnrc.yml') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-yarn-v2-
       - name: Cache electron binaries
         uses: actions/cache@v4
         with:
@@ -127,7 +155,6 @@ jobs:
   android-build:
     name: Android Build
     runs-on: ubuntu-22.04
-    needs: quality
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
@@ -140,6 +167,20 @@ jobs:
         with:
           node-version-file: .nvmrc
       - run: corepack enable
+      - name: Resolve Yarn cache path
+        id: yarn-cache
+        shell: bash
+        run: |
+          if yarn_cache_dir=$(corepack yarn config get cacheFolder) && [ -n "$yarn_cache_dir" ]; then
+            echo "dir=$yarn_cache_dir" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Cache Yarn package tarballs
+        if: steps.yarn-cache.outputs.dir != ''
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.yarn-cache.outputs.dir }}
+          key: ${{ runner.os }}-${{ runner.arch }}-yarn-v2-${{ hashFiles('yarn.lock', 'package.json', '.yarnrc.yml') }}
+          restore-keys: ${{ runner.os }}-${{ runner.arch }}-yarn-v2-
       - name: Install dependencies
         run: |
           for i in 1 2 3; do
