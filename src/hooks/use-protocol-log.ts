@@ -64,20 +64,28 @@ const stringifyArg = (arg: unknown): string => {
 // debug's browser formatter turns a call into ['%cnamespace %cmessage%c +2ms', 'color: …', 'color: inherit', 'color: …', ...rest]
 // In the browser, debug substitutes only %j and leaves %s, %d, %i, %f, %o and %O for the console, and
 // formatArgs inserts one css argument per %c at that token's position. So the tokens are filled in
-// order: %c drops its css argument, the others take the next argument, and the rest are appended.
+// order, as the console would: %c drops its css argument, the others take the next argument, and the
+// rest are appended. Only real specifiers count, so text like a percent-encoded /%C3%A9 stays as is.
+const isCssArg = (arg: unknown) => typeof arg === 'string' && /^color: /.test(arg);
+
 const formatDebugArgs = (first: string, rest: unknown[]): { text: string; extra: string[] } => {
   let next = 0;
-  const text = first.replace(/%([a-zA-Z%])/g, (match, format: string) => {
+  const text = first.replace(/%([sdifoOcj%])/g, (match, format: string) => {
     if (format === '%') {
       return '%';
     }
-    if (next >= rest.length) {
+    const value = rest[next];
+    // %c takes only its css argument and a value specifier never takes one, so literal text such as
+    // "50%Off" keeps its characters instead of swallowing debug's styling
+    if (next >= rest.length || (format === 'c') !== isCssArg(value)) {
       return match;
     }
-    const value = rest[next++];
+    next++;
     return format === 'c' ? '' : stringifyArg(value);
   });
-  return { text, extra: rest.slice(next).map(stringifyArg) };
+  // a css argument left over (debug places it by counting every %letter) is styling, not content
+  const extra = rest.slice(next).filter((arg) => !isCssArg(arg));
+  return { text, extra: extra.map(stringifyArg) };
 };
 
 const parseDebugArgs = (args: unknown[]): Omit<ProtocolLogEntry, 'id' | 'time'> => {
