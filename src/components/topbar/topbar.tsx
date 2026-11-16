@@ -79,7 +79,9 @@ const Topbar = () => {
   const pathNames = pathname.split('/');
 
   const isPost = pathNames[1] === 'p' && !!params.commentCid;
-  const isPage = pages.has(pathNames[1]) || isPost;
+  // community settings (/p/<address>/settings) is a page of that community, not one of its feeds
+  const isCommunitySettings = pathNames[1] === 'p' && pathNames[3] === 'settings';
+  const isPage = pages.has(pathNames[1]) || isPost || isCommunitySettings;
   const isCatalog = pathNames[1] === 'catalog' || pathNames[3] === 'catalog';
   // p/<address> on community and post pages, p/subscriptions on the subscriptions feed
   const feedName = pathNames[1] === 'p' ? pathNames[2] : undefined;
