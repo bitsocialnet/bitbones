@@ -67,14 +67,6 @@ const StatsTable = ({ communityAddresses, period }: StatsTableProps) => (
   </div>
 );
 
-const getHost = (url: string): string => {
-  try {
-    return new URL(url).host || url;
-  } catch {
-    return url;
-  }
-};
-
 interface CommunitiesStatesTableProps {
   communityAddresses: string[];
 }
@@ -106,7 +98,7 @@ const CommunitiesStatesTable = ({ communityAddresses }: CommunitiesStatesTablePr
               <tr key={state}>
                 <td>{state}</td>
                 <td className={styles.wrap}>{communityAddresses.join(', ')}</td>
-                <td className={styles.wrap}>{clientUrls.map(getHost).join(', ')}</td>
+                <td className={styles.wrap}>{clientUrls.map(utils.getHost).join(', ')}</td>
                 <td className={styles.number}>{peerCount || ''}</td>
               </tr>
             );
