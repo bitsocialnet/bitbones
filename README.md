@@ -14,7 +14,7 @@ A developer client for Bitsocial that shows the protocol data behind every view.
 
 </div>
 
-![bitbones on p/all: the default communities with the age of their last update on the left, the hot feed in the middle with a protocol line under each post and one video expanded, and the inspector on the right showing the selected post's fields](docs/assets/readme-screenshot.png)
+![bitbones default feed: the default communities with the age of their last update on the left, the hot feed in the middle with a protocol line under each post and one video expanded, and the inspector on the right showing the selected post's fields](docs/assets/readme-screenshot.png)
 
 bitbones works like a browser's devtools for the [Bitsocial protocol](https://bitsocial.net). Every view is a thin wrapper over [`@bitsocial/bitsocial-react-hooks`](https://github.com/bitsocialnet/bitsocial-react-hooks) and shows the hook call and the protocol data behind it, so it is the fastest place to reproduce a bug, watch a community load, or try a hooks change against real communities.
 
@@ -43,7 +43,7 @@ bitbones does not curate its own default communities. The feed reads whichever c
 - **seedit** — [`seedit-default-subscriptions.json`](https://github.com/bitsocialnet/lists/blob/master/seedit-default-subscriptions.json), the exact communities new Seedit accounts subscribe to.
 - **5chan** — [`5chan-directories/`](https://github.com/bitsocialnet/lists/tree/master/5chan-directories), resolved the way 5chan resolves it: one winning board per directory code, ranked by score, then by when it was added, then by address.
 
-The switch sits at the top of the communities pane on the `p/all` feed and shows both client marks, the active one lit. The selection persists in `localStorage` under `bitbonesDefaultList`. Both lists are also vendored into `src/data/` at build time by `yarn sync:lists`, so bitbones still has a feed when GitHub is unreachable.
+The switch sits at the top of the communities pane on the home feed (`/#/`) and shows both client marks, the active one lit. The selection persists in `localStorage` under `bitbonesDefaultList`. Both lists are also vendored into `src/data/` at build time by `yarn sync:lists`, so bitbones still has a feed when GitHub is unreachable.
 
 seedit is the default because its list is 10 communities against 5chan's 64, and every extra community is another name resolution and page fetch on a cold peer-to-peer start.
 
@@ -68,6 +68,10 @@ yarn start
 | `yarn knip` | unused/undeclared dependency check |
 | `yarn electron:dev` | run the desktop app against the dev server |
 | `yarn electron:make` | package the desktop app |
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code conventions, verification, and pull requests, [PRODUCT.md](PRODUCT.md) for product purpose, [DESIGN.md](DESIGN.md) for the design system, and [versioning and v1 readiness](docs/agent-playbooks/versioning.md) for release policy.
 
 ## Origins
 

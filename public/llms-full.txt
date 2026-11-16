@@ -9,6 +9,9 @@ Use this as compiled context only. Source files, tests, manifests, and live/runt
 ## Index
 
 - [README.md](#readmemd)
+- [PRODUCT.md](#productmd)
+- [DESIGN.md](#designmd)
+- [CONTRIBUTING.md](#contributingmd)
 - [AGENTS.md](#agentsmd)
 - [docs/examples.md](#docsexamplesmd)
 - [docs/android.md](#docsandroidmd)
@@ -19,6 +22,7 @@ Use this as compiled context only. Source files, tests, manifests, and live/runt
 - [docs/agent-playbooks/commit-issue-format.md](#docsagent-playbookscommit-issue-formatmd)
 - [docs/agent-playbooks/hooks-setup.md](#docsagent-playbookshooks-setupmd)
 - [docs/agent-playbooks/verification.md](#docsagent-playbooksverificationmd)
+- [docs/agent-playbooks/versioning.md](#docsagent-playbooksversioningmd)
 
 ---
 
@@ -43,7 +47,7 @@ A developer client for Bitsocial that shows the protocol data behind every view.
 
 </div>
 
-![bitbones on p/all: the default communities with the age of their last update on the left, the hot feed in the middle with a protocol line under each post and one video expanded, and the inspector on the right showing the selected post's fields](docs/assets/readme-screenshot.png)
+![bitbones default feed: the default communities with the age of their last update on the left, the hot feed in the middle with a protocol line under each post and one video expanded, and the inspector on the right showing the selected post's fields](docs/assets/readme-screenshot.png)
 
 bitbones works like a browser's devtools for the [Bitsocial protocol](https://bitsocial.net). Every view is a thin wrapper over [`@bitsocial/bitsocial-react-hooks`](https://github.com/bitsocialnet/bitsocial-react-hooks) and shows the hook call and the protocol data behind it, so it is the fastest place to reproduce a bug, watch a community load, or try a hooks change against real communities.
 
@@ -72,7 +76,7 @@ bitbones does not curate its own default communities. The feed reads whichever c
 - **seedit** — [`seedit-default-subscriptions.json`](https://github.com/bitsocialnet/lists/blob/master/seedit-default-subscriptions.json), the exact communities new Seedit accounts subscribe to.
 - **5chan** — [`5chan-directories/`](https://github.com/bitsocialnet/lists/tree/master/5chan-directories), resolved the way 5chan resolves it: one winning board per directory code, ranked by score, then by when it was added, then by address.
 
-The switch sits at the top of the communities pane on the `p/all` feed and shows both client marks, the active one lit. The selection persists in `localStorage` under `bitbonesDefaultList`. Both lists are also vendored into `src/data/` at build time by `yarn sync:lists`, so bitbones still has a feed when GitHub is unreachable.
+The switch sits at the top of the communities pane on the home feed (`/#/`) and shows both client marks, the active one lit. The selection persists in `localStorage` under `bitbonesDefaultList`. Both lists are also vendored into `src/data/` at build time by `yarn sync:lists`, so bitbones still has a feed when GitHub is unreachable.
 
 seedit is the default because its list is 10 communities against 5chan's 64, and every extra community is another name resolution and page fetch on a cold peer-to-peer start.
 
@@ -98,6 +102,10 @@ yarn start
 | `yarn electron:dev` | run the desktop app against the dev server |
 | `yarn electron:make` | package the desktop app |
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, code conventions, verification, and pull requests, [PRODUCT.md](PRODUCT.md) for product purpose, [DESIGN.md](DESIGN.md) for the design system, and [versioning and v1 readiness](docs/agent-playbooks/versioning.md) for release policy.
+
 ## Origins
 
 bitbones is a port of an existing GPL bare-bones client onto the Bitsocial stack: `@bitsocial/bitsocial-react-hooks` for all protocol access, communities throughout, and the dependency stack brought up to the same versions 5chan and Seedit run. The first commit in this repository is the unmodified upstream source, so the entire port is reviewable as a single diff.
@@ -105,6 +113,266 @@ bitbones is a port of an existing GPL bare-bones client onto the Bitsocial stack
 ## License
 
 GPL-3.0-or-later — see [LICENSE](LICENSE).
+```
+
+---
+
+## PRODUCT.md
+
+Source: https://github.com/bitsocialnet/bitbones/blob/master/PRODUCT.md
+
+```markdown
+# Product
+
+## Register
+
+product
+
+## Users
+
+bitbones is for developers building Bitsocial clients and working on PKC or the Bitsocial React hooks. They use it to reproduce a bug, compare what two clients see, or test a library change against real communities. Contributors and community operators can use the same views to follow a publication, check whether a community is updating, or diagnose a connection problem.
+
+## Product Purpose
+
+bitbones works like browser devtools for Bitsocial. It connects the post or community on screen to the hook arguments, records, client states, and logs that explain it. Product changes should make it easier to follow that path from a visible symptom to concrete evidence another developer can reproduce.
+
+The web app is a static client using hash routes. Its origin serves the application shell, and Bitsocial supplies the community and post data. The home feed uses Seedit's or 5chan's default community list from the shared Bitsocial lists repository. Its list switch makes that input visible and reproducible.
+
+## Brand Personality
+
+Use the voice of a developer tool. Labels are short, diagnostic terms come from the protocol, and UI copy makes the current state or available action clear. Keep the project name lowercase and use Bitsocial, PKC, and community consistently.
+
+## Anti-references
+
+The product scope is protocol inspection and reproduction. Keep engagement features, editorial feed curation, marketing presentation, and general-purpose analytics outside that scope. Use post and community interactions to exercise protocol behavior and keep the related evidence close to the action.
+
+## Core Workflows
+
+- **Reproduce a feed.** Open the home feed at `#/`, choose the list, sort, and time filter, then inspect the source communities and `useFeed` inputs and result.
+- **Inspect a community, post, or reply.** Open a community by address or open a post at `#/<communityAddress>/comment/<cid>`. Read the community record and its client states. Use the verbose line for a quick comparison or select a record in the wide layout to inspect its fields, client activity, and JSON.
+- **Check the network and configuration.** Open `#/stats` for period-based counts on default communities and subscriptions, loading states for the default list, and the schemes and hosts of configured client endpoints. Check the status bar for account, configured client counts, and versions.
+- **Capture protocol logs.** Start recording at `#/log`, repeat the action, and filter the PKC and hooks output by namespace or search text. Recording is opt-in and its setting persists across reloads. A status bar link shows when recording is active.
+
+## Design Principles
+
+1. **Keep the hook visible.** Build thin views around the Bitsocial React hooks. Preserve the field names and state values a contributor needs to correlate UI evidence with source.
+2. **Put the evidence next to the content.** Display enough context to scan a feed or thread. Make record fields, exact identifiers, and client states available on demand.
+3. **Make incomplete states useful.** Show loading, retrying, failures, empty results, and update ages wherever they explain what a user is seeing.
+4. **Make reproductions shareable.** Keep addressable views and copyable identifiers. Preserve redaction of client credentials and recognizable secret fields in diagnostic surfaces.
+5. **Use the same interface for real protocol actions.** Publishing, voting, subscriptions, and challenges give developers concrete behavior to inspect.
+
+## Accessibility & Inclusion
+
+Keep diagnostics readable across themes. Preserve visible focus, labeled actions, keyboard access to inspection where available, and text cues for loading and failures. Keep browsing and navigation usable on smaller screens, where the layout prioritizes the main content and folds community context into a disclosure.
+
+See [DESIGN.md](DESIGN.md) for visual and interaction guidance and [README.md](README.md) for setup and available platforms.
+```
+
+---
+
+## DESIGN.md
+
+Source: https://github.com/bitsocialnet/bitbones/blob/master/DESIGN.md
+
+```markdown
+---
+version: alpha
+name: bitbones
+description: A compact protocol inspector for Bitsocial.
+colors:
+  bg: "#111111"
+  bg2: "#191919"
+  border: "#2a2a2a"
+  fg: "#e2e2e2"
+  dim: "#9a9a9a"
+  link: "#9ecbff"
+  warn: "#e3a35b"
+  error: "#ff7b72"
+  sel: "#1f2a36"
+typography:
+  body:
+    fontFamily: "ui-monospace, Menlo, Consolas, monospace"
+    fontSize: "12px"
+    fontWeight: 400
+    lineHeight: 1.45
+  data:
+    fontFamily: "ui-monospace, Menlo, Consolas, monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    lineHeight: 1.45
+  post-title:
+    fontFamily: "ui-monospace, Menlo, Consolas, monospace"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.45
+rounded:
+  square: "0"
+spacing:
+  gutter: "12px"
+  feed-row-block: "8px"
+  data-row-block: "2px"
+  hairline: "1px"
+components:
+  feed-row:
+    backgroundColor: "{colors.bg}"
+    textColor: "{colors.fg}"
+    typography: "{typography.body}"
+    rounded: "{rounded.square}"
+    padding: "8px 12px"
+  feed-row-selected:
+    backgroundColor: "{colors.sel}"
+    textColor: "{colors.fg}"
+    typography: "{typography.body}"
+    rounded: "{rounded.square}"
+    padding: "8px 12px"
+  inspector-json:
+    backgroundColor: "{colors.bg2}"
+    textColor: "{colors.fg}"
+    typography: "{typography.data}"
+    rounded: "{rounded.square}"
+    padding: "8px"
+---
+
+# Design
+
+## Overview
+
+bitbones presents a Bitsocial feed and the data behind it side by side. The feed stays easy to scan while the surrounding panes answer where the data came from, what the hook returned, and what is still loading. Prefer compact text, flat rows, and controls labeled with the action they perform.
+
+The [README screenshot](docs/assets/readme-screenshot.png) shows the wider layout. See [PRODUCT.md](PRODUCT.md) for the workflows it serves.
+
+## Colors
+
+The palette above describes the default dark theme. Use semantic CSS variables from [`src/themes.css`](src/themes.css) for implementation. The available themes are dark, light, auto, classic, none, term, and contrast. Auto follows the OS color scheme, and none uses system colors and the default font. Settings can apply user CSS after the selected theme.
+
+| Token | Role |
+| --- | --- |
+| `--bg` | Page, navigation, and status bar |
+| `--bg2` | Secondary surfaces, code blocks, and row hover |
+| `--border` | Pane dividers, row separators, and field outlines |
+| `--fg` | Primary content and active labels |
+| `--dim` | Metadata, timestamps, and field names |
+| `--link` | Interactive accents and keyboard focus |
+| `--warn` | Loading, retrying, and active log recording |
+| `--error` | Failures and error log entries |
+| `--sel` | Selected post or reply |
+
+Pair state colors with text or another visible indicator. Give a selected row a persistent treatment that remains visible while hovered.
+
+## Typography
+
+Set interface text with `--font` and protocol details with `--font-mono`. The default is system monospace throughout. Classic and contrast use Verdana for the interface and keep technical text monospace.
+
+- **Interface** uses 12 px type and a 1.45 line height. Feed titles increase to 14 px.
+- **Metadata and protocol data** use 11 px for timestamps, verbose lines, key-value tables, JSON, and log lines. Compact pane headings use muted uppercase text.
+- **Protocol values** preserve names like `updatedAt` and `signature.type`. Wrap long values and keep verbose labels with their values where space permits. Show a readable age alongside the numeric timestamp when displaying exact timestamps.
+
+## Layout
+
+The [pane layout](src/components/panes/panes.module.css) uses a 260 px context pane and a 380 px inspector beside a flexible content column. The page scrolls for feeds, with the side panes independently scrollable and sticky below the topbar. The topbar and status bar sit at the viewport edges on wider screens.
+
+- Use 12 px horizontal gutters, 8 px vertical feed-row padding, and 1 px separators. Key-value rows use 2 px vertical padding.
+- At widths of 1100 px and below, the inspector is hidden and row inspection controls are unavailable. Keep post and reply navigation usable in the content column.
+- Below 760 px, the context pane becomes a disclosure above the content. The bars scroll with the page on phones. Keep wide stats tables scrollable within their own containers and let log messages wrap.
+
+## Elevation & Depth
+
+Separate surfaces with hairlines and theme backgrounds. Feed rows use `--bg2` on hover and `--sel` for inspection. Reserve overlays for interactions that need a separate layer, such as posting prompts and protocol challenges.
+
+## Shapes
+
+Use square rows, panes, tables, and text controls as the baseline. Use understated 1 px outlines for controls or labels where a visible boundary improves scanning. Let native inputs retain their recognizable affordances.
+
+## Components
+
+### Navigation and status
+
+Use grouped text links and compact controls in the topbar. Underline the active view. Keep the active account, configured client counts, library and app versions, and log recording indicator in the status bar.
+
+### Feed and thread
+
+Keep the title, author, community, time, and reply count easy to scan. The default-on `verbose` toggle exposes a compact line with CID, protocol version, signature type, update age, votes, and flags when available. Keep feed media collapsed behind `[+]` by default and retain the per-item toggle when media is expanded globally.
+
+### Context and inspector panes
+
+Show the source communities, their last update ages or loading states, and a summary of the hook arguments on the home feed. Give a community or thread its community record and client context.
+
+On a feed, the inspector starts with the hook result summary, then shows the selected record in `fields`, `clients`, and `json` tabs. On a thread, it starts with the post when the record is available. Keep the row click shortcut paired with an explicit `inspect` button for keyboard users. Use key-value tables with exact field names, and retain endpoint redaction in both displayed and copied JSON.
+
+### Tables and logs
+
+Use aligned tables for repeated fields in `/stats` and keep numeric columns consistent for comparison. In `/log`, keep capture, filters, and search above the timestamped text. Preserve the reader's scroll position while new lines arrive.
+
+## Do's and Don'ts
+
+- Reuse the closest shared row, table, or pane and verify its appearance with the active theme variables.
+- Keep focus visible, controls reachable by keyboard, and long identifiers readable at narrow widths.
+- Avoid hardcoded palette values in product components and decorative layers that compete with protocol data.
+- Keep loading, failure, empty, and selected states legible in the views that expose them.
+```
+
+---
+
+## CONTRIBUTING.md
+
+Source: https://github.com/bitsocialnet/bitbones/blob/master/CONTRIBUTING.md
+
+```markdown
+# Contributing to bitbones
+
+bitbones is a developer client for Bitsocial. Contributions should make it easier to inspect hook calls, protocol data, and runtime behavior while keeping the interface dense and the views thin.
+
+Start with the [README](README.md), [product purpose](PRODUCT.md), [design system](DESIGN.md), [code and product constraints](AGENTS.md#code-and-product-constraints), and [versioning policy](docs/agent-playbooks/versioning.md). The code conventions apply to all contributors; agent-specific workflow lives in `AGENTS.md` and its linked playbooks.
+
+## Setup
+
+Use Node from [.nvmrc](.nvmrc) and the exact Yarn 4 version selected by `packageManager` in [package.json](package.json):
+
+```sh
+nvm install
+nvm use
+corepack enable
+yarn install --immutable
+yarn start
+```
+
+Open the URL printed by the launcher. `PORTLESS=0 yarn start` uses direct Vite, starting at port 5173 and advancing if occupied. Routes use a hash: `/#/` opens the default feed and `/#/settings` opens settings.
+
+`yarn electron:dev` runs the desktop app against the dev server. The separate `yarn electron` command runs a local PKC data cleanup before starting; inspect [the cleanup script](scripts/clear-local-pkc-data.mjs) before using it with data you want to keep.
+
+## What to work on
+
+- Reproducible bugs, clearer protocol inspection, accessibility, and measured performance improvements fit the project. New views should expose protocol hooks and their results.
+- Check the [issue backlog](https://github.com/bitsocialnet/bitbones/issues) for existing work. Explain a substantial feature or compatibility change before investing in its implementation.
+- For a bug, include the app version or commit, platform, exact route, reproduction steps, expected and actual behavior, and relevant redacted errors. Never include account exports, private keys, or other credentials in reports.
+- Trace suspected cross-layer problems through the client and its installed hooks/PKC versions. Fix client rendering here, shared hook behavior in the hooks package, and protocol behavior in PKC once the owning layer is established.
+
+## Implementation conventions
+
+- Preserve the static, serverless client shell and `HashRouter`. Community and post content comes from peers. Use theme tokens in `src/themes.css` for styling.
+- Keep `src/` in strict TypeScript, with no `any` or type-check suppression comments. Import domain types from `@bitsocial/bitsocial-react-hooks`. Electron, scripts, and build configuration remain JavaScript.
+- Use protocol hooks for data fetching and small zustand stores in `src/hooks/` for shared UI state. Compute derived values during render; avoid effects that synchronize them.
+- Follow the [protocol hook rules](AGENTS.md#protocol-hook-rules): use the community-identifier helper where required, and pass an object or `undefined` as hook options.
+- Pin dependency versions exactly using Corepack-managed Yarn and include the resulting `yarn.lock` changes. Follow the [translation skill](.agents/skills/translate/SKILL.md) for locale changes.
+
+## Verification
+
+Choose checks using [verification.md](docs/agent-playbooks/verification.md). Run the checks relevant to the final diff and report their results:
+
+- Every `src/` change needs `yarn type-check`. Shared runtime, dependency, or build changes use `yarn agent:verify`, which runs build, lint, types, Doctor, and runtime performance scenarios sequentially. Dependency/import changes also need the advisory `yarn knip` check.
+- React state, effects, subscriptions, and rendering changes need `yarn doctor:check` and affected `yarn perf:check` scenarios. Verify visible behavior in the relevant routes and viewports; automated scenarios cover only their configured flows.
+- Add a regression check for a non-trivial testable bug using the existing appropriate tooling. There is no general application `yarn test` command. Run `yarn perf:test` after React, Bippy, or collector upgrades.
+- Documentation-only changes need a diff/reference check and `yarn llms:generate`, not an app build. Include the regenerated `public/llms*.txt`; register new public documents in `scripts/llms-config.json` when they belong in that context.
+- Changes to shared AI workflow sources need `yarn ai-workflow:sync`, `yarn ai-workflow:check`, and `yarn ai-workflow:test`. Edit `.agents/` sources and include their generated compatibility files.
+
+Serialize heavy checks and browser sessions, and stop only processes you own. `yarn build` refreshes tracked `src/data/vendored-*.json`; inspect those changes deliberately.
+
+## Pull requests
+
+- Branch from `master`, target `master`, and keep each pull request focused. Describe the problem, resulting behavior, verification, and any migration or remaining limitation. Include screenshots for visible changes when useful.
+- Follow the scoped [Conventional Commit format](docs/agent-playbooks/commit-issue-format.md) for commit and PR titles; use `perf` for performance work.
+- Update documentation when supported behavior changes. Preserve unrelated edits and review the final diff before submitting.
+- Leave the app version and `CHANGELOG.md` to release preparation unless the task explicitly includes them. Maintainers choose versions using the [versioning policy](docs/agent-playbooks/versioning.md); pushing a version tag triggers publication.
 ```
 
 ---
@@ -124,7 +392,7 @@ Define completion for non-trivial work and continue through implementation, appr
 
 ## Product and source of truth
 
-bitbones is a developer client for the Bitsocial protocol, like devtools for it. Legibility is the product: every view stays a thin wrapper over a protocol hook and shows the hook call and the data behind it (panes, inspector, verbose lines, `/stats`, `/log`). Keep the UI dense and functional, style only through the theme tokens in `src/themes.css`, and add no product features unrelated to inspecting the protocol. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
+bitbones is a developer client for the Bitsocial protocol, like devtools for it. [PRODUCT.md](PRODUCT.md) defines its purpose and [DESIGN.md](DESIGN.md) documents its design system. Legibility is the product: every view stays a thin wrapper over a protocol hook and shows the hook call and the data behind it (panes, inspector, verbose lines, `/stats`, `/log`). Keep the UI dense and functional, style only through the theme tokens in `src/themes.css`, and add no product features unrelated to inspecting the protocol. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
 
 Source, manifests, tests, docs, and runtime evidence establish behavior. AGENTS, skills, playbooks, task logs, and generated `llms*.txt` orient the agent; verify technical claims against source. Check the installed dependency version before assuming a sibling repository provides its implementation.
 
@@ -156,7 +424,7 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 | Durable handoff/resumption needed | Use [long-running-agent-workflow.md](docs/agent-playbooks/long-running-agent-workflow.md) |
 | Protocol hooks called | Check the identifier and argument traps below |
 | `src/` changed | Run `yarn type-check`; include affected performance scenarios for React behavior |
-| Version/release requested | Use `release`; publication starts when an authorized version tag reaches origin |
+| Version/release requested | Read [versioning.md](docs/agent-playbooks/versioning.md), then use `release`; publication starts when an authorized version tag reaches origin |
 
 ## Code and product constraints
 
@@ -319,11 +587,14 @@ Generate it once and keep it out of the repo (`android/*.keystore` is gitignored
 keytool -genkey -v -keystore android/bitbones.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias release
 ```
 
-Then add the keystore and its password to the repository so `.github/workflows/release.yml` can sign
-the APK: the password goes in the `ANDROID_KEYSTORE_PASSWORD` secret, and the keystore itself has to
-reach the runner (a base64 secret decoded in the workflow, or a self-hosted runner that already has
-it). Until both exist, the android release job will fail at the `apksigner` step — every other
-platform still releases normally.
+Store the base64-encoded keystore in the repository's `ANDROID_KEYSTORE_BASE64` Actions secret and
+its password in `ANDROID_KEYSTORE_PASSWORD`. The [release workflow](../.github/workflows/release.yml)
+decodes the keystore on the runner and signs the APK with the `release` alias. Do not commit the
+keystore or password.
+
+If either secret is absent, the current workflow skips signing and publishes an explicitly named
+unsigned APK, which must be signed before installation. If signing or any platform build fails,
+the final GitHub release job is skipped; it waits for Linux, macOS, Windows, and Android to succeed.
 
 Losing this key means the app can never be updated in place on a device, so back it up.
 ```
@@ -674,6 +945,77 @@ Run `yarn perf:install` once for the pinned browser, then `yarn perf:check` (thr
 `yarn perf:record` keeps JSON and native trace evidence under `.react-perf/`; use `--url <origin>` to reuse a compatible instrumented server. The runner owns its processes and browser lock; run it separately from manual browser sessions. Scenario configuration lives in `scripts/react-perf/config.mjs`. Exact update limits follow the tested interaction; timing caps are deliberately generous smoke limits and must not be relaxed merely to silence a failure. Diagnose a failed phase from its component-instance/commit evidence and visible completion.
 
 Read the `profile-browsing` measurement reference for interpretation and coverage limits. Root Profiler duration measures the subtree, not the self time of each component. A normal production preview lacks this React instrumentation; build and serve `build-profile/` for production-like React timing, leaving the release output untouched.
+```
+
+---
+
+## docs/agent-playbooks/versioning.md
+
+Source: https://github.com/bitsocialnet/bitbones/blob/master/docs/agent-playbooks/versioning.md
+
+```markdown
+# Versioning and v1 readiness
+
+Choose bitbones release versions from user-visible compatibility changes and verified upgrade behavior. Read this policy before recommending a version, changing the app version, or preparing a release.
+
+bitbones is an application, with web, desktop, and Android distributions. Its version is independent of the Bitsocial protocol, PKC, and React hooks versions. [package.json](../../package.json) is the source for the app version; it marks the project private, so this is not an npm library release policy.
+
+## Compatibility scope
+
+Preserve supported usage within a release line: existing accounts and local data, settings, account import/export, documented hash routes, supported platforms, and integrations that consume release artifacts or the signed release manifest. Internal component structure and incidental visual details are not stable APIs. A layout improvement is not automatically a breaking change; removing a supported workflow, invalidating saved data, or requiring a user migration is.
+
+Dependency upgrades need the same assessment. A major dependency version does not automatically require a major app version, and a dependency patch does not prove the app remains compatible. Check the effects on the installed app, supported environments, stored data, and protocol behavior.
+
+## Choosing the number
+
+Versions use `major.minor.patch`. Before `1.0.0`, the following rules are this repository's compatibility policy: preserve supported usage within each `0.y.x` line and announce intentional breaks with a new minor version.
+
+| Release contents | Before `1.0.0` (`0.y.z`, with `y >= 1`) | From `1.0.0` onward |
+| --- | --- | --- |
+| Only docs, tests, or agent workflow changes, with no support-policy change or distributable correction | Usually no app release | Usually no app release |
+| Compatible bug fixes, performance improvements, or dependency/packaging maintenance | Patch: `0.y.(z+1)` | Patch: `x.y.(z+1)` |
+| Small compatible inspection feature or UI addition | Patch allowed; describe the addition | Minor: `x.(y+1).0` |
+| Substantial compatible feature milestone | Minor: `0.(y+1).0` | Minor: `x.(y+1).0` |
+| Deprecating supported behavior while keeping it working | Minor, with migration guidance | Minor, with migration guidance |
+| Intentional break to supported usage, including platform requirements or data formats without transparent migration | Minor, with migration guidance | Major: `(x+1).0.0`, with migration guidance |
+| Stable compatibility commitment with readiness criteria satisfied | `1.0.0` | Continue the stable rules above |
+
+Use the highest required bump across the complete release, not just its commit prefixes. A documentation correction that must ship inside an artifact can justify a patch. A security or correctness fix to unintended behavior can also be a patch; explain any user impact instead of hiding it under a maintenance label.
+
+There is no calendar deadline or feature count forcing `0.2.0` or `1.0.0`. Use a new minor for a meaningful milestone or compatibility boundary, and `1.0.0` when the app's supported behavior can be maintained compatibly. Dependencies do not need to reach v1 first. Leave existing release versions intact.
+
+## Before recommending or preparing a release
+
+1. Establish the target checkout/commit and actual published baseline. Inspect the manifest, reachable tags, and GitHub releases with `gh`; a local version or tag alone does not prove an artifact shipped. If remote evidence is unavailable, state that the recommendation is provisional.
+2. Review the complete diff from that baseline, including dependencies, stored data, routes, platform support, and release integration changes. Identify any migration and verify affected upgrade paths.
+3. Recommend an exact version with its compatibility reason, verification evidence, and remaining limits. Respect an explicitly requested version; explain any policy conflict rather than silently substituting another number.
+4. For authorized preparation, use the [release skill](../../.agents/skills/release/SKILL.md) and [verification playbook](verification.md). Update the version, synchronize `yarn.lock` with `corepack yarn install`, generate and review `CHANGELOG.md` with `yarn changelog`, and verify the final state. Review the refreshed vendored lists after a build.
+
+A version recommendation or documentation change does not authorize a commit, tag, push, or publication. Carry existing authorization through the requested release steps without adding extra approval gates.
+
+## Release mechanics and constraints
+
+The executable source of truth is [.github/workflows/release.yml](../../.github/workflows/release.yml), with release notes generated by [scripts/release-body.js](../../scripts/release-body.js).
+
+- Pushing a `v*` tag triggers the release workflow. Use an exact `vX.Y.Z` tag matching `package.json`; preflight rejects a mismatch. Pushing `master` runs CI but does not trigger this release workflow. Push only the explicitly authorized branch/tag.
+- Linux, macOS, Windows, and Android jobs build artifacts, then one final job creates the GitHub release after all four succeed. The Linux job also produces the static HTML archive and signs the release manifest. Android signing is optional in the current workflow: missing signing credentials produce an unsigned APK, which is not an installable signed release. Check the actual artifacts before reporting publication complete.
+- Android currently derives `versionCode` as `major * 10000 + minor * 100 + patch`. Confirm it is greater than every previously distributed Android build. Minor or patch values reaching 100 can collide with another version; change the encoding with an upgrade plan before reaching that boundary.
+- Prereleases need deliberate workflow support. The current Android encoding discards a prerelease suffix, and the GitHub release step does not set the prerelease flag. Do not publish an `-rc` tag through this workflow as if it already provides a separate prerelease channel.
+
+Verify the workflow run, tag/commit, complete asset set, versions, signatures, and affected installation/upgrade paths before calling a release complete. A successful build alone does not establish that existing users can upgrade.
+
+## V1 readiness
+
+These are acceptance criteria, not a completed runtime audit or a list of confirmed defects. Before recommending `1.0.0`, record dated evidence for the actual candidate revision and any explicitly accepted limits:
+
+- **Defined support:** document supported browsers, operating systems/architectures, and integration contracts, then verify the promised environments. Do not infer a support range solely from CI runner names.
+- **Safe upgrades:** verify existing accounts, settings, subscriptions, local publication history, and import/export across an upgrade from the published baseline. Document migrations and recovery steps where required.
+- **Reliable core flows:** verify feeds, communities, posts/replies, account switching, publishing/challenges, and the inspector, `/stats`, and `/log`, including loading, empty, error, and recovery behavior.
+- **Trustworthy diagnostics:** hook calls and displayed state match the installed hooks/PKC behavior. Check that logs, inspectors, and exported diagnostics do not expose secrets; review relevant dependency/security findings.
+- **Distributable releases:** verify web/static archives, desktop packages, Android signing and upgrade identity, and the release manifest with their actual consumers. Confirm an installable artifact for each promised platform.
+- **Repeatable evidence:** pass the applicable source, browser, performance, and packaging checks; add regression coverage for readiness fixes. Record the commit, commands or CI run, outcomes, and remaining gaps so another contributor can reproduce the result.
+
+Track concrete readiness work in the existing issue backlog and link its verification evidence. A compatible `0.y.x` fix can ship while broader v1 work remains. V1 does not require every feature, zero bugs, or a coverage percentage; it requires a precise support promise backed by evidence for the release candidate.
 ```
 
 ---

@@ -1,3 +1,9 @@
-.agents/** text=auto eol=lf
-.claude/** text=auto eol=lf
-.codex/** text=auto eol=lf
+# Keep HTML and shared AI files consistent across platforms, as in 5chan.
+index.html text eol=lf
+/.agents/** text=auto eol=lf
+/.claude/** text=auto eol=lf
+/.codex/** text=auto eol=lf
+
+# Show application languages in GitHub's chart; development and release tooling
+# remains authored JavaScript, visible in diffs and syntax highlighted normally.
+/scripts/** linguist-detectable=false

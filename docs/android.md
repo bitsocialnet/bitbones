@@ -21,10 +21,13 @@ Generate it once and keep it out of the repo (`android/*.keystore` is gitignored
 keytool -genkey -v -keystore android/bitbones.keystore -keyalg RSA -keysize 2048 -validity 10000 -alias release
 ```
 
-Then add the keystore and its password to the repository so `.github/workflows/release.yml` can sign
-the APK: the password goes in the `ANDROID_KEYSTORE_PASSWORD` secret, and the keystore itself has to
-reach the runner (a base64 secret decoded in the workflow, or a self-hosted runner that already has
-it). Until both exist, the android release job will fail at the `apksigner` step — every other
-platform still releases normally.
+Store the base64-encoded keystore in the repository's `ANDROID_KEYSTORE_BASE64` Actions secret and
+its password in `ANDROID_KEYSTORE_PASSWORD`. The [release workflow](../.github/workflows/release.yml)
+decodes the keystore on the runner and signs the APK with the `release` alias. Do not commit the
+keystore or password.
+
+If either secret is absent, the current workflow skips signing and publishes an explicitly named
+unsigned APK, which must be signed before installation. If signing or any platform build fails,
+the final GitHub release job is skipped; it waits for Linux, macOS, Windows, and Android to succeed.
 
 Losing this key means the app can never be updated in place on a device, so back it up.

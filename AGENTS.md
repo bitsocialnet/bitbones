@@ -8,7 +8,7 @@ Define completion for non-trivial work and continue through implementation, appr
 
 ## Product and source of truth
 
-bitbones is a developer client for the Bitsocial protocol, like devtools for it. Legibility is the product: every view stays a thin wrapper over a protocol hook and shows the hook call and the data behind it (panes, inspector, verbose lines, `/stats`, `/log`). Keep the UI dense and functional, style only through the theme tokens in `src/themes.css`, and add no product features unrelated to inspecting the protocol. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
+bitbones is a developer client for the Bitsocial protocol, like devtools for it. [PRODUCT.md](PRODUCT.md) defines its purpose and [DESIGN.md](DESIGN.md) documents its design system. Legibility is the product: every view stays a thin wrapper over a protocol hook and shows the hook call and the data behind it (panes, inspector, verbose lines, `/stats`, `/log`). Keep the UI dense and functional, style only through the theme tokens in `src/themes.css`, and add no product features unrelated to inspecting the protocol. Preserve HashRouter and the static, serverless client shell; community/post content comes from peers, not the app origin.
 
 Source, manifests, tests, docs, and runtime evidence establish behavior. AGENTS, skills, playbooks, task logs, and generated `llms*.txt` orient the agent; verify technical claims against source. Check the installed dependency version before assuming a sibling repository provides its implementation.
 
@@ -40,7 +40,7 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 | Durable handoff/resumption needed | Use [long-running-agent-workflow.md](docs/agent-playbooks/long-running-agent-workflow.md) |
 | Protocol hooks called | Check the identifier and argument traps below |
 | `src/` changed | Run `yarn type-check`; include affected performance scenarios for React behavior |
-| Version/release requested | Use `release`; publication starts when an authorized version tag reaches origin |
+| Version/release requested | Read [versioning.md](docs/agent-playbooks/versioning.md), then use `release`; publication starts when an authorized version tag reaches origin |
 
 ## Code and product constraints
 
