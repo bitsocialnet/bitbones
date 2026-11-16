@@ -92,7 +92,7 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
       <div className={[styles.replyBody, inspected ? styles.inspected : undefined].join(' ')} onClick={inspectorAvailable ? inspect : undefined}>
         <div className={styles.replyHeader}>
           <span className={score < 0 ? styles.negative : score > 0 ? styles.positive : styles.dim}>{score > 0 ? `+${score}` : score}</span>
-          <Link to={`/u/${reply?.author?.address}/c/${reply?.cid}`} className={styles.author}>
+          <Link to={`/author/${reply?.author?.address}/comment/${reply?.cid}`} className={styles.author}>
             u/{shortAuthorAddress}
           </Link>
           <span className={styles.dim}>{utils.getFormattedTime(reply?.timestamp)}</span>
@@ -174,7 +174,7 @@ function Post() {
   const navigate = useNavigate();
   useEffect(() => {
     if (post?.postCid && post?.postCid !== post?.cid) {
-      navigate(`/${post?.communityAddress}/c/${post?.postCid}`, { replace: true });
+      navigate(`/${post?.communityAddress}/comment/${post?.postCid}`, { replace: true });
     }
   }, [post?.postCid, post?.communityAddress, post?.cid, navigate]);
 
@@ -225,7 +225,7 @@ function Post() {
               ))}
               {loaded && (
                 <>
-                  {utils.getFormattedTime(post.timestamp)} by <Link to={`/u/${post.author?.address}/c/${post.cid}`}>u/{shortAuthorAddress}</Link> to{' '}
+                  {utils.getFormattedTime(post.timestamp)} by <Link to={`/author/${post.author?.address}/comment/${post.cid}`}>u/{shortAuthorAddress}</Link> to{' '}
                   <Link to={`/${post.communityAddress}`}>{post.shortCommunityAddress || post.communityAddress}</Link>
                 </>
               )}

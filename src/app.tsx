@@ -41,6 +41,20 @@ const LegacyCommunityRedirect = () => {
   return <Navigate to={`/${communityAddress}${rest ? `/${rest}` : ''}${search}`} replace />;
 };
 
+// post urls used to be /<address>/c/<cid>
+const LegacyPostRedirect = () => {
+  const { communityAddress, commentCid } = useParams();
+  const { search } = useLocation();
+  return <Navigate to={`/${communityAddress}/comment/${commentCid}${search}`} replace />;
+};
+
+// author urls used to be /u/<address>/c/<cid>
+const LegacyAuthorRedirect = () => {
+  const { authorAddress, commentCid } = useParams();
+  const { search } = useLocation();
+  return <Navigate to={`/author/${authorAddress}${commentCid ? `/comment/${commentCid}` : ''}${search}`} replace />;
+};
+
 function App() {
   const [theme] = useTheme();
   const [customCss] = useCustomCss();
@@ -76,7 +90,7 @@ function App() {
       <Routes>
         <Route element={layout}>
           {/* post page */}
-          <Route path='/:communityAddress/c/:commentCid' element={<Post />} />
+          <Route path='/:communityAddress/comment/:commentCid' element={<Post />} />
 
           {/* feed pages */}
           {/* the home sort types are literal segments so they outrank /:communityAddress */}
@@ -104,17 +118,21 @@ function App() {
           <Route path='/log' element={<Log />} />
 
           {/* author post history page */}
-          <Route path='/u/:authorAddress/c/:commentCid?' element={<Author />} />
+          <Route path='/author/:authorAddress' element={<Author />} />
+          <Route path='/author/:authorAddress/comment/:commentCid' element={<Author />} />
 
           {/* examples and experimental pages */}
           <Route path='/modal/:sortType?' element={<HomeModal />} />
-          <Route path='/modal/:communityAddress/c/:commentCid' element={<HomeModal />} />
+          <Route path='/modal/:communityAddress/comment/:commentCid' element={<HomeModal />} />
           <Route path='/text-only/:sortType?' element={<TextOnly />} />
           <Route path='/board/:sortType?' element={<Board />} />
-          <Route path='/css-switch/:communityAddress?/:c?/:commentCid?' element={<HomeCssSwitch />} />
+          <Route path='/css-switch/:communityAddress?/:comment?/:commentCid?' element={<HomeCssSwitch />} />
 
-          {/* legacy /p/ prefixed community urls */}
+          {/* legacy urls: /p/ prefixed communities, /c/ posts, /u/ authors */}
           <Route path='/p/:communityAddress/*' element={<LegacyCommunityRedirect />} />
+          <Route path='/:communityAddress/c/:commentCid' element={<LegacyPostRedirect />} />
+          <Route path='/u/:authorAddress' element={<LegacyAuthorRedirect />} />
+          <Route path='/u/:authorAddress/c/:commentCid?' element={<LegacyAuthorRedirect />} />
 
           {/* not found */}
           <Route path='*' element={<NotFound />} />

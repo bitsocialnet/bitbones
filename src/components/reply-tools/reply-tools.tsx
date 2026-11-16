@@ -84,7 +84,7 @@ const Menu = ({ reply, onPublished }: MenuProps) => {
           </div>
           <div className={styles.menuItem}>
             <span onClick={toggleBlockAuthor}>{!authorBlocked ? 'block' : 'unblock'}</span>{' '}
-            <Link to={`/u/${reply?.author?.address}/c/${reply?.cid}`}>u/{reply?.author?.shortAddress || ''}</Link>
+            <Link to={`/author/${reply?.author?.address}/comment/${reply?.cid}`}>u/{reply?.author?.shortAddress || ''}</Link>
           </div>
         </div>
       </div>

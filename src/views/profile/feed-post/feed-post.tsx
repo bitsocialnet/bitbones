@@ -65,7 +65,7 @@ const FeedPost = ({ post, index }: FeedPostProps) => {
 
   const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = post?.cid ? `/${post?.communityAddress}/c/${post?.cid}` : `/profile/${post?.index}`;
+  const internalLink = post?.cid ? `/${post?.communityAddress}/comment/${post?.cid}` : `/profile/${post?.index}`;
 
   const [unreadReplyCount] = useUnreadReplyCount(post);
   const unreadReplyCountText = typeof unreadReplyCount === 'number' ? `+${unreadReplyCount}` : '';

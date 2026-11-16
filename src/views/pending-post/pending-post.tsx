@@ -32,11 +32,11 @@ function PendingPost() {
   // redirect to post when post.cid is received, or to parent post if post is a reply
   useEffect(() => {
     if (post?.cid && post?.communityAddress) {
-      navigate(`/${post?.communityAddress}/c/${post?.cid}`, { replace: true });
+      navigate(`/${post?.communityAddress}/comment/${post?.cid}`, { replace: true });
     }
     // post is not a post, is a reply, redirect to post
     else if (post?.parentCid && post?.communityAddress) {
-      navigate(`/${post?.communityAddress}/c/${post?.parentCid}`, { replace: true });
+      navigate(`/${post?.communityAddress}/comment/${post?.parentCid}`, { replace: true });
     }
   }, [post?.cid, post?.communityAddress, navigate, post?.parentCid]);
 

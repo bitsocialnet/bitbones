@@ -50,7 +50,7 @@ interface CatalogPostProps {
 }
 
 const CatalogPost = ({ post }: CatalogPostProps) => {
-  const internalLink = `/${post?.communityAddress}/c/${post?.cid}`;
+  const internalLink = `/${post?.communityAddress}/comment/${post?.cid}`;
 
   let title = post?.title || '';
   const content = post?.content || '';

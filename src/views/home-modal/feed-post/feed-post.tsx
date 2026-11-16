@@ -50,7 +50,7 @@ const FeedPost = ({ post, index }: FeedPostProps) => {
 
   const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = `/modal/${post?.communityAddress}/c/${post?.cid}`;
+  const internalLink = `/modal/${post?.communityAddress}/comment/${post?.cid}`;
 
   const { blocked: hidden } = useBlock({ cid: post?.cid });
 

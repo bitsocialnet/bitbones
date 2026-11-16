@@ -11,9 +11,9 @@ import { feedSortTypes } from '../../lib/utils';
 import styles from './topbar.module.css';
 
 // routes that are not feeds, the sort and time controls don't apply to them
-const pages = new Set(['profile', 'settings', 'communities', 'about', 'inbox', 'u', 'stats', 'log']);
+const pages = new Set(['profile', 'settings', 'communities', 'about', 'inbox', 'author', 'stats', 'log']);
 
-// post links of these views (/modal/<address>/c/<cid>) set the communityAddress param
+// post links of these views (/modal/<address>/comment/<cid>) set the communityAddress param
 const experimentalViews = new Set(['modal', 'css-switch']);
 
 const sortTypes = [

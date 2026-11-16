@@ -95,7 +95,7 @@ const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
     return <>{fallback}</>;
   }
 
-  const postLink = comment.cid ? `/${comment.communityAddress}/c/${comment.postCid || comment.cid}` : `/profile/${comment.index}`;
+  const postLink = comment.cid ? `/${comment.communityAddress}/comment/${comment.postCid || comment.cid}` : `/profile/${comment.index}`;
   const copy = (text?: string) => text && navigator.clipboard?.writeText(text);
 
   return (
@@ -138,7 +138,9 @@ const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
           copy json
         </button>
         {/* a pending comment has no cid yet, so its author link has none either */}
-        {comment.author?.address && <Link to={comment.cid ? `/u/${comment.author.address}/c/${comment.cid}` : `/u/${comment.author.address}`}>author history</Link>}
+        {comment.author?.address && (
+          <Link to={comment.cid ? `/author/${comment.author.address}/comment/${comment.cid}` : `/author/${comment.author.address}`}>author history</Link>
+        )}
         {comment.link && (
           <a href={comment.link} target='_blank' rel='noreferrer'>
             {utils.getHost(comment.link)}

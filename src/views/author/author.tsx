@@ -22,7 +22,7 @@ const AuthorInfo = ({ authorAddress, commentCid }: AuthorInfoProps) => {
     <div className={styles.info}>
       <div className={styles.header}>
         <div className={styles.title}>
-          <Link to={`/u/${authorAddress}/c/${commentCid}`}>u/{authorAddress}</Link>
+          <Link to={`/author/${authorAddress}${commentCid ? `/comment/${commentCid}` : ''}`}>u/{authorAddress}</Link>
           <img alt='' className={styles.avatar} src={avatarUrl} />
         </div>
       </div>
@@ -62,7 +62,7 @@ function Author() {
   // always redirect to latest author cid
   useEffect(() => {
     if (authorAddress && lastCommentCid && commentCid && lastCommentCid !== commentCid) {
-      navigate(`/u/${authorAddress}/c/${lastCommentCid}`, { replace: true });
+      navigate(`/author/${authorAddress}/comment/${lastCommentCid}`, { replace: true });
     }
   }, [authorAddress, lastCommentCid, commentCid, navigate]);
 

@@ -31,7 +31,7 @@ const Menu = ({ post, closeModal }: MenuProps) => {
   const share = () => {
     // link straight at the app. 5chan and seedit route shares through a bitsocial-previewer tenant
     // (s.5chan.app, s.seedit.app) for link previews; bitbones has no tenant provisioned yet.
-    const shareUrl = `https://bitbones.app/#/${post?.communityAddress}/c/${post?.cid}`;
+    const shareUrl = `https://bitbones.app/#/${post?.communityAddress}/comment/${post?.cid}`;
     navigator.clipboard.writeText(shareUrl);
     alert(shareUrl);
   };
