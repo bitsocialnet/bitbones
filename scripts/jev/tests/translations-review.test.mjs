@@ -1,8 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { prepareTranslationReview, importTranslationReview } from '../translations-review.mjs';
+import { prepareTranslationReview, importTranslationReview, main } from '../translations-review.mjs';
 import { blankReview } from '../review-handoff.mjs';
 import { validateEvaluationCorpus, selectEvaluationPairs, evaluationMetrics } from '../translation-evaluation.mjs';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 const source = {
   kind: 'repository',
   repository: 'test-repo',
@@ -84,4 +87,32 @@ test('deterministic placeholder failure is excluded from semantic-only calibrati
     result.evaluation.calibration.thresholds.every((row) => row.cases === 0),
     true,
   );
+});
+test('a reused output prefix fails without leaving a new corpus beside the earlier manifest', async () => {
+  const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'jev-translation-import-'));
+  try {
+    const q = queue(),
+      review = { ...blankReview(q), reviewerId: 'test-human', reviewedAt: '2026-09-21', independentOfModelOutput: true };
+    const files = { queue: path.join(directory, 'queue.json'), review: path.join(directory, 'review.json'), out: path.join(directory, 'import') };
+    const run = async () => {
+      await fs.rm(files.review, { force: true });
+      await fs.writeFile(files.review, JSON.stringify({ schemaVersion: 1, reviews: [review] }));
+      await main(['--queue', files.queue, '--review', files.review, '--out', files.out]);
+    };
+    await fs.writeFile(files.queue, JSON.stringify(q));
+    review.labels.forEach((row) => {
+      row.label = 'uncertain';
+    });
+    await run();
+    const manifest = await fs.readFile(`${files.out}.manifest.json`, 'utf8');
+    assert.deepEqual((await fs.readdir(directory)).sort(), ['import.manifest.json', 'queue.json', 'review.json']);
+    review.labels.forEach((row) => {
+      row.label = 'pass';
+    });
+    await assert.rejects(run(), { code: 'EEXIST' });
+    assert.deepEqual((await fs.readdir(directory)).sort(), ['import.manifest.json', 'queue.json', 'review.json']);
+    assert.equal(await fs.readFile(`${files.out}.manifest.json`, 'utf8'), manifest);
+  } finally {
+    await fs.rm(directory, { recursive: true, force: true });
+  }
 });
