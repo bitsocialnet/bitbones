@@ -172,12 +172,12 @@ interface CommunitySelectProps {
 const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore }: CommunitySelectProps) => {
   const communitiesOptions = communities.map((community) => (
     <option key={community.address} value={community.address}>
-      p/{community.displayAddress}
+      {community.displayAddress}
     </option>
   ));
   communitiesOptions.unshift(
-    <option key='p/' value=''>
-      p/
+    <option key='' value=''>
+      community
     </option>,
   );
   return (

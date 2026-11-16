@@ -58,7 +58,7 @@ interface BoardPostProps {
 const BoardPost = ({ post, index }: BoardPostProps) => {
   const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
+  const internalLink = `/${post.communityAddress}/c/${post.cid}`;
   const externalLink = !mediaType && post?.link && <Link to={post?.link}>{post?.link}</Link>;
 
   const replies = useMemo(

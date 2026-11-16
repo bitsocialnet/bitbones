@@ -18,7 +18,7 @@ const CommunityRow = ({ communityAddress }: CommunityRowProps) => {
   const state = loaded ? utils.getShortAge(community.updatedAt) : community?.updatingState || community?.state || '…';
   const failed = !loaded && /fail/.test(state);
   return (
-    <Link to={`/p/${communityAddress}`} className={styles.row} title={community?.title}>
+    <Link to={`/${communityAddress}`} className={styles.row} title={community?.title}>
       <span className={styles.address}>{communityAddress}</span>
       <span className={[styles.state, loaded ? undefined : failed ? styles.failed : styles.loading].join(' ')}>{state}</span>
     </Link>
@@ -27,7 +27,7 @@ const CommunityRow = ({ communityAddress }: CommunityRowProps) => {
 
 interface CommunitiesPaneProps {
   communityAddresses: string[];
-  // the seedit/5chan default list switch, on p/all
+  // the seedit/5chan default list switch, on the home feed
   showListSwitch?: boolean;
   // the hook call that built the feed, printed under the list
   hookCall?: string;

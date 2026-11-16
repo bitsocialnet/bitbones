@@ -21,8 +21,8 @@ const CommunityInfo = ({ communityAddress }: CommunityInfoProps) => {
       <div className={styles.header}>
         {community?.suggested?.avatarUrl && <img alt='' className={styles.avatar} src={community.suggested.avatarUrl} />}
         <div className={styles.names}>
-          <Link to={`/p/${communityAddress}`} className={styles.address}>
-            p/{communityAddress}
+          <Link to={`/${communityAddress}`} className={styles.address}>
+            {communityAddress}
           </Link>
           {community?.title && <div className={styles.title}>{community.title}</div>}
         </div>
@@ -31,7 +31,7 @@ const CommunityInfo = ({ communityAddress }: CommunityInfoProps) => {
         <button type='button' onClick={() => (subscribed ? unsubscribe() : subscribe())}>
           {subscribed ? 'leave' : 'join'}
         </button>
-        <Link to={`/p/${communityAddress}/settings`}>settings</Link>
+        <Link to={`/${communityAddress}/settings`}>settings</Link>
       </div>
       <div className={styles.counts}>
         {typeof stats?.allActiveUserCount === 'number' && <span>{stats.allActiveUserCount} members</span>}

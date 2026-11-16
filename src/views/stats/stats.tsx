@@ -23,7 +23,7 @@ const StatsRow = ({ communityAddress, period }: StatsRowProps) => {
   return (
     <tr>
       <td>
-        <Link to={`/p/${communityAddress}`}>{communityAddress}</Link>
+        <Link to={`/${communityAddress}`}>{communityAddress}</Link>
       </td>
       <td>{community?.title}</td>
       <td className={community?.updatedAt ? undefined : styles.loading}>{community?.updatingState || community?.state}</td>
@@ -169,13 +169,13 @@ function Stats() {
       </div>
 
       <h2 className={styles.heading}>
-        p/all, {defaultList} list ({defaultCommunityAddresses.length}) <span className={styles.hook}>useCommunity + useCommunityStats</span>
+        all, {defaultList} list ({defaultCommunityAddresses.length}) <span className={styles.hook}>useCommunity + useCommunityStats</span>
       </h2>
       <StatsTable communityAddresses={defaultCommunityAddresses} period={period} />
 
       {subscriptions.length > 0 && (
         <>
-          <h2 className={styles.heading}>p/subs ({subscriptions.length})</h2>
+          <h2 className={styles.heading}>subs ({subscriptions.length})</h2>
           <StatsTable communityAddresses={subscriptions} period={period} />
         </>
       )}

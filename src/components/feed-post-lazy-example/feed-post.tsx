@@ -64,7 +64,7 @@ const FeedPost = ({ post, index }: FeedPostProps) => {
 
   const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
+  const internalLink = `/${post.communityAddress}/c/${post.cid}`;
   const externalLink = !mediaType && post?.link;
 
   // FeedPost is mounted, only show low priority components after has mounted

@@ -1,4 +1,4 @@
-import { Route, Routes, Outlet } from 'react-router-dom';
+import { Navigate, Route, Routes, Outlet, useLocation, useParams } from 'react-router-dom';
 import Home from './views/home';
 import HomeModal from './views/home-modal';
 import HomeCssSwitch from './views/home-css-switch';
@@ -29,9 +29,17 @@ import StatusBar from './components/status-bar';
 import Log from './views/log';
 import ChallengeModal from './components/challenge-modal';
 import PKC from '@pkcprotocol/pkc-js';
+import { feedSortTypes } from './lib/utils';
 
 // debug util
 window.PkcJs = PKC;
+
+// community urls used to carry a /p/ prefix, old links and bookmarks keep working
+const LegacyCommunityRedirect = () => {
+  const { communityAddress, '*': rest } = useParams();
+  const { search } = useLocation();
+  return <Navigate to={`/${communityAddress}${rest ? `/${rest}` : ''}${search}`} replace />;
+};
 
 function App() {
   const [theme] = useTheme();
@@ -68,18 +76,22 @@ function App() {
       <Routes>
         <Route element={layout}>
           {/* post page */}
-          <Route path='/p/:communityAddress/c/:commentCid' element={<Post />} />
+          <Route path='/:communityAddress/c/:commentCid' element={<Post />} />
 
           {/* feed pages */}
-          <Route path='/:sortType?/:timeFilterName?' element={<Home />} />
+          {/* the home sort types are literal segments so they outrank /:communityAddress */}
+          <Route path='/' element={<Home />} />
+          {feedSortTypes.map((sortType) => (
+            <Route key={sortType} path={`/${sortType}/:timeFilterName?`} element={<Home sortType={sortType} />} />
+          ))}
           <Route path='/catalog/:sortType?/:timeFilterName?' element={<Catalog />} />
-          <Route path='/p/subscriptions/catalog/:sortType?/:timeFilterName?' element={<SubscriptionsCatalog />} />
-          <Route path='/p/subscriptions/:sortType?/:timeFilterName?' element={<Subscriptions />} />
+          <Route path='/subscriptions/catalog/:sortType?/:timeFilterName?' element={<SubscriptionsCatalog />} />
+          <Route path='/subscriptions/:sortType?/:timeFilterName?' element={<Subscriptions />} />
 
           {/* community pages */}
-          <Route path='/p/:communityAddress/settings' element={<CommunitySettings />} />
-          <Route path='/p/:communityAddress/catalog/:sortType?/:timeFilterName?' element={<CommunityCatalog />} />
-          <Route path='/p/:communityAddress/:sortType?/:timeFilterName?' element={<Community />} />
+          <Route path='/:communityAddress/settings' element={<CommunitySettings />} />
+          <Route path='/:communityAddress/catalog/:sortType?/:timeFilterName?' element={<CommunityCatalog />} />
+          <Route path='/:communityAddress/:sortType?/:timeFilterName?' element={<Community />} />
 
           {/* profile and settings pages */}
           <Route path='/inbox' element={<Inbox />} />
@@ -96,10 +108,13 @@ function App() {
 
           {/* examples and experimental pages */}
           <Route path='/modal/:sortType?' element={<HomeModal />} />
-          <Route path='/modal/p/:communityAddress/c/:commentCid' element={<HomeModal />} />
+          <Route path='/modal/:communityAddress/c/:commentCid' element={<HomeModal />} />
           <Route path='/text-only/:sortType?' element={<TextOnly />} />
           <Route path='/board/:sortType?' element={<Board />} />
-          <Route path='/css-switch/:p?/:communityAddress?/:c?/:commentCid?' element={<HomeCssSwitch />} />
+          <Route path='/css-switch/:communityAddress?/:c?/:commentCid?' element={<HomeCssSwitch />} />
+
+          {/* legacy /p/ prefixed community urls */}
+          <Route path='/p/:communityAddress/*' element={<LegacyCommunityRedirect />} />
 
           {/* not found */}
           <Route path='*' element={<NotFound />} />

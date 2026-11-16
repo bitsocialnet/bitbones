@@ -23,11 +23,16 @@ const NoPosts = () => <FeedFooter>no posts</FeedFooter>;
 // show own pending posts at the top for 12 hours
 const accountComments = { newerThan: 60 * 60 * 12 };
 
-function Home() {
+interface HomeProps {
+  // set by the /<sortType> routes, the sort type is a literal path segment there and not a route param
+  sortType?: string;
+}
+
+function Home({ sortType: sortTypeProp }: HomeProps) {
   const params = useParams();
   const communityAddresses = useDefaultCommunityAddresses();
   const [listSource] = useDefaultList();
-  const sortType = params?.sortType || 'hot';
+  const sortType = sortTypeProp || 'hot';
   const { timeFilterSeconds, timeFilterNames } = useTimeFilter();
   const timeFilterName = params?.timeFilterName || timeFilterNames[0];
   const communities = useCommunityIdentifiers(communityAddresses);

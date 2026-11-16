@@ -91,6 +91,27 @@ export const getHost = (url?: string): string => {
   }
 };
 
+// every sort type the protocol's feed sorter accepts. a first path segment that is one of these is the
+// home feed (/hot, /topAll/week), anything else that is not an app page is a community address
+export const feedSortTypes = [
+  'hot',
+  'new',
+  'old',
+  'active',
+  'topHour',
+  'topDay',
+  'topWeek',
+  'topMonth',
+  'topYear',
+  'topAll',
+  'controversialHour',
+  'controversialDay',
+  'controversialWeek',
+  'controversialMonth',
+  'controversialYear',
+  'controversialAll',
+];
+
 // 'pinned locked', the moderation and author flags a comment carries
 const commentFlags = ['pinned', 'locked', 'archived', 'removed', 'deleted', 'spoiler', 'nsfw'];
 export const getCommentFlags = (comment?: Comment): string => commentFlags.filter((flag) => comment?.[flag]).join(' ');
@@ -114,7 +135,7 @@ export const alertChallengeVerificationFailed = (challengeVerification?: Challen
     console.warn(challengeVerification, publication);
 
     alert(
-      `p/${publication?.communityAddress} challenge errors: ${[...Object.values(challengeVerification?.challengeErrors || {}), challengeVerification?.reason].join(' ')}`,
+      `${publication?.communityAddress || ''} challenge errors: ${[...Object.values(challengeVerification?.challengeErrors || {}), challengeVerification?.reason].join(' ')}`,
     );
   } else {
     console.log(challengeVerification, publication);

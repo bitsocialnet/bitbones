@@ -36,7 +36,7 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
   }
 
   // post is pending until it has a cid
-  const internalLink = !post?.cid && post?.index !== undefined ? `/profile/${post.index}` : `/p/${post?.communityAddress}/c/${post?.cid}`;
+  const internalLink = !post?.cid && post?.index !== undefined ? `/profile/${post.index}` : `/${post?.communityAddress}/c/${post?.cid}`;
   const { blocked: hidden } = useBlock({ cid: post?.cid });
   const { shortAuthorAddress } = useAuthorAddress({ comment: post });
   const [unreadReplyCount] = useUnreadReplyCount(updatedPost);
@@ -97,7 +97,7 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
         </div>
         <div className={styles.meta}>
           {utils.getFormattedTime(post?.timestamp)} by <Link to={`/u/${post?.author?.address}/c/${post?.cid}`}>u/{shortAuthorAddress}</Link> to{' '}
-          <Link to={`/p/${post?.communityAddress}`}>p/{post?.shortCommunityAddress || post?.communityAddress}</Link> ·{' '}
+          <Link to={`/${post?.communityAddress}`}>{post?.shortCommunityAddress || post?.communityAddress}</Link> ·{' '}
           <Link to={internalLink} className={styles.comments}>
             {updatedPost?.replyCount || 0} comments
           </Link>

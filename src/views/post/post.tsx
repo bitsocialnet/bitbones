@@ -174,7 +174,7 @@ function Post() {
   const navigate = useNavigate();
   useEffect(() => {
     if (post?.postCid && post?.postCid !== post?.cid) {
-      navigate(`/p/${post?.communityAddress}/c/${post?.postCid}`, { replace: true });
+      navigate(`/${post?.communityAddress}/c/${post?.postCid}`, { replace: true });
     }
   }, [post?.postCid, post?.communityAddress, post?.cid, navigate]);
 
@@ -191,7 +191,7 @@ function Post() {
   return (
     <Panes
       aside={<CommunityInfo communityAddress={communityAddress} />}
-      asideTitle={`p/${communityAddress}`}
+      asideTitle={communityAddress}
       inspector={<Inspector defaultComment={loaded ? post : undefined} fallback={<p>loading the post...</p>} />}
     >
       <article className={[styles.post, hidden ? styles.hidden : undefined].join(' ')}>
@@ -226,7 +226,7 @@ function Post() {
               {loaded && (
                 <>
                   {utils.getFormattedTime(post.timestamp)} by <Link to={`/u/${post.author?.address}/c/${post.cid}`}>u/{shortAuthorAddress}</Link> to{' '}
-                  <Link to={`/p/${post.communityAddress}`}>p/{post.shortCommunityAddress || post.communityAddress}</Link>
+                  <Link to={`/${post.communityAddress}`}>{post.shortCommunityAddress || post.communityAddress}</Link>
                 </>
               )}
               {host && (

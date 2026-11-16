@@ -97,7 +97,7 @@ function CommunitySettings() {
 
   const [deleteButtonDisabled, setDeleteButtonDisabled] = useState(false);
   const _deleteCommunity = async () => {
-    const confirmed = window.confirm(`delete p/${communityAddress} permanently?`);
+    const confirmed = window.confirm(`delete ${communityAddress} permanently?`);
     if (!confirmed) {
       return;
     }
@@ -121,7 +121,7 @@ function CommunitySettings() {
       <textarea onChange={(e) => setText(e.target.value)} autoCorrect='off' rows={24} value={text} />
       <button onClick={saveCommunity}>save</button>
       <button disabled={deleteButtonDisabled} onClick={_deleteCommunity}>
-        delete p/{community?.shortAddress}
+        delete {community?.shortAddress}
       </button>
     </div>
   );

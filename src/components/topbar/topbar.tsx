@@ -7,10 +7,14 @@ import useTimeFilter from '../../hooks/use-time-filter';
 import useVerbose from '../../hooks/use-verbose';
 import useMediaExpanded from '../../hooks/use-media-expanded';
 import useHeightVariable from '../../hooks/use-height-variable';
+import { feedSortTypes } from '../../lib/utils';
 import styles from './topbar.module.css';
 
 // routes that are not feeds, the sort and time controls don't apply to them
 const pages = new Set(['profile', 'settings', 'communities', 'about', 'inbox', 'u', 'stats', 'log']);
+
+// post links of these views (/modal/<address>/c/<cid>) set the communityAddress param
+const experimentalViews = new Set(['modal', 'css-switch']);
 
 const sortTypes = [
   { value: 'hot', label: 'hot' },
@@ -23,7 +27,7 @@ const sortTypes = [
 const createFeedLink = (feedName?: string, sortType?: string, timeFilterName?: string) => {
   let feedLink = '';
   if (feedName && feedName !== 'all') {
-    feedLink = `/p/${feedName}`;
+    feedLink = `/${feedName}`;
   }
   if (sortType) {
     feedLink += `/${sortType}`;
@@ -40,7 +44,7 @@ const createFeedLink = (feedName?: string, sortType?: string, timeFilterName?: s
 const createCatalogLink = (feedName?: string, sortType?: string, timeFilterName?: string) => {
   let catalogLink = '/catalog';
   if (feedName && feedName !== 'all') {
-    catalogLink = `/p/${feedName}/catalog`;
+    catalogLink = `/${feedName}/catalog`;
   }
   if (sortType) {
     catalogLink += `/${sortType}`;
@@ -74,22 +78,26 @@ const Topbar = () => {
   const topbarRef = useRef<HTMLElement>(null);
   useHeightVariable(topbarRef, '--topbar-height');
   const navigate = useNavigate();
-  const params = useParams<{ commentCid?: string; sortType?: string; timeFilterName?: string }>();
+  const params = useParams<{ communityAddress?: string; commentCid?: string; sortType?: string; timeFilterName?: string }>();
   const { pathname } = useLocation();
   const pathNames = pathname.split('/');
 
-  const isPost = pathNames[1] === 'p' && !!params.commentCid;
-  // community settings (/p/<address>/settings) is a page of that community, not one of its feeds
-  const isCommunitySettings = pathNames[1] === 'p' && pathNames[3] === 'settings';
+  // the experimental views carry a community address in their post links without being that community's page
+  const communityAddress = experimentalViews.has(pathNames[1]) ? undefined : params.communityAddress;
+  const isPost = !!communityAddress && !!params.commentCid;
+  // community settings (/<address>/settings) is a page of that community, not one of its feeds
+  const isCommunitySettings = !!communityAddress && pathNames[2] === 'settings';
   const isPage = pages.has(pathNames[1]) || isPost || isCommunitySettings;
-  const isCatalog = pathNames[1] === 'catalog' || pathNames[3] === 'catalog';
-  // p/<address> on community and post pages, p/subscriptions on the subscriptions feed
-  const feedName = pathNames[1] === 'p' ? pathNames[2] : undefined;
-  const isCommunity = !!feedName && feedName !== 'subscriptions';
-  const sortType = params.sortType || (isCatalog ? 'active' : 'hot');
+  const isCatalog = pathNames[1] === 'catalog' || pathNames[2] === 'catalog';
+  // the address on community and post pages, 'subscriptions' on the subscriptions feed
+  const feedName = pathNames[1] === 'subscriptions' ? 'subscriptions' : communityAddress;
+  const isCommunity = !!communityAddress;
+  // the home feed has its sort type as a literal first segment (/hot), every other feed as a route param
+  const sortTypeParam = params.sortType || (feedSortTypes.includes(pathNames[1]) ? pathNames[1] : undefined);
+  const sortType = sortTypeParam || (isCatalog ? 'active' : 'hot');
   const createLink = isCatalog ? createCatalogLink : createFeedLink;
 
-  const changeTimeFilter = (event: ChangeEvent<HTMLSelectElement>) => navigate(createLink(feedName, params.sortType, event.target.value));
+  const changeTimeFilter = (event: ChangeEvent<HTMLSelectElement>) => navigate(createLink(feedName, sortTypeParam, event.target.value));
 
   return (
     <header className={styles.topbar} ref={topbarRef}>
@@ -98,19 +106,19 @@ const Topbar = () => {
       </Link>
 
       <nav className={styles.group} aria-label='feeds'>
-        <NavItem to={createLink(undefined, params.sortType, params.timeFilterName)} current={!feedName && !isPage}>
-          p/all
+        <NavItem to={createLink(undefined, sortTypeParam, params.timeFilterName)} current={!feedName && !isPage}>
+          all
         </NavItem>
-        <NavItem to={createLink('subscriptions', params.sortType, params.timeFilterName)} current={feedName === 'subscriptions'}>
-          p/subs
+        <NavItem to={createLink('subscriptions', sortTypeParam, params.timeFilterName)} current={feedName === 'subscriptions'}>
+          subs
         </NavItem>
         {isCommunity && (
-          <NavItem to={`/p/${feedName}`} current={!isPost}>
-            {`p/${feedName}`}
+          <NavItem to={`/${communityAddress}`} current={!isPost}>
+            {communityAddress}
           </NavItem>
         )}
         <button type='button' className={styles.item} onClick={() => setGoToCommunityModalIsOpen(true)} title='go to a community by address'>
-          p/…
+          go to…
         </button>
       </nav>
 
@@ -132,10 +140,10 @@ const Topbar = () => {
       )}
 
       <nav className={styles.group} aria-label='views'>
-        <NavItem to={createFeedLink(feedName, params.sortType, params.timeFilterName)} current={!isPage && !isCatalog}>
+        <NavItem to={createFeedLink(feedName, sortTypeParam, params.timeFilterName)} current={!isPage && !isCatalog}>
           feed
         </NavItem>
-        <NavItem to={createCatalogLink(feedName, params.sortType, params.timeFilterName)} current={isCatalog}>
+        <NavItem to={createCatalogLink(feedName, sortTypeParam, params.timeFilterName)} current={isCatalog}>
           catalog
         </NavItem>
         <NavItem to='/stats' current={pathNames[1] === 'stats'}>

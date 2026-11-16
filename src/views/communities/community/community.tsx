@@ -59,7 +59,7 @@ const Community = ({ community, index }: CommunityProps) => {
   const mediaUrl = community?.suggested?.avatarUrl || community?.suggested?.bannerUrl;
   const mediaType = mediaUrl ? 'image' : undefined;
 
-  const communityLink = `/p/${community?.address}`;
+  const communityLink = `/${community?.address}`;
   const communitySettingsLink = `${communityLink}/settings`;
 
   const { blocked: hidden } = useBlock({ address: community?.address });
@@ -91,7 +91,7 @@ const Community = ({ community, index }: CommunityProps) => {
   let communityAddress;
   let title = community?.title?.trim?.()?.substring?.(0, 300);
   if (title) {
-    communityAddress = `p/${community?.shortAddress}`;
+    communityAddress = community?.shortAddress;
   } else {
     title = community?.address;
   }

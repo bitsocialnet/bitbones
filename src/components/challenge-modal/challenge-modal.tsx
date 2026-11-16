@@ -90,7 +90,7 @@ const Challenge = ({ challenge, closeModal, abandonModal }: ChallengeProps) => {
     <div className={styles.challenge}>
       <div>
         {publicationType}
-        {votePreview} in p/{publication?.shortCommunityAddress}
+        {votePreview} in {publication?.shortCommunityAddress}
       </div>
       {parentCommentPreview && <div>to: {parentCommentPreview}</div>}
       <div>{publicationPreview}</div>

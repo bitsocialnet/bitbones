@@ -9,7 +9,7 @@ interface TextOnlyPostProps {
 }
 
 const TextOnlyPost = ({ post, index }: TextOnlyPostProps) => {
-  const internalLink = `/p/${post.communityAddress}/c/${post.cid}`;
+  const internalLink = `/${post.communityAddress}/c/${post.cid}`;
   const externalLink = post?.link;
 
   return (

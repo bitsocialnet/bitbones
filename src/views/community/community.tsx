@@ -23,7 +23,7 @@ const accountComments = { newerThan: 60 * 60 * 12 };
 
 function Community() {
   const params = useParams<{ communityAddress?: string; sortType?: string; timeFilterName?: string }>();
-  // the /p/:communityAddress route always sets the param, react-router types every route param as optional
+  // the /:communityAddress route always sets the param, react-router types every route param as optional
   const communityAddress = params.communityAddress!;
   const communityAddresses = useMemo(() => [communityAddress], [communityAddress]);
   const sortType = params?.sortType || 'hot';
@@ -66,7 +66,7 @@ function Community() {
   return (
     <Panes
       aside={<CommunityInfo communityAddress={communityAddress} />}
-      asideTitle={`p/${communityAddress}`}
+      asideTitle={communityAddress}
       inspector={
         <Inspector fallback={<FeedDetails feedResult={feedResult} communityCount={1} sortType={sortType} newerThan={newerThan} stateString={loadingStateString} />} />
       }

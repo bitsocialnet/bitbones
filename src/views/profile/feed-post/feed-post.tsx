@@ -65,7 +65,7 @@ const FeedPost = ({ post, index }: FeedPostProps) => {
 
   const mediaType = utils.getCommentMediaType(post);
 
-  const internalLink = post?.cid ? `/p/${post?.communityAddress}/c/${post?.cid}` : `/profile/${post?.index}`;
+  const internalLink = post?.cid ? `/${post?.communityAddress}/c/${post?.cid}` : `/profile/${post?.index}`;
 
   const [unreadReplyCount] = useUnreadReplyCount(post);
   const unreadReplyCountText = typeof unreadReplyCount === 'number' ? `+${unreadReplyCount}` : '';
@@ -136,7 +136,7 @@ const FeedPost = ({ post, index }: FeedPostProps) => {
           <div className={styles.content}>
             <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
             <span className={styles.author}> by {shortAuthorAddress || post?.author?.shortAddress} to </span>
-            <Link to={`/p/${post?.communityAddress}`} className={styles.community}>
+            <Link to={`/${post?.communityAddress}`} className={styles.community}>
               {post?.communityAddress}
             </Link>
           </div>

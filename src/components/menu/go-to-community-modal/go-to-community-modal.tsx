@@ -21,9 +21,9 @@ const GoToCommunity = () => {
   // serves both the input's onKeyPress and the button's onClick, so the event only sometimes has a key
   const go = (e: SyntheticEvent & { key?: string }) => {
     if (e.key === 'Enter' || e.key === undefined) {
-      const cleanedCommunityAddress = communityAddress.trim().replace(/^\/?p\//i, '');
+      const cleanedCommunityAddress = communityAddress.trim().replace(/^\/?(?:p\/)?/i, '');
       if (cleanedCommunityAddress) {
-        navigate(`/p/${cleanedCommunityAddress}`);
+        navigate(`/${cleanedCommunityAddress}`);
       }
     }
   };

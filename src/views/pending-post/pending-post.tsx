@@ -32,11 +32,11 @@ function PendingPost() {
   // redirect to post when post.cid is received, or to parent post if post is a reply
   useEffect(() => {
     if (post?.cid && post?.communityAddress) {
-      navigate(`/p/${post?.communityAddress}/c/${post?.cid}`, { replace: true });
+      navigate(`/${post?.communityAddress}/c/${post?.cid}`, { replace: true });
     }
     // post is not a post, is a reply, redirect to post
     else if (post?.parentCid && post?.communityAddress) {
-      navigate(`/p/${post?.communityAddress}/c/${post?.parentCid}`, { replace: true });
+      navigate(`/${post?.communityAddress}/c/${post?.parentCid}`, { replace: true });
     }
   }, [post?.cid, post?.communityAddress, navigate, post?.parentCid]);
 
@@ -52,7 +52,7 @@ function PendingPost() {
   return (
     <Panes
       aside={post?.communityAddress ? <CommunityInfo communityAddress={post.communityAddress} /> : undefined}
-      asideTitle={post?.communityAddress ? `p/${post.communityAddress}` : undefined}
+      asideTitle={post?.communityAddress}
       inspector={<Inspector defaultComment={post} />}
     >
       <article className={styles.post}>
@@ -66,7 +66,7 @@ function PendingPost() {
             <div className={styles.meta}>
               {state && <span className={[styles.label, state === 'failed' ? styles.negative : styles.pending].join(' ')}>{state}</span>}
               {utils.getFormattedTime(post?.timestamp)} by <Link to='/profile'>u/{shortAuthorAddress}</Link> to{' '}
-              <Link to={`/p/${post?.communityAddress}`}>p/{post?.communityAddress}</Link>
+              <Link to={`/${post?.communityAddress}`}>{post?.communityAddress}</Link>
               {host && (
                 <a href={post?.link} target='_blank' rel='noreferrer' className={styles.host}>
                   {host}

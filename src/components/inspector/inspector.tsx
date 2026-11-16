@@ -95,7 +95,7 @@ const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
     return <>{fallback}</>;
   }
 
-  const postLink = comment.cid ? `/p/${comment.communityAddress}/c/${comment.postCid || comment.cid}` : `/profile/${comment.index}`;
+  const postLink = comment.cid ? `/${comment.communityAddress}/c/${comment.postCid || comment.cid}` : `/profile/${comment.index}`;
   const copy = (text?: string) => text && navigator.clipboard?.writeText(text);
 
   return (
