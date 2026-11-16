@@ -14,3 +14,5 @@ Read [versioning and v1 readiness](../../../docs/agent-playbooks/versioning.md) 
 For preparation, summarize user-visible changes with `release-description`, update the version, run `corepack yarn install` and `yarn changelog`, then verify lint, type-check and build sequentially. Use relevant dependency or React diagnostics when warranted. There is no application test runner. `yarn build` refreshes tracked `src/data/vendored-*.json`; inspect that diff deliberately and preserve unrelated files/build artifacts.
 
 Stage only release-owned files, keep Git hooks enabled, and verify the target commit before tagging. Push the explicit branch/tag only within authorized publication scope; never push every local tag. Do not repeat checks for an unchanged final state.
+
+For a workflow-only failure after tagging, repair the workflow on `master` and use its `workflow_dispatch` input `release_tag` to retry the existing tag within the same publication authorization. All jobs build that tag's source; verify the manifest's source commit before reporting success.
