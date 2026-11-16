@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import debug from 'debug';
+import utils from '../lib/utils';
 
 // pkc-js and the hooks log through the shared `debug` module (via @pkcprotocol/pkc-logger). While recording,
 // this enables their namespaces and replaces debug's output function, so the /log view shows the
@@ -14,6 +15,8 @@ export interface ProtocolLogEntry {
 }
 
 const RECORDING_KEY = 'bitbonesLogRecording';
+// the developer's own localStorage.debug namespaces, put back when recording stops
+const PREVIOUS_DEBUG_KEY = 'bitbonesLogPreviousDebug';
 const MAX_ENTRIES = 2000;
 // trace lines are per-message noise, keep the regular and error levels
 const NAMESPACES = 'pkc-js:*,pkc-js-rpc:*,bitsocial-react-hooks:*,-*:trace';
@@ -29,10 +32,17 @@ let nextId = 0;
 let pending: ProtocolLogEntry[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | undefined;
 
-// the hooks log whole account objects, which hold the signer's private key. Never show anything that looks like a secret.
-const SECRET_KEY = /privateKey|password|secret|authKey|mnemonic|seed/i;
-const redactSecrets = (text: string) =>
-  text.replace(/("?[\w.]*(?:privateKey|password|secret|authKey|mnemonic|seed)[\w]*"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,}]+)/gi, '$1"[redacted]"');
+// The hooks log whole account objects, which hold the signer's private key, and pkcOptions, whose kubo
+// rpc options can carry authorization headers. Never show anything that looks like a secret.
+// Key names are matched whole, so `author` and `authorAddress` stay visible.
+const SECRET_KEY_NAMES = 'privateKey|password|passphrase|secret|authKey|pkcRpcAuthKey|authorization|auth|headers|mnemonic|seed|token|apiKey|api_key';
+const SECRET_KEY = new RegExp(`^(?:${SECRET_KEY_NAMES})$`, 'i');
+const SECRET_FIELD = new RegExp(
+  `((?:"|')?\\b(?:${SECRET_KEY_NAMES})(?:"|')?\\s*[:=]\\s*)(\\{[^{}]*\\}|"[^"]*"|'[^']*'|(?:Bearer|Basic|Token)\\s+[^\\s,}]+|[^\\s,}]+)`,
+  'gi',
+);
+const URL_PATTERN = /\b(?:https?|wss?):\/\/[^\s"'<>]+/g;
+const redactSecrets = (text: string) => text.replace(SECRET_FIELD, '$1"[redacted]"').replace(URL_PATTERN, (url) => utils.getRedactedUrl(url));
 const secretReplacer = (key: string, value: unknown) => (SECRET_KEY.test(key) ? '[redacted]' : value);
 
 const stringifyArg = (arg: unknown): string => {
@@ -44,7 +54,8 @@ const stringifyArg = (arg: unknown): string => {
   }
   try {
     const json = JSON.stringify(arg, secretReplacer);
-    return json && json.length > 300 ? `${json.substring(0, 300)}…` : json || String(arg);
+    const redacted = json ? redactSecrets(json) : String(arg);
+    return redacted.length > 300 ? `${redacted.substring(0, 300)}…` : redacted;
   } catch {
     return String(arg);
   }
@@ -82,13 +93,29 @@ const capture = (...args: unknown[]) => {
 };
 
 const originalLog = debug.log;
-const applyRecording = (recording: boolean) => {
+// debug.enable writes localStorage.debug and debug.disable removes it, so a developer's own console
+// namespaces are saved when recording starts and enabled again when it stops
+const applyRecording = (recording: boolean, resuming = false) => {
   if (recording) {
+    try {
+      const previous = localStorage.getItem('debug');
+      if (!resuming && previous && previous !== NAMESPACES) {
+        localStorage.setItem(PREVIOUS_DEBUG_KEY, previous);
+      }
+    } catch {}
     debug.log = capture;
     debug.enable(NAMESPACES);
   } else {
     debug.disable();
     debug.log = originalLog;
+    let previous: string | null = null;
+    try {
+      previous = localStorage.getItem(PREVIOUS_DEBUG_KEY);
+      localStorage.removeItem(PREVIOUS_DEBUG_KEY);
+    } catch {}
+    if (previous) {
+      debug.enable(previous);
+    }
   }
 };
 
@@ -110,12 +137,20 @@ const useProtocolLogStore = create<ProtocolLogState>((setState) => ({
     applyRecording(recording);
     setState({ recording });
   },
-  clear: () => setState({ entries: [] }),
+  clear: () => {
+    // also drop lines waiting for the next batch, or the flush would bring them back
+    pending = [];
+    if (flushTimeout) {
+      clearTimeout(flushTimeout);
+      flushTimeout = undefined;
+    }
+    setState({ entries: [] });
+  },
 }));
 
 // resume recording on load, before pkc-js starts logging
 if (useProtocolLogStore.getState().recording) {
-  applyRecording(true);
+  applyRecording(true, true);
 }
 
 const useProtocolLog = () => {

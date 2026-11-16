@@ -95,6 +95,20 @@ export const getHost = (url?: string): string => {
 const commentFlags = ['pinned', 'locked', 'archived', 'removed', 'deleted', 'spoiler', 'nsfw'];
 export const getCommentFlags = (comment?: Comment): string => commentFlags.filter((flag) => comment?.[flag]).join(' ');
 
+// protocol, host and only paths known to hold no secret (gateway content, kubo rpc and http router
+// endpoints). pkc rpc urls carry their auth key in the path, provider urls often carry api keys in the
+// path or query, and urls can embed user:password, so everything else is dropped.
+const publicUrlPath = /^\/(?:ipfs|ipns)\/|^\/(?:api\/v0|routing\/v1)(?:\/|$)/;
+export const getRedactedUrl = (value: string): string => {
+  try {
+    const url = new URL(value);
+    const path = url.pathname === '/' ? '' : publicUrlPath.test(url.pathname) ? url.pathname : '/[redacted]';
+    return `${url.protocol}//${url.host}${path}${url.search ? '?[redacted]' : ''}`;
+  } catch {
+    return '[redacted url]';
+  }
+};
+
 export const alertChallengeVerificationFailed = (challengeVerification?: ChallengeVerification, publication?: Comment | Vote): void => {
   if (challengeVerification?.challengeSuccess === false) {
     console.warn(challengeVerification, publication);
@@ -115,6 +129,7 @@ const utils = {
   getShortAge,
   getHost,
   getCommentFlags,
+  getRedactedUrl,
   alertChallengeVerificationFailed,
 };
 
