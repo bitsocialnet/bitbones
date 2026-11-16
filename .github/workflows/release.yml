@@ -531,7 +531,8 @@ jobs:
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ env.BITBONES_RELEASE_TAG }}
-          commit: ${{ needs.preflight.outputs.source_commit }}
+          # The existing tag is verified above. An explicit historical target_commitish can
+          # require workflow-write permission, which GITHUB_TOKEN cannot receive.
           artifacts: 'release-assets/*'
           bodyFile: release-body.txt
           token: ${{ secrets.GITHUB_TOKEN }}
