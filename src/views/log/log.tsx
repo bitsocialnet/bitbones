@@ -35,13 +35,30 @@ function Log() {
   const { recording, entries, setRecording, clear } = useProtocolLog();
   const [filterName, setFilterName] = useState('all');
   const [search, setSearch] = useState('');
+  // Scrolled away from the newest lines, the list holds still: each batch would insert lines above the
+  // one being read and the 2000-line cap would drop lines below it, so both wait for "show new lines".
+  const [frozenEntries, setFrozenEntries] = useState<ProtocolLogEntry[]>();
+  const sourceEntries = frozenEntries ?? entries;
 
   // newest first
   const shownEntries = useMemo(() => {
     const filter = filters.find(({ name }) => name === filterName) || filters[0];
     const query = search.trim().toLowerCase();
-    return entries.filter((entry) => filter.test(entry) && (!query || `${entry.namespace} ${entry.message}`.toLowerCase().includes(query))).reverse();
-  }, [entries, filterName, search]);
+    return sourceEntries.filter((entry) => filter.test(entry) && (!query || `${entry.namespace} ${entry.message}`.toLowerCase().includes(query))).reverse();
+  }, [sourceEntries, filterName, search]);
+
+  const newLineCount = useMemo(() => {
+    if (!frozenEntries) {
+      return 0;
+    }
+    const lastFrozenId = frozenEntries[frozenEntries.length - 1]?.id ?? -1;
+    return entries.filter((entry) => entry.id > lastFrozenId).length;
+  }, [entries, frozenEntries]);
+
+  const showNewLines = () => {
+    setFrozenEntries(undefined);
+    window.scrollTo({ top: 0 });
+  };
 
   return (
     <div className={styles.log}>
@@ -54,7 +71,14 @@ function Log() {
         >
           {recording ? 'stop recording' : 'record'}
         </button>
-        <button type='button' className={styles.button} onClick={clear}>
+        <button
+          type='button'
+          className={styles.button}
+          onClick={() => {
+            clear();
+            setFrozenEntries(undefined);
+          }}
+        >
           clear
         </button>
         <span className={styles.filters}>
@@ -75,8 +99,13 @@ function Log() {
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder='askseedit.bso' spellCheck={false} />
         </label>
         <span className={styles.dim}>
-          {shownEntries.length} of {entries.length} lines, newest first
+          {shownEntries.length} of {sourceEntries.length} lines, newest first
         </span>
+        {newLineCount > 0 && (
+          <button type='button' className={[styles.button, styles.recording].join(' ')} onClick={showNewLines}>
+            {newLineCount} new {newLineCount === 1 ? 'line' : 'lines'}, show
+          </button>
+        )}
       </div>
 
       {entries.length === 0 && (
@@ -87,7 +116,14 @@ function Log() {
         </p>
       )}
 
-      <Virtuoso useWindowScroll={true} data={shownEntries} computeItemKey={(_, entry) => entry.id} itemContent={(_, entry) => <LogLine entry={entry} />} />
+      <Virtuoso
+        useWindowScroll={true}
+        data={shownEntries}
+        computeItemKey={(_, entry) => entry.id}
+        itemContent={(_, entry) => <LogLine entry={entry} />}
+        atTopThreshold={24}
+        atTopStateChange={(atTop) => setFrozenEntries((current) => (atTop ? undefined : (current ?? entries)))}
+      />
     </div>
   );
 }
