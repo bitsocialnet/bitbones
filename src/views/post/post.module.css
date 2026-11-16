@@ -194,6 +194,11 @@
   color: var(--error);
 }
 
+/* a pending post's publishing state */
+.pending {
+  color: var(--warn);
+}
+
 .linkButton {
   padding: 0;
   background: none;

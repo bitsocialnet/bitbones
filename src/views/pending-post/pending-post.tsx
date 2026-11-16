@@ -1,62 +1,27 @@
-import utils from '../../lib/utils';
-import { useParams, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import Arrow from '../../components/icons/arrow';
-import styles from '../post/post.module.css';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useAccountComment, useAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment } from '@bitsocial/bitsocial-react-hooks';
+import utils from '../../lib/utils';
+import Panes from '../../components/panes';
+import Inspector from '../../components/inspector';
+import CommunityInfo from '../../components/community-info';
+import CommentMedia from '../../components/comment-media';
+import { CommentLine } from '../../components/protocol-details';
 import { useAccountCommentIndexAfterDeletes } from '../../hooks/use-publish-comment-with-abandon';
 import useStateString from '../../hooks/use-state-string';
-import Embed, { canEmbed } from '../../components/embed';
+import useVerbose from '../../hooks/use-verbose';
+import styles from '../post/post.module.css';
 
-interface PostMediaProps {
-  post?: Comment;
-}
-
-const PostMedia = ({ post }: PostMediaProps) => {
-  if (!post?.link) {
-    return <div className={styles.noMedia}></div>;
-  }
-  const mediaType = utils.getCommentMediaType(post);
-  if (mediaType === 'image') {
-    return (
-      <div className={styles.mediaWrapper}>
-        <img className={styles.media} src={post?.link} alt='' />
-      </div>
-    );
-  }
-  if (mediaType === 'video') {
-    return <video className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
-  }
-  if (mediaType === 'audio') {
-    return <audio className={styles.media} controls={true} autoPlay={false} src={post?.link} />;
-  }
-  try {
-    const parsedUrl = new URL(post?.link);
-    if (canEmbed(parsedUrl)) {
-      return (
-        <div className={styles.mediaWrapper}>
-          <Embed parsedUrl={parsedUrl} />
-        </div>
-      );
-    }
-  } catch (e) {}
-  return <div className={styles.noMedia}></div>;
-};
-
-function Post() {
+// the account's own post while it publishes, at /profile/<account comment index>, laid out like a post page
+function PendingPost() {
   const { accountCommentIndex } = useParams();
   const navigate = useNavigate();
   // a cancelled challenge deletes its pending comment and moves the account's later comments down one slot
   const commentIndex = useAccountCommentIndexAfterDeletes(accountCommentIndex);
   const post = useAccountComment({ commentIndex });
   const { shortAuthorAddress } = useAuthorAddress({ comment: post });
-
-  let hostname;
-  try {
-    hostname = new URL(post?.link).hostname.replace(/^www\./, '');
-  } catch (e) {}
+  const publishingStateString = useStateString(post);
+  const [verbose] = useVerbose();
 
   // scroll to top on first load
   // braces matter: window.scrollTo returns a Promise in current Chrome, and an effect that returns one breaks unmount
@@ -77,59 +42,51 @@ function Post() {
 
   // the library marks a comment without cid failed on a publish error or after 20 minutes
   const state = post?.state === 'pending' || post?.state === 'failed' ? post.state : undefined;
-  const stateStyle = styles[`${state}Label`];
+  const host = post?.link ? utils.getHost(post.link) : '';
 
-  const publishingStateString = useStateString(post);
+  // the account comment loads from the database after the page, or the index points past the account's comments
+  if (!post?.timestamp) {
+    return <p>loading account comment #{accountCommentIndex}...</p>;
+  }
 
   return (
-    <div className={styles.post}>
-      <div className={styles.textWrapper}>
-        <div className={styles.column}>
+    <Panes
+      aside={post?.communityAddress ? <CommunityInfo communityAddress={post.communityAddress} /> : undefined}
+      asideTitle={post?.communityAddress ? `p/${post.communityAddress}` : undefined}
+      inspector={<Inspector defaultComment={post} />}
+    >
+      <article className={styles.post}>
+        <div className={styles.postHeader}>
+          {/* a pending post can't be voted on yet */}
           <div className={styles.score}>
-            <div className={styles.upvote}>
-              <Arrow />
-            </div>
-            <div className={styles.scoreNumber}>0</div>
-            <div className={styles.downvote}>
-              <Arrow />
+            <span className={styles.scoreNumber}>0</span>
+          </div>
+          <div className={styles.headerBody}>
+            <h1 className={styles.title}>{post?.title?.trim?.() || '-'}</h1>
+            <div className={styles.meta}>
+              {state && <span className={[styles.label, state === 'failed' ? styles.negative : styles.pending].join(' ')}>{state}</span>}
+              {utils.getFormattedTime(post?.timestamp)} by <Link to='/profile'>u/{shortAuthorAddress}</Link> to{' '}
+              <Link to={`/p/${post?.communityAddress}`}>p/{post?.communityAddress}</Link>
+              {host && (
+                <a href={post?.link} target='_blank' rel='noreferrer' className={styles.host}>
+                  {host}
+                </a>
+              )}
             </div>
           </div>
         </div>
-        <div className={styles.column}>
-          <div className={styles.header}>
-            <Link to={post?.link} target={post?.link ? '_blank' : undefined} rel='noreferrer' className={styles.title}>
-              {post?.title || '-'}
-            </Link>{' '}
-            <span className={stateStyle}>{state}</span>
-            {hostname && (
-              <Link to={post?.link} target='_blank' rel='noreferrer'>
-                {' '}
-                {hostname}
-              </Link>
-            )}
+        <div className={styles.postBody}>
+          {post?.content?.trim?.() && <div className={styles.content}>{post.content.trim()}</div>}
+          <CommentMedia comment={post} defaultOpen={true} />
+          {verbose && <CommentLine comment={post} />}
+          <div className={styles.actions}>
+            <span>0 comments</span>
           </div>
-          <div>
-            <span className={styles.timestamp}>{utils.getFormattedTime(post?.timestamp)}</span>
-            <span className={styles.author}>
-              {' '}
-              by <Link to='/profile'>{shortAuthorAddress}</Link> to{' '}
-            </span>
-            <Link to={`/p/${post?.communityAddress}`} className={styles.community}>
-              {post?.communityAddress}
-            </Link>
-          </div>
-          <div className={styles.footer}>
-            <span className={[styles.replyCount, styles.button].join(' ')}>0 comments</span>
-          </div>
-          {post?.content && <div className={styles.content}>{post?.content}</div>}
+          {publishingStateString && <div className={styles.stateString}>{publishingStateString}</div>}
         </div>
-      </div>
-      <div className={styles.pendingMedia}>
-        <PostMedia post={post} />
-      </div>
-      {publishingStateString && <div className={styles.stateString}>{publishingStateString}</div>}
-    </div>
+      </article>
+    </Panes>
   );
 }
 
-export default Post;
+export default PendingPost;
