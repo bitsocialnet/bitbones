@@ -177,11 +177,17 @@ function Post() {
     return 'wrong community address';
   }
 
+  // useComment always returns an object (state, refresh, errors...), so a loaded field tells a fetched post apart
+  const loaded = Boolean(post?.timestamp);
   const score = (post?.upvoteCount || 0) - (post?.downvoteCount || 0);
   const host = post?.link ? utils.getHost(post.link) : '';
 
   return (
-    <Panes aside={<CommunityInfo communityAddress={communityAddress} />} asideTitle={`p/${communityAddress}`} inspector={<Inspector defaultComment={post} />}>
+    <Panes
+      aside={<CommunityInfo communityAddress={communityAddress} />}
+      asideTitle={`p/${communityAddress}`}
+      inspector={<Inspector defaultComment={loaded ? post : undefined} fallback={<p>loading the post...</p>} />}
+    >
       <article className={[styles.post, hidden ? styles.hidden : undefined].join(' ')}>
         <div className={styles.postHeader}>
           <div className={styles.score}>
@@ -190,7 +196,7 @@ function Post() {
             </button>
             <PostTools post={post}>
               <span className={[styles.scoreNumber, score < 0 ? styles.negative : undefined].join(' ')} title='post tools'>
-                {post ? score : '-'}
+                {loaded ? score : '-'}
               </span>
             </PostTools>
             <button
@@ -204,14 +210,14 @@ function Post() {
             </button>
           </div>
           <div className={styles.headerBody}>
-            <h1 className={styles.title}>{post?.title?.trim?.() || (post ? '-' : 'loading...')}</h1>
+            <h1 className={styles.title}>{post?.title?.trim?.() || (loaded ? '-' : 'loading...')}</h1>
             <div className={styles.meta}>
               {labels.map((label) => (
                 <span key={label} className={styles.label}>
                   {label}
                 </span>
               ))}
-              {post && (
+              {loaded && (
                 <>
                   {utils.getFormattedTime(post.timestamp)} by <Link to={`/u/${post.author?.address}/c/${post.cid}`}>u/{shortAuthorAddress}</Link> to{' '}
                   <Link to={`/p/${post.communityAddress}`}>p/{post.shortCommunityAddress || post.communityAddress}</Link>

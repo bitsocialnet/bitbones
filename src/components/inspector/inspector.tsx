@@ -90,7 +90,8 @@ const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
     }
   }, [comment, tab]);
 
-  if (!comment) {
+  // a record with neither a cid nor an account comment index is not a comment yet, e.g. a post still loading
+  if (!comment || (!comment.cid && typeof comment.index !== 'number')) {
     return <>{fallback}</>;
   }
 
