@@ -1,6 +1,6 @@
 {
   "source": "5chan",
-  "revision": 1784884468,
+  "revision": 1793786265,
   "communities": [
     {
       "address": "3dcg-posting.bso",
@@ -151,6 +151,11 @@
       "address": "auto-posting.bso",
       "title": "/o/ - Auto",
       "directoryCode": "o"
+    },
+    {
+      "address": "original-content.bso",
+      "title": "/oc/ - Original Content",
+      "directoryCode": "oc"
     },
     {
       "address": "outdoors-posting.bso",
