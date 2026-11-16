@@ -38,7 +38,11 @@ const jsonReplacer = (key: string, value: unknown) => {
   return copyReplacer(key, value);
 };
 
-const CommentFields = ({ comment }: { comment: Comment }) => (
+interface CommentFieldsProps {
+  comment: Comment;
+}
+
+const CommentFields = ({ comment }: CommentFieldsProps) => (
   <KeyValueTable
     fields={[
       { name: 'cid', value: comment.cid || `pending, account comment #${comment.index}` },

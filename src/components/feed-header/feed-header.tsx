@@ -24,6 +24,10 @@ const FeedHeader = ({ feedResult, sortType, timeFilterName, stateString }: FeedH
 };
 
 // virtuoso footer: loading state, end of feed, empty feed
-export const FeedFooter = ({ children }: { children: ReactNode }) => <div className={styles.feedFooter}>{children}</div>;
+interface FeedFooterProps {
+  children: ReactNode;
+}
+
+export const FeedFooter = ({ children }: FeedFooterProps) => <div className={styles.feedFooter}>{children}</div>;
 
 export default FeedHeader;

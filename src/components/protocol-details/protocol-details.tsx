@@ -6,7 +6,11 @@ import styles from './protocol-details.module.css';
 
 // protocol data as tables, field names as pkc-js names them
 
-export const PaneHeading = ({ children }: { children: ReactNode }) => <h2 className={styles.heading}>{children}</h2>;
+interface PaneHeadingProps {
+  children: ReactNode;
+}
+
+export const PaneHeading = ({ children }: PaneHeadingProps) => <h2 className={styles.heading}>{children}</h2>;
 
 export interface Field {
   name: string;
@@ -16,7 +20,11 @@ export interface Field {
 const hasValue = (value: ReactNode) => value !== undefined && value !== null && value !== '' && value !== false;
 
 // rows without a value are skipped, so a table only lists what the record has
-export const KeyValueTable = ({ fields }: { fields: Field[] }) => (
+interface KeyValueTableProps {
+  fields: Field[];
+}
+
+export const KeyValueTable = ({ fields }: KeyValueTableProps) => (
   <table className={styles.kv}>
     <tbody>
       {fields
@@ -32,7 +40,11 @@ export const KeyValueTable = ({ fields }: { fields: Field[] }) => (
 );
 
 // '1794734400 (5 hours ago)'
-export const Timestamp = ({ timestamp }: { timestamp?: number }) => {
+interface TimestampProps {
+  timestamp?: number;
+}
+
+export const Timestamp = ({ timestamp }: TimestampProps) => {
   if (typeof timestamp !== 'number') {
     return null;
   }

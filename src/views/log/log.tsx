@@ -17,7 +17,11 @@ const formatTime = (time: number) => {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${pad(date.getMilliseconds(), 3)}`;
 };
 
-const LogLine = ({ entry }: { entry: ProtocolLogEntry }) => (
+interface LogLineProps {
+  entry: ProtocolLogEntry;
+}
+
+const LogLine = ({ entry }: LogLineProps) => (
   <div className={[styles.line, entry.isError ? styles.error : undefined].join(' ')}>
     <span className={styles.time}>{formatTime(entry.time)}</span>
     <span className={styles.namespace} title={entry.namespace}>
