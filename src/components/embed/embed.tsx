@@ -56,7 +56,9 @@ const YoutubeEmbed = ({ parsedUrl }: EmbedProps) => {
       width='100%'
       frameborder='0'
       credentialless
-      referrerpolicy='no-referrer'
+      // youtube refuses to play (error 153) without a referrer identifying the embedding origin;
+      // this sends the origin only, never the path or the hash route
+      referrerpolicy='strict-origin-when-cross-origin'
       allow='accelerometer; encrypted-media; gyroscope; picture-in-picture; web-share'
       allowfullscreen
       title={parsedUrl.href}
