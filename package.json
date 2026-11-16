@@ -49,6 +49,7 @@
     "ai-workflow:sync": "node scripts/sync-ai-workflow.mjs",
     "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs",
     "release:manifest": "node scripts/generate-release-manifest.mjs",
+    "release:manifest:keygen": "node scripts/generate-release-manifest-keypair.mjs",
     "release:manifest:test": "node --test scripts/__tests__/release-manifest.node-test.mjs",
     "doctor:scan": "react-doctor scan",
     "perf:check": "node scripts/react-perf/runner.mjs check",

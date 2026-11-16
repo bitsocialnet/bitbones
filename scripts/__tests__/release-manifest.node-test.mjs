@@ -1,11 +1,17 @@
 import assert from 'node:assert/strict';
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync, webcrypto } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 
-import { generateReleaseManifest, RELEASE_MANIFEST_FILE } from '../generate-release-manifest.mjs';
+import {
+  generateReleaseManifest,
+  RELEASE_MANIFEST_FILE,
+  RELEASE_MANIFEST_SIGNATURE_FILE,
+  signReleaseManifest,
+  verifyReleaseManifestSignature,
+} from '../generate-release-manifest.mjs';
 
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
@@ -84,5 +90,65 @@ test('fails on an empty build dir', async () => {
     const emptyDir = path.join(root, 'empty');
     await mkdir(emptyDir);
     await assert.rejects(generateReleaseManifest({ buildDir: emptyDir, version: '1.2.3', env: {} }), /No files found/);
+  });
+});
+
+function keypair(keyId = 'test-key') {
+  const { privateKey, publicKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  return {
+    env: { RELEASE_MANIFEST_PRIVATE_KEY_PEM: privateKey.export({ format: 'pem', type: 'sec1' }).toString() },
+    publicKey: { keyId, publicKeyJwk: publicKey.export({ format: 'jwk' }) },
+  };
+}
+
+test('signs the manifest bytes on disk, and a WebCrypto verifier accepts the signature', async () => {
+  await withBuildDir(async ({ root, buildDir }) => {
+    const { manifestPaths } = await generateReleaseManifest({ buildDir, outDirs: [path.join(root, 'out')], version: '1.2.3', env: {} });
+    const { env, publicKey } = keypair();
+    const { signature, signaturePath } = await signReleaseManifest({ manifestPath: manifestPaths[0], env, publicKey });
+
+    assert.equal(signaturePath, path.join(root, 'out', RELEASE_MANIFEST_SIGNATURE_FILE));
+    assert.deepEqual(JSON.parse(await readFile(signaturePath, 'utf8')), signature);
+    const manifestBytes = await readFile(manifestPaths[0]);
+    assert.equal(signature.schema, 'bitsocial.release-manifest-signature.v1');
+    assert.equal(signature.algorithm, 'ECDSA-P256-SHA256');
+    assert.equal(signature.keyId, 'test-key');
+    assert.equal(signature.manifestSha256, createHash('sha256').update(manifestBytes).digest('hex'));
+    assert.equal(verifyReleaseManifestSignature(manifestBytes, signature, publicKey), true);
+
+    // the way a browser consumer checks it
+    const key = await webcrypto.subtle.importKey('jwk', publicKey.publicKeyJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
+    assert.equal(await webcrypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, Buffer.from(signature.signature, 'base64url'), manifestBytes), true);
+
+    const tampered = Buffer.from(manifestBytes.toString().replace('1.2.3', '1.2.4'));
+    assert.equal(verifyReleaseManifestSignature(tampered, signature, publicKey), false);
+    assert.equal(verifyReleaseManifestSignature(tampered, { ...signature, manifestSha256: createHash('sha256').update(tampered).digest('hex') }, publicKey), false);
+    assert.equal(verifyReleaseManifestSignature(manifestBytes, signature, { ...publicKey, keyId: 'other-key' }), false);
+  });
+});
+
+test('signing fails without the key, and with a key that is not the pinned one', async () => {
+  await withBuildDir(async ({ root, buildDir }) => {
+    const { manifestPaths } = await generateReleaseManifest({ buildDir, outDirs: [path.join(root, 'out')], version: '1.2.3', env: {} });
+    const [manifestPath] = manifestPaths;
+
+    await assert.rejects(signReleaseManifest({ manifestPath, env: {}, publicKey: keypair().publicKey }), /RELEASE_MANIFEST_PRIVATE_KEY_PEM is required/);
+    await assert.rejects(signReleaseManifest({ manifestPath, env: keypair().env, publicKey: keypair().publicKey }), /does not match the committed public key/);
+    // with no publicKey given, the committed one is the pin
+    await assert.rejects(signReleaseManifest({ manifestPath, env: keypair().env }), /does not match the committed public key bitbones-release-p256-/);
+  });
+});
+
+test('a signature already in the build dir is not listed in the next manifest', async () => {
+  await withBuildDir(async ({ buildDir }) => {
+    const { manifestPaths } = await generateReleaseManifest({ buildDir, version: '1.2.3', env: {} });
+    const { env, publicKey } = keypair();
+    await signReleaseManifest({ manifestPath: manifestPaths[0], env, publicKey });
+    const { manifest } = await generateReleaseManifest({ buildDir, version: '1.2.3', env: {} });
+
+    assert.deepEqual(
+      manifest.files.map((file) => file.path),
+      ['assets/app.js', 'index.html'],
+    );
   });
 });

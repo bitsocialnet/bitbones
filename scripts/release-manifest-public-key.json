@@ -1,0 +1,9 @@
+{
+  "keyId": "bitbones-release-p256-2026-11",
+  "publicKeyJwk": {
+    "kty": "EC",
+    "x": "TXmydJUFCMvpuraEPkurnJmT0xvRkIEH1zqVpJeLlZY",
+    "y": "5BV386CT22Zticp_89luUlv3stDE-phOaHvGIwGHS8I",
+    "crv": "P-256"
+  }
+}

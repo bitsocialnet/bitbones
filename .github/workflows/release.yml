@@ -132,6 +132,14 @@ jobs:
           cmp archived-manifest.json out/make/bitbones-release-manifest.json
           cp out/make/bitbones-release-manifest.json release-assets/bitbones-release-manifest.json
           ls -la release-assets
+      # A step of its own, so the signing key is in no build tool's environment. It fails when the
+      # key is missing or does not match scripts/release-manifest-public-key.json.
+      - name: Sign the release manifest
+        env:
+          RELEASE_MANIFEST_PRIVATE_KEY_PEM: ${{ secrets.RELEASE_MANIFEST_PRIVATE_KEY_PEM }}
+        run: |
+          node scripts/generate-release-manifest.mjs --sign release-assets/bitbones-release-manifest.json
+          ls -la release-assets
       - uses: actions/upload-artifact@v4
         with:
           name: release-linux
