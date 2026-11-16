@@ -69,6 +69,8 @@ const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
     const messageToSign = getNftMessageToSign(authorAddress, newTimestamp, tokenAddress, tokenId);
     // update timestamp every time the user gets a new message to sign
     setTimestamp(newTimestamp);
+    // a signature of the previous message no longer matches
+    setSignature(undefined);
     navigator.clipboard.writeText(messageToSign);
     alert(messageToSign);
   };
@@ -81,8 +83,9 @@ const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
     id: tokenId || account?.author?.avatar?.id,
   };
   const type = avatar.chainTicker === 'sol' ? 'sol' : 'eip191';
+  // the state starts from the saved signature, so once it is dropped the preview must not fall back to it
   avatar.signature = {
-    signature: signature || account?.author?.avatar?.signature?.signature,
+    signature,
     type,
   };
 
@@ -107,8 +110,23 @@ const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
     <>
       <div>
         <input onChange={(e) => setChainTicker(e.target.value)} defaultValue={account?.author?.avatar?.chainTicker} placeholder='chain ticker e.g. eth, matic...' />
-        <input onChange={(e) => setTokenAddress(e.target.value)} defaultValue={account?.author?.avatar?.address} placeholder='token address e.g. 0x...' />
-        <input onChange={(e) => setTokenId(e.target.value)} defaultValue={account?.author?.avatar?.id} placeholder='token id e.g. 1001' />
+        {/* the signed message includes the token address and id, so editing them drops the signature */}
+        <input
+          onChange={(e) => {
+            setTokenAddress(e.target.value);
+            setSignature(undefined);
+          }}
+          defaultValue={account?.author?.avatar?.address}
+          placeholder='token address e.g. 0x...'
+        />
+        <input
+          onChange={(e) => {
+            setTokenId(e.target.value);
+            setSignature(undefined);
+          }}
+          defaultValue={account?.author?.avatar?.id}
+          placeholder='token id e.g. 1001'
+        />
         <button onClick={copyMessageToSign}>copy message to sign</button>
         <div>
           go to{' '}
@@ -119,7 +137,7 @@ const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
         </div>
       </div>
       <div>
-        <input onChange={(e) => setSignature(e.target.value)} defaultValue={account?.author?.avatar?.signature?.signature} placeholder='signature e.g. 0x...' />
+        <input onChange={(e) => setSignature(e.target.value)} value={signature || ''} placeholder='signature e.g. 0x...' />
         <button onClick={save}>save</button>
       </div>
       {chainTicker && tokenAddress && <NftAvatarPreview avatar={avatar} />}
@@ -139,7 +157,8 @@ const NftAvatar = () => {
   return (
     <div>
       <div>avatar:</div>
-      <NftAvatarForm account={account} />
+      {/* remount per account, the form state is seeded from the account it first rendered */}
+      <NftAvatarForm key={account.id} account={account} />
     </div>
   );
 };

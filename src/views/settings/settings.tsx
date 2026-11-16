@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from 'react';
 import styles from './settings.module.css';
-import { useAccount, setAccount, deleteAccount, useResolvedAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
+import { useAccount, useAccounts, setAccount, createAccount, deleteAccount, useResolvedAuthorAddress } from '@bitsocial/bitsocial-react-hooks';
 import type { Account } from '@bitsocial/bitsocial-react-hooks';
 import stringify from 'json-stringify-pretty-compact';
 import useTheme from '../../hooks/use-theme';
@@ -78,6 +78,7 @@ const AuthorAddress = () => {
 
 const AccountSettings = () => {
   const account = useAccount();
+  const { accounts } = useAccounts();
   const accountJson = useMemo(() => stringify({ account: { ...account, pkc: undefined, karma: undefined, unreadNotificationCount: undefined } }), [account]);
 
   const [text, setText] = useState('');
@@ -106,12 +107,32 @@ const AccountSettings = () => {
     }
   };
 
-  const _deleteAccount = (accountName?: string) => {
+  const shortAddress = account?.author?.shortAddress?.toLowerCase?.().substring(0, 8) || '';
+  const [deleting, setDeleting] = useState(false);
+  const _deleteAccount = async () => {
+    const accountName = account?.name;
     if (!accountName) {
       return;
     }
-    deleteAccount(accountName);
-    console.log('deleting account...');
+    if (!window.confirm(`delete account u/${shortAddress} and its private key permanently? copy the account json first to keep a backup.`)) {
+      return;
+    }
+    // the button re-targets the next active account as soon as this one is gone
+    setDeleting(true);
+    try {
+      // deleting the last account leaves no active account, so create its replacement first:
+      // if that fails nothing is deleted, and the library activates it once this one is gone
+      if (accounts.length <= 1) {
+        await createAccount();
+      }
+      console.log('deleting account...');
+      await deleteAccount(accountName);
+    } catch (e) {
+      console.warn(e);
+      alert(`failed deleting account: ${(e as Error).message}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -119,7 +140,9 @@ const AccountSettings = () => {
       <div>account:</div>
       <textarea aria-label='Account JSON' onChange={(e) => setText(e.target.value)} autoCorrect='off' rows={32} value={text} />
       <button onClick={saveAccount}>save</button>
-      <button onClick={() => _deleteAccount(account?.name)}>delete account u/{account?.author?.shortAddress?.toLowerCase?.().substring(0, 8) || ''}</button>
+      <button disabled={deleting} onClick={_deleteAccount}>
+        delete account u/{shortAddress}
+      </button>
     </div>
   );
 };

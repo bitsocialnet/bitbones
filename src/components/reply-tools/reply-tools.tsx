@@ -34,7 +34,7 @@ const Menu = ({ reply, onPublished }: MenuProps) => {
   const largeScoreNumber = String(scoreNumber).length > 3;
   const negativeScoreNumber = scoreNumber < 0;
 
-  const { content, setContent, resetContent, replyIndex, publishReply } = useReply(reply);
+  const { content, setContent, resetContent, replyIndex, publishing, publishReply } = useReply(reply);
 
   const onPublish = () => {
     if (!content) {
@@ -99,7 +99,7 @@ const Menu = ({ reply, onPublished }: MenuProps) => {
         />
       </div>
       <div className={styles.submitButtonWrapper}>
-        <button onClick={onPublish} className={styles.submitButton}>
+        <button onClick={onPublish} disabled={publishing} className={styles.submitButton}>
           reply
         </button>
       </div>

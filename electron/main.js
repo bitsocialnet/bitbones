@@ -11,14 +11,27 @@ import contextMenu from 'electron-context-menu';
 import packageJson from '../package.json' with { type: 'json' };
 const dirname = path.join(path.dirname(fileURLToPath(import.meta.url)));
 
+// the latest ipfs start error, cleared once ipfs runs again
 let startIpfsError;
-startIpfs.onError = (error) => {
-  // only show error once or it spams the user
-  const alreadyShownIpfsError = !!startIpfsError;
-  startIpfsError = error;
-  if (!alreadyShownIpfsError) {
-    dialog.showErrorBox('IPFS warning', error.message);
+let startIpfsErrorShown = false;
+const showStartIpfsError = () => {
+  // the start loop retries every second, so only show a failure once or it spams the user
+  if (!startIpfsError || startIpfsErrorShown) {
+    return;
   }
+  startIpfsErrorShown = true;
+  dialog.showErrorBox('IPFS warning', startIpfsError.message);
+};
+startIpfs.onError = (error) => {
+  startIpfsError = error;
+  // before ready the dialog can't show on every platform, so ready-to-show shows it instead
+  if (app.isReady()) {
+    showStartIpfsError();
+  }
+};
+startIpfs.onStarted = () => {
+  startIpfsError = undefined;
+  startIpfsErrorShown = false;
 };
 
 // send pkc rpc auth key to renderer
@@ -165,9 +178,7 @@ const createMainWindow = () => {
       mainWindow.openDevTools();
     }
 
-    if (startIpfsError) {
-      dialog.showErrorBox('IPFS warning', startIpfsError.message);
-    }
+    showStartIpfsError();
   });
 
   mainWindow.on('closed', () => {
@@ -295,21 +306,22 @@ const createMainWindow = () => {
       });
     }
   }
+};
 
+// the application menu is app-wide, so it is set up once and its items act on the focused window
+const setupApplicationMenu = () => {
   const appMenuBack = new MenuItem({
     label: '←',
-    enabled: mainWindow?.webContents?.canGoBack(),
-    click: () => mainWindow?.webContents?.goBack(),
+    click: (menuItem, browserWindow) => browserWindow?.webContents?.goBack(),
   });
   const appMenuForward = new MenuItem({
     label: '→',
-    enabled: mainWindow?.webContents?.canGoForward(),
-    click: () => mainWindow?.webContents?.goForward(),
+    click: (menuItem, browserWindow) => browserWindow?.webContents?.goForward(),
   });
   const appMenuReload = new MenuItem({
     label: '⟳',
     role: 'reload',
-    click: () => mainWindow?.webContents?.reload(),
+    click: (menuItem, browserWindow) => browserWindow?.webContents?.reload(),
   });
 
   // application menu
@@ -328,15 +340,36 @@ const createMainWindow = () => {
   }
 };
 
-app.whenReady().then(() => {
-  createMainWindow();
-
-  app.on('activate', () => {
-    if (!BrowserWindow.getAllWindows().length) {
+// packaged builds close to the tray, so launching bitbones again must bring that window back instead of
+// starting another hidden instance. dev builds skip the lock so they can run next to an installed bitbones.
+const isPrimaryInstance = isDev || app.requestSingleInstanceLock();
+if (!isPrimaryInstance) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    const [window] = BrowserWindow.getAllWindows();
+    if (!window) {
       createMainWindow();
+      return;
     }
+    if (window.isMinimized()) {
+      window.restore();
+    }
+    window.show();
+    window.focus();
   });
-});
+
+  app.whenReady().then(() => {
+    createMainWindow();
+    setupApplicationMenu();
+
+    app.on('activate', () => {
+      if (!BrowserWindow.getAllWindows().length) {
+        createMainWindow();
+      }
+    });
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

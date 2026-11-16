@@ -112,6 +112,11 @@ export default {
       const tempFolder = path.resolve('.', 'out', 'make', folderName);
       const outputFile = path.resolve('.', 'out', 'make', `${folderName}.zip`);
 
+      // zip -r adds to an existing archive and keeps files a newer build removed, and a failed run can
+      // leave the staging folder behind, so start both from scratch
+      await fsPromises.rm(outputFile, { force: true });
+      await fsPromises.rm(tempFolder, { recursive: true, force: true });
+
       // Copy build folder to temp folder with correct name
       await fsPromises.cp(buildFolder, tempFolder, { recursive: true });
 
