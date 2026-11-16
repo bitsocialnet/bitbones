@@ -12,8 +12,22 @@ import styles from './inspector.module.css';
 const tabs = ['fields', 'clients', 'json'] as const;
 type Tab = (typeof tabs)[number];
 
-// for the on-screen json tab only: reply pages can hold hundreds of comments, and long strings drown
-// the rest of the record. copy json copies the full record.
+// The comments store keys `clients` by raw client url (clients[type][url], clients[type][chain][url]),
+// and pkc rpc urls carry their auth key in the path or user:password in the host. Those keys go
+// through utils.getRedactedUrl before anything is shown or copied.
+const isUrl = (value: string) => /^(?:https?|wss?):\/\//.test(value);
+const redactClientUrls = (value: unknown): unknown => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return value;
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, child]) => [isUrl(key) ? utils.getRedactedUrl(key) : key, redactClientUrls(child)]));
+};
+
+// copy json: the full record, only the client urls redacted
+const copyReplacer = (key: string, value: unknown) => (key === 'clients' ? redactClientUrls(value) : value);
+
+// the on-screen json tab also collapses reply pages, which can hold hundreds of comments, and long
+// strings that drown the rest of the record
 const jsonReplacer = (key: string, value: unknown) => {
   if (key === 'replies' && value && typeof value === 'object') {
     return '[reply pages, see useReplies]';
@@ -21,7 +35,7 @@ const jsonReplacer = (key: string, value: unknown) => {
   if (typeof value === 'string' && value.length > 400) {
     return `${value.substring(0, 400)}… (${value.length} chars)`;
   }
-  return value;
+  return copyReplacer(key, value);
 };
 
 const CommentFields = ({ comment }: { comment: Comment }) => (
@@ -115,7 +129,7 @@ const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
             copy cid
           </button>
         )}
-        <button type='button' onClick={() => copy(JSON.stringify(comment, null, 2))}>
+        <button type='button' onClick={() => copy(JSON.stringify(comment, copyReplacer, 2))}>
           copy json
         </button>
         {/* a pending comment has no cid yet, so its author link has none either */}
