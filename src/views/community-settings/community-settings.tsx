@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from 'react';
 import styles from './community-settings.module.css';
 import { useCommunity, usePublishCommunityEdit, deleteCommunity } from '@bitsocial/bitsocial-react-hooks';
-import type { Challenge, Comment, PublishCommunityEditOptions } from '@bitsocial/bitsocial-react-hooks';
+import type { Challenge, ChallengeVerification, Comment, PublishCommunityEditOptions } from '@bitsocial/bitsocial-react-hooks';
 import stringify from 'json-stringify-pretty-compact';
 import { useParams, useNavigate } from 'react-router-dom';
 import { alertChallengeVerificationFailed } from '../../lib/utils';
@@ -63,8 +63,19 @@ function CommunitySettings() {
     ...getEditedPropsOnly(communityEditable, editedCommunity),
     communityAddress,
     onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, community]),
-    onChallengeVerification: alertChallengeVerificationFailed,
-    onError: console.warn,
+    // publishCommunityEdit() resolves before a remote community answers and never rejects, so report
+    // the result from the verification (the library fakes a successful one for local edits) and errors
+    onChallengeVerification: (challengeVerification: ChallengeVerification, communityEdit?: Comment) => {
+      if (challengeVerification?.challengeSuccess) {
+        alert(`saved`);
+      } else {
+        alertChallengeVerificationFailed(challengeVerification, communityEdit);
+      }
+    },
+    onError: (error: Error) => {
+      console.warn(error);
+      alert(`failed editing community: ${error.message}`);
+    },
   } as PublishCommunityEditOptions);
 
   // set the initial community json
@@ -78,7 +89,6 @@ function CommunitySettings() {
       JSON.parse(text);
 
       await publishCommunityEdit();
-      alert(`saved`);
     } catch (e) {
       console.warn(e);
       alert(`failed editing community: ${(e as Error).message}`);
@@ -100,6 +110,8 @@ function CommunitySettings() {
     } catch (e) {
       console.warn(e);
       alert(`failed deleting community: ${(e as Error).message}`);
+    } finally {
+      setDeleteButtonDisabled(false);
     }
   };
 

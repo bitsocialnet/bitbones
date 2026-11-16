@@ -1,16 +1,13 @@
-import { useState, useEffect, memo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { useFloating, autoUpdate, offset, flip, shift, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './submit.module.css';
-import { usePublishComment } from '@bitsocial/bitsocial-react-hooks';
-import type { Challenge, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
+import type { PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { create } from 'zustand';
-import challengesStore from '../../../hooks/use-challenges';
+import usePublishCommentWithAbandon from '../../../hooks/use-publish-comment-with-abandon';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
 import type { SubmitCommunity } from './utils';
 import { alertChallengeVerificationFailed } from '../../../lib/utils';
-
-const { addChallenge } = challengesStore.getState();
 
 interface SetSubmitStoreOptions {
   communityAddress?: string;
@@ -23,12 +20,16 @@ interface SubmitState {
   title: string | undefined;
   content: string | undefined;
   // typed as the library's loose PublishCommentOptions bag: UsePublishCommentOptions declares
-  // onChallenge/onChallengeVerification as returning Promise<void>, but the library calls them
-  // synchronously and discards the result, so these sync handlers do not fit the stricter type.
+  // onChallengeVerification as returning Promise<void>, but the library calls it synchronously and
+  // discards the result, so this sync handler does not fit the stricter type.
+  // usePublishCommentWithAbandon adds onChallenge.
   publishCommentOptions: PublishCommentOptions | undefined;
+  // set from the submit click until the library reports the pending post or fails
+  publishing: boolean;
   setSubmitStore: (options: SetSubmitStoreOptions) => void;
   // the implementation takes no argument, but the redirect effect below calls it with one
   resetSubmitStore: (options?: SetSubmitStoreOptions) => void;
+  setPublishing: (publishing: boolean) => void;
 }
 
 const useSubmitStore = create<SubmitState>((setState, getState) => ({
@@ -36,6 +37,7 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
   title: undefined,
   content: undefined,
   publishCommentOptions: undefined,
+  publishing: false,
   setSubmitStore: ({ communityAddress, title, content }) =>
     setState((state) => {
       const nextState = { ...state };
@@ -52,7 +54,15 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
         communityAddress: nextState.communityAddress,
         title: nextState.title,
         content: nextState.content,
-        onChallenge: (...args: [Challenge, Comment?]) => addChallenge(args),
+        // the pending post holds the draft from here on; reset it here rather than in the submit
+        // form's effect, which never runs if the form was closed before the pending index arrived.
+        // A draft edited since the publish started, in a reopened form, is a newer one, so keep it.
+        onPendingComment: () => {
+          const { communityAddress, title, content, resetSubmitStore } = getState();
+          if (communityAddress === nextState.communityAddress && title === nextState.title && content === nextState.content) {
+            resetSubmitStore();
+          }
+        },
         onChallengeVerification: alertChallengeVerificationFailed,
         onError: (error: Error) => {
           console.warn(error);
@@ -67,6 +77,7 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
       return nextState;
     }),
   resetSubmitStore: () => setState((state) => ({ communityAddress: undefined, title: undefined, content: undefined, publishCommentOptions: undefined })),
+  setPublishing: (publishing) => setState({ publishing }),
 }));
 
 interface SubmitProps {
@@ -75,13 +86,24 @@ interface SubmitProps {
 
 const Submit = ({ onSubmit }: SubmitProps) => {
   const params = useParams<{ communityAddress?: string }>();
-  const communities = useDefaultAndSubscriptionsCommunities();
-  const { communityAddress, title, content, publishCommentOptions, setSubmitStore, resetSubmitStore } = useSubmitStore();
-  const { index, publishComment } = usePublishComment(publishCommentOptions);
+  const { communityAddress, title, content, publishCommentOptions, publishing, setSubmitStore, resetSubmitStore, setPublishing } = useSubmitStore();
+  // the draft's community, or the community page the form was opened on: the select shows it,
+  // and validation and publishing use it, so the three can't disagree
+  const selectedCommunityAddress = communityAddress || params.communityAddress;
+  const communities = useDefaultAndSubscriptionsCommunities(selectedCommunityAddress);
+  const selectedPublishCommentOptions = useMemo(
+    (): PublishCommentOptions | undefined => publishCommentOptions && { ...publishCommentOptions, communityAddress: selectedCommunityAddress },
+    [publishCommentOptions, selectedCommunityAddress],
+  );
+  const { index, publishComment } = usePublishCommentWithAbandon(selectedPublishCommentOptions);
 
   const navigate = useNavigate();
 
-  const onPublish = () => {
+  const onPublish = async () => {
+    // like useReply: every publishComment call before the pending index arrives publishes another post
+    if (useSubmitStore.getState().publishing) {
+      return;
+    }
     if (!title) {
       alert(`missing title`);
       return;
@@ -90,11 +112,16 @@ const Submit = ({ onSubmit }: SubmitProps) => {
       alert(`missing link`);
       return;
     }
-    if (!communityAddress) {
+    if (!selectedCommunityAddress) {
       alert(`missing community`);
       return;
     }
-    publishComment();
+    setPublishing(true);
+    try {
+      await publishComment();
+    } finally {
+      setPublishing(false);
+    }
   };
 
   // redirect to pending post after submitting
@@ -108,7 +135,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
 
   return (
     <div className={styles.submit}>
-      <CommunitySelect communities={communities} communityAddress={communityAddress || params.communityAddress} setSubmitStore={setSubmitStore} />
+      <CommunitySelect communities={communities} communityAddress={selectedCommunityAddress} setSubmitStore={setSubmitStore} />
       <div>
         {/* set params.communityAddress as default if communityAddress is not yet defined */}
         <input
@@ -128,7 +155,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
         />
       </div>
       <div className={styles.submitButtonWrapper}>
-        <button onClick={onPublish} className={styles.submitButton}>
+        <button onClick={onPublish} disabled={publishing} className={styles.submitButton}>
           submit
         </button>
       </div>
@@ -155,13 +182,7 @@ const CommunitySelect = memo(({ communities, communityAddress, setSubmitStore }:
   );
   return (
     <div>
-      <select
-        onChange={(e) => setSubmitStore({ communityAddress: e.target.value })}
-        // NOTE: using 'defaultValue' instead of 'value' sometimes causes a bug to render 'p/' even when communityAddress
-        // is defined, but it seems to improve performance and the bug doesn't affect UX much
-        defaultValue={communityAddress || 'p/'}
-        className={styles.submitSelectCommunity}
-      >
+      <select onChange={(e) => setSubmitStore({ communityAddress: e.target.value })} value={communityAddress || ''} className={styles.submitSelectCommunity}>
         {communitiesOptions}
       </select>
     </div>

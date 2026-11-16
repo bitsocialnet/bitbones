@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { summarizePairs, main, readBenchmarkPlan } from '../browser-benchmark.mjs';
+import { summarizePairs, main, readBenchmarkPlan, benchmarkRun } from '../browser-benchmark.mjs';
+import { runBrowserPlan } from '../browser-plan.mjs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -64,4 +65,47 @@ test('plan reader is bounded and refuses non-files and symlinks before browser e
   } finally {
     await fs.rm(directory, { recursive: true, force: true });
   }
+});
+
+test('deterministic pairs of a plan with semantic checks are timed, while review and cleanup failures stay excluded', async () => {
+  const plan = {
+    version: 1,
+    url: 'http://127.0.0.1:4173/',
+    goal: 'Show the settings button.',
+    actions: [{ id: 'open', op: 'click', role: 'button', name: 'Settings' }],
+    requiredActions: [],
+    assertions: [{ type: 'bodyClass', value: 'dark', present: true }],
+    semanticChecks: [{ id: 'clarity', role: 'status', name: '', criterion: 'Explains next action' }],
+  };
+  const driver = (closeError) => () => ({
+    open: async () => {},
+    observe: async (assertions) => ({ url: plan.url, snapshot: '- button "Settings" [ref=e1]', ...(assertions && { assertions: assertions.map(() => true) }) }),
+    close: async () => {
+      if (closeError) throw closeError;
+    },
+  });
+  const run = async (sample, transport, closeError) => ({
+    case: 'a',
+    sample,
+    transport,
+    mode: 'deterministic',
+    ...(await benchmarkRun(plan, { createDriver: driver(closeError), runPlan: runBrowserPlan, baseline: true })),
+  });
+  const runs = [await run(0, 'old'), await run(0, 'combined'), await run(1, 'old'), await run(1, 'combined', new Error('close failed'))];
+  assert.deepEqual(
+    runs.map(({ status, flowCompleted, reason }) => [status, flowCompleted, reason]),
+    [
+      ['incomplete', true, 'semantic_not_run'],
+      ['incomplete', true, 'semantic_not_run'],
+      ['incomplete', true, 'semantic_not_run'],
+      ['incomplete', true, 'cleanup_failed'],
+    ],
+  );
+  const [deterministic] = summarizePairs(runs);
+  assert.equal(deterministic.pairs, 2);
+  assert.equal(deterministic.comparablePairs, 1);
+  assert.equal(typeof deterministic.oldMedianMs, 'number');
+
+  const reviewed = (transport) => ({ ...runs[0], transport, mode: 'jev', reason: 'semantic_review_required' });
+  assert.equal(summarizePairs([reviewed('old'), reviewed('combined')])[0].comparablePairs, 0);
 });

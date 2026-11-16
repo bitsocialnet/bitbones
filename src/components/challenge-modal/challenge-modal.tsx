@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent, type KeyboardEvent } from 'react';
+import { useState, type ChangeEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
 import styles from './challenge-modal.module.css';
 import useChallenges, { type PendingChallenge } from '../../hooks/use-challenges';
@@ -19,9 +19,10 @@ type PublishingPublication = ChallengePublication & {
 interface ChallengeProps {
   challenge: PendingChallenge;
   closeModal: () => void;
+  abandonModal: () => void;
 }
 
-const Challenge = ({ challenge, closeModal }: ChallengeProps) => {
+const Challenge = ({ challenge, closeModal, abandonModal }: ChallengeProps) => {
   const challenges: ChallengeItem[] = challenge?.[0]?.challenges;
   const publication = challenge?.[1] as PublishingPublication;
   const publicationTarget: ChallengePublication | undefined = challenge?.[2]; // the comment being voted on, replied to or edited
@@ -49,6 +50,12 @@ const Challenge = ({ challenge, closeModal }: ChallengeProps) => {
     if (e.key !== 'Enter') return;
     if (challenges[currentChallengeIndex + 1]) setCurrentChallengeIndex((prev) => prev + 1);
     else onSubmit();
+  };
+  // the next queued challenge renders its cancel button in the same place, so the second click of
+  // a double click would cancel that challenge too and delete its pending comment
+  const onCancel = (e: MouseEvent<HTMLButtonElement>) => {
+    if (e.detail > 1) return;
+    abandonModal();
   };
 
   let challengeComponent;
@@ -97,7 +104,7 @@ const Challenge = ({ challenge, closeModal }: ChallengeProps) => {
           {currentChallengeIndex + 1} of {challenges?.length}
         </div>
         <span>
-          {!challenges[currentChallengeIndex - 1] && <button onClick={() => closeModal()}>cancel</button>}
+          {!challenges[currentChallengeIndex - 1] && <button onClick={onCancel}>cancel</button>}
           {challenges[currentChallengeIndex - 1] && <button onClick={() => setCurrentChallengeIndex((prev) => prev - 1)}>previous</button>}
           {challenges[currentChallengeIndex + 1] && <button onClick={() => setCurrentChallengeIndex((prev) => prev + 1)}>next</button>}
           {!challenges[currentChallengeIndex + 1] && <button onClick={onSubmit}>submit</button>}
@@ -109,15 +116,19 @@ const Challenge = ({ challenge, closeModal }: ChallengeProps) => {
 
 function ChallengeModal() {
   // bitsocial stuff
-  const { challenges, removeChallenge } = useChallenges();
+  const { challenges, removeChallenge, abandonChallenge } = useChallenges();
 
   // modal stuff
   const isOpen = !!challenges.length;
+  // an answered challenge only leaves the queue; cancel and Escape also abandon its publication
   const closeModal = () => removeChallenge();
+  const abandonModal = () => abandonChallenge();
 
   const { refs, context } = useFloating({
     open: isOpen,
-    onOpenChange: closeModal,
+    onOpenChange: (open) => {
+      if (!open) abandonModal();
+    },
   });
 
   const click = useClick(context);
@@ -133,7 +144,7 @@ function ChallengeModal() {
       {isOpen && (
         <FloatingFocusManager context={context} modal={false}>
           <div className={styles.modal} ref={refs.setFloating} aria-labelledby={headingId} {...getFloatingProps()}>
-            <Challenge challenge={challenges[0]} closeModal={closeModal} />
+            <Challenge key={challenges[0].id} challenge={challenges[0].challenge} closeModal={closeModal} abandonModal={abandonModal} />
           </div>
         </FloatingFocusManager>
       )}

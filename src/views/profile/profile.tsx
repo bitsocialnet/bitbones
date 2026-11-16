@@ -58,7 +58,12 @@ function Profile() {
     return () => window.removeEventListener('scroll', setLastVirtuosoState);
   }, []);
 
-  if (account && !accountComments.length) {
+  // the accounts store initializes asynchronously, and ProfileInfo reads the account
+  if (!account) {
+    return 'loading...';
+  }
+
+  if (!accountComments.length) {
     return 'no posts';
   }
 
