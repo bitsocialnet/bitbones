@@ -1,0 +1,46 @@
+# 0.1.0 (2026-11-16)
+
+
+### Bug Fixes
+
+* **about:** render the about logo pixelated ([7697866](https://github.com/bitsocialnet/bitbones/commit/7697866e094f4f82cea8bf4e356c05d7794b9470))
+* **agents:** reject retired Cursor skill links ([4ae657e](https://github.com/bitsocialnet/bitbones/commit/4ae657e9888632dd2a4d0dd105df024535e7602a))
+* **agents:** use native paths in workflow tests ([add1f60](https://github.com/bitsocialnet/bitbones/commit/add1f60fb75709aa0d0a9868e399bcfdd3f57e0f))
+* **ai-tools:** redact overlapping Jev credentials completely ([#7](https://github.com/bitsocialnet/bitbones/issues/7)) ([64c9dfa](https://github.com/bitsocialnet/bitbones/commit/64c9dfa01f5e4d1ac07f4ee906f9d3fa1353947f))
+* **deps:** clear the 25 fixable dependabot alerts ([cd2fabb](https://github.com/bitsocialnet/bitbones/commit/cd2fabb7553e99f3204f55c349592fbdd310bdde))
+* **deps:** patch vulnerable transitive packages [skip github-alerts] [skip ci] ([3f05f0f](https://github.com/bitsocialnet/bitbones/commit/3f05f0f05345371037514bef71f171959e312c59))
+* **deps:** upgrade electron to 44 and capacitor to 7.6.9 [skip ci] [skip github-alerts] ([05a796e](https://github.com/bitsocialnet/bitbones/commit/05a796ea49321c444b21d5b1924b9ca527f86193))
+* **dev scripts:** keep the browser slot, dev servers and list mirror consistent ([#19](https://github.com/bitsocialnet/bitbones/issues/19)) ([7c2866d](https://github.com/bitsocialnet/bitbones/commit/7c2866d28e64180994d4faf8d832f52a02eff0c5))
+* **dev scripts:** reclaim a killed runner's browser slot and keep electron:dev and hangups on this checkout's server ([adcb5a0](https://github.com/bitsocialnet/bitbones/commit/adcb5a0c5673fd074be851c4007dbf13d95316dc)), closes [#18](https://github.com/bitsocialnet/bitbones/issues/18)
+* **electron:** download kubo from GitHub releases, drop the kubo npm package ([#9](https://github.com/bitsocialnet/bitbones/issues/9)) ([f357e9b](https://github.com/bitsocialnet/bitbones/commit/f357e9beb03af03cf5e01528fddd3846e181b537))
+* **electron:** repair IPFS daemon, relaunch and menu bar lifecycle bugs ([#21](https://github.com/bitsocialnet/bitbones/issues/21)) ([1aa9046](https://github.com/bitsocialnet/bitbones/commit/1aa9046ca8861032988b1b78b3595007b7b53e64))
+* **electron:** send a referrer for youtube embeds in the packaged app ([bddc710](https://github.com/bitsocialnet/bitbones/commit/bddc71015d30ed257644f807d2ee957b4a440a93))
+* **embed:** send the origin as referrer so youtube embeds play ([713aa64](https://github.com/bitsocialnet/bitbones/commit/713aa64f746c34de29f9989dd60524a9b6e94143))
+* **feed:** pass useFeed a CommentsFilter object in the catalog views ([#3](https://github.com/bitsocialnet/bitbones/issues/3)) ([dd59c91](https://github.com/bitsocialnet/bitbones/commit/dd59c91c57069b79098eb1bc8449b67f96513b0d))
+* **i18n:** hyphenate "bare-bones" in the english about text ([75164a8](https://github.com/bitsocialnet/bitbones/commit/75164a80d21d94adc44feddad799eb1c18fc4ec8))
+* **jev:** release the browser slot on termination and avoid partial helper results ([#23](https://github.com/bitsocialnet/bitbones/issues/23)) ([c79e409](https://github.com/bitsocialnet/bitbones/commit/c79e409f1d72abfab74d2aaf8c566db15dd37882))
+* **publishing:** stop time filter and challenge crashes, duplicate publishes and stale drafts ([#13](https://github.com/bitsocialnet/bitbones/issues/13)) ([95c262c](https://github.com/bitsocialnet/bitbones/commit/95c262c08f02fccb763726234af502c8adca5d13))
+* **state-string:** guard the fallback branch against a missing target ([b81e652](https://github.com/bitsocialnet/bitbones/commit/b81e65203cea959e975ff530844fa6c38ba047b5))
+* three defects the hooks migration introduced ([aa7d842](https://github.com/bitsocialnet/bitbones/commit/aa7d842288d4c9ebc0e12d5f62db0af7920e9026))
+* **utils:** stop getFormattedTime returning undefined into a dereference ([#2](https://github.com/bitsocialnet/bitbones/issues/2)) ([82d0986](https://github.com/bitsocialnet/bitbones/commit/82d0986b718ba6af8474bcf138ae5590159f0099))
+* **views:** confirm account deletion and keep settings and publish state accurate ([#16](https://github.com/bitsocialnet/bitbones/issues/16)) ([06eb6e6](https://github.com/bitsocialnet/bitbones/commit/06eb6e652c5c0123640171c376a57f14f403354f))
+* **voting:** restore the previous vote when a vote challenge is cancelled ([42a2f90](https://github.com/bitsocialnet/bitbones/commit/42a2f9008737f49c885572c2a1840dfa6330ffa9)), closes [#12](https://github.com/bitsocialnet/bitbones/issues/12)
+
+
+### Features
+
+* **ai-tools:** add optional Jev browser and translation checks ([#5](https://github.com/bitsocialnet/bitbones/issues/5)) ([685caf8](https://github.com/bitsocialnet/bitbones/commit/685caf8870185327a70c4e77ff2740fd87d03a76))
+* **ai-tools:** use shared local Jev credentials ([#6](https://github.com/bitsocialnet/bitbones/issues/6)) ([5bba95d](https://github.com/bitsocialnet/bitbones/commit/5bba95d01810a25e9608c018ae78cfd8e80ee126))
+* **devtools:** add automated React render checks ([e6e529f](https://github.com/bitsocialnet/bitbones/commit/e6e529f287b0fb4ea855a6dcb87e3c733b279806))
+* **jev:** add blind translation review workflow ([8e7f59a](https://github.com/bitsocialnet/bitbones/commit/8e7f59aa8b45f7a30dbb196708999b1e04f49e2b))
+* **jev:** add contrastive translation evaluation ([b8a6140](https://github.com/bitsocialnet/bitbones/commit/b8a6140a62c280d1458ab4c9b9344e3c46bb14be))
+* introduce the Bitsocial client as bitbones ([6119138](https://github.com/bitsocialnet/bitbones/commit/6119138d5c5681127838a7033b276ae3de8a569b))
+* **release:** ship a release manifest in the HTML archive ([#26](https://github.com/bitsocialnet/bitbones/issues/26)) ([553f9e7](https://github.com/bitsocialnet/bitbones/commit/553f9e7bae2b1681abf3c6491d36a20037cfad39)), closes [#24](https://github.com/bitsocialnet/bitbones/issues/24)
+* **release:** sign the release manifest ([41c4109](https://github.com/bitsocialnet/bitbones/commit/41c4109e24529074675c0c93c144eba448993225)), closes [#25](https://github.com/bitsocialnet/bitbones/issues/25)
+* **routing:** drop the /p/ prefix from community urls ([b351e20](https://github.com/bitsocialnet/bitbones/commit/b351e20309130e658ce34d2a27756698b66b7c22))
+* **routing:** spell out /comment/ and /author/ in urls ([d109021](https://github.com/bitsocialnet/bitbones/commit/d10902128b6d5badca445ac7b91a383f610b1b24))
+* **testing:** expand Jev evaluation and browser tooling ([e1aa322](https://github.com/bitsocialnet/bitbones/commit/e1aa322fb2f4691060c9e58a24228af0b813f90f))
+* **ui:** redesign bitbones as a developer client ([#27](https://github.com/bitsocialnet/bitbones/issues/27)) ([6515d17](https://github.com/bitsocialnet/bitbones/commit/6515d1767232dd0adcb0a10a06cb1ef4183d3f90))
+* **visual-qa:** add optional Decisions screenshot checks ([89fe4ac](https://github.com/bitsocialnet/bitbones/commit/89fe4ac9e79667e29c905875e1eef36baffb7a1e))
+* **workflow:** add the playwright browser-automation harness ([2f2b949](https://github.com/bitsocialnet/bitbones/commit/2f2b9498dfe7de87fb30bbf066ec6ff9b95c1aa9))
+* **workflow:** port the AI and development workflow from 5chan ([4cda3a7](https://github.com/bitsocialnet/bitbones/commit/4cda3a73f6f4101b94871f0687372ead01d81390))

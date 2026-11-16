@@ -46,6 +46,10 @@ jobs:
             echo "::error::tag $GITHUB_REF_NAME does not match package.json version $PKG_VERSION"
             exit 1
           fi
+      - name: Verify release notes
+        run: |
+          node --test scripts/__tests__/release-body.node-test.mjs
+          node scripts/release-body.js > /dev/null
       - name: Lint
         run: yarn lint
       - name: Type check

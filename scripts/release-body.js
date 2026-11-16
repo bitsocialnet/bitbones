@@ -7,22 +7,21 @@
 // that directory is missing — a local dry run, or re-generating notes for a published release — it
 // falls back to the asset list of the matching GitHub release.
 
-import { execSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFileSync, readdirSync } from 'node:fs';
 
 const dirname = path.dirname(fileURLToPath(import.meta.url));
-const conventionalChangelog = path.join(dirname, '..', 'node_modules', '.bin', 'conventional-changelog');
 const version = JSON.parse(readFileSync(path.join(dirname, '..', 'package.json'), 'utf8')).version;
 
-// sometimes release-count 1 is empty
-let releaseChangelog =
-  execSync(`${conventionalChangelog} --preset angular --release-count 1`).toString() ||
-  execSync(`${conventionalChangelog} --preset angular --release-count 2`).toString();
-
-// format
-releaseChangelog = releaseChangelog.trim().replace(/\n\n+/g, '\n\n');
+// Release preparation generates and reviews CHANGELOG.md. Publish that exact version's
+// section so reviewed wording is preserved and notes cannot spill into a previous release.
+const changelog = readFileSync(path.join(dirname, '..', 'CHANGELOG.md'), 'utf8');
+const releaseChangelog = changelog
+  .split(/(?=^#{1,2} \[?\d+\.\d+\.\d+(?:[-+][^\]\s]+)?\]?(?:\s|\(|$))/m)
+  .find((section) => section.match(/^#{1,2} \[?([^\]\s]+)\]?(?:\s|\(|$)/)?.[1] === version)
+  ?.trim();
+if (!releaseChangelog) throw new Error(`CHANGELOG.md has no section for ${version}; run yarn changelog and review it before releasing`);
 
 const assetsDir = path.resolve(dirname, '..', process.env.RELEASE_ASSETS_DIR || 'release-assets');
 let files = [];
@@ -66,7 +65,12 @@ const downloads = [
   .filter(Boolean)
   .join('\n\n');
 
-const releaseBody = `Progressive web app:
+const introduction =
+  version === '0.1.0'
+    ? 'This release introduces bitbones as a developer client for inspecting Bitsocial feeds, communities, posts, and runtime logs across web, desktop, and Android.\n\n'
+    : '';
+
+const releaseBody = `${introduction}Progressive web app:
 - https://bitbones.app
 
 CLI client:

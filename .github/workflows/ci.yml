@@ -62,6 +62,8 @@ jobs:
           test -f build/index.html
       - name: Test the release manifest generator
         run: yarn release:manifest:test
+      - name: Test release notes
+        run: node --test scripts/__tests__/release-body.node-test.mjs
       - name: Verify the release manifest covers the build
         run: |
           yarn release:manifest --build-dir build --out-dir "$RUNNER_TEMP/release-manifest"
