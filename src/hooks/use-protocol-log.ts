@@ -62,10 +62,28 @@ const stringifyArg = (arg: unknown): string => {
 };
 
 // debug's browser formatter turns a call into ['%cnamespace %cmessage%c +2ms', 'color: …', 'color: inherit', 'color: …', ...rest]
+// In the browser, debug substitutes only %j and leaves %s, %d, %i, %f, %o and %O for the console, and
+// formatArgs inserts one css argument per %c at that token's position. So the tokens are filled in
+// order: %c drops its css argument, the others take the next argument, and the rest are appended.
+const formatDebugArgs = (first: string, rest: unknown[]): { text: string; extra: string[] } => {
+  let next = 0;
+  const text = first.replace(/%([a-zA-Z%])/g, (match, format: string) => {
+    if (format === '%') {
+      return '%';
+    }
+    if (next >= rest.length) {
+      return match;
+    }
+    const value = rest[next++];
+    return format === 'c' ? '' : stringifyArg(value);
+  });
+  return { text, extra: rest.slice(next).map(stringifyArg) };
+};
+
 const parseDebugArgs = (args: unknown[]): Omit<ProtocolLogEntry, 'id' | 'time'> => {
   const [first, ...rest] = args;
-  const text = typeof first === 'string' ? redactSecrets(first.replace(/%c/g, '')) : stringifyArg(first);
-  const extra = rest.filter((arg) => !(typeof arg === 'string' && /^color: /.test(arg))).map(stringifyArg);
+  const { text: formatted, extra } = typeof first === 'string' ? formatDebugArgs(first, rest) : { text: stringifyArg(first), extra: rest.map(stringifyArg) };
+  const text = redactSecrets(formatted);
   const spaceIndex = text.indexOf(' ');
   const namespace = spaceIndex > 0 ? text.substring(0, spaceIndex) : '';
   // drop the trailing "+2ms" diff, the entry has its own time
