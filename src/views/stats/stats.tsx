@@ -117,14 +117,15 @@ const CommunitiesStatesTable = ({ communityAddresses }: CommunitiesStatesTablePr
   );
 };
 
-// collect the client urls from pkcOptions without printing anything else in it, kubo rpc options can carry
-// auth headers and urls can carry credentials, so only protocol, host and path are shown
+// collect the client urls from pkcOptions without printing anything else in it. Only protocol and host
+// are shown: kubo rpc options can carry auth headers, pkc rpc urls carry their auth key in the path,
+// provider urls often carry api keys in the path or query, and urls can embed user:password.
 const collectUrls = (value: unknown, urls: string[] = []): string[] => {
   if (typeof value === 'string') {
     if (/^(https?|wss?):\/\//.test(value)) {
       try {
         const url = new URL(value);
-        urls.push(`${url.protocol}//${url.host}${url.pathname === '/' ? '' : url.pathname}`);
+        urls.push(`${url.protocol}//${url.host}`);
       } catch {}
     }
   } else if (Array.isArray(value)) {
