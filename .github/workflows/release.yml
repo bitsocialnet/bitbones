@@ -315,8 +315,21 @@ jobs:
             sleep 5
             [ "$i" = "3" ] && exit 1
           done
-      - name: Build Electron app for Windows
-        run: yarn electron:make:windows
+      # Keep the same sequence as electron:make:windows, but expose native rebuild progress
+      # separately: the CLI's spinner does not print its phase updates in CI.
+      - name: Build web app for Windows
+        run: yarn build
+      - name: Rebuild native modules for Electron
+        timeout-minutes: 15
+        env:
+          DEBUG: electron-rebuild
+        run: yarn electron:rebuild-native
+      - name: Verify Electron native modules
+        run: yarn electron:verify-native
+      - name: Build Windows installers
+        env:
+          DEBUG: electron-rebuild
+        run: yarn exec electron-forge make --platform=win32
       - run: Get-ChildItem -Path out/make -Recurse
         shell: pwsh
       - name: Verify Windows executable
