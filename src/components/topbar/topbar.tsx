@@ -1,4 +1,4 @@
-import { useState, type ChangeEvent } from 'react';
+import { useRef, useState, type ChangeEvent } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import AccountMenu from '../menu/account-menu';
 import Submit from '../menu/submit';
@@ -6,6 +6,7 @@ import GoToCommunityModal from '../menu/go-to-community-modal';
 import useTimeFilter from '../../hooks/use-time-filter';
 import useVerbose from '../../hooks/use-verbose';
 import useMediaExpanded from '../../hooks/use-media-expanded';
+import useHeightVariable from '../../hooks/use-height-variable';
 import styles from './topbar.module.css';
 
 // routes that are not feeds, the sort and time controls don't apply to them
@@ -70,6 +71,8 @@ const Topbar = () => {
   const [verbose, setVerbose] = useVerbose();
   const { expanded: mediaExpanded, setExpanded: setMediaExpanded } = useMediaExpanded();
   const [goToCommunityModalIsOpen, setGoToCommunityModalIsOpen] = useState(false);
+  const topbarRef = useRef<HTMLElement>(null);
+  useHeightVariable(topbarRef, '--topbar-height');
   const navigate = useNavigate();
   const params = useParams<{ commentCid?: string; sortType?: string; timeFilterName?: string }>();
   const { pathname } = useLocation();
@@ -87,7 +90,7 @@ const Topbar = () => {
   const changeTimeFilter = (event: ChangeEvent<HTMLSelectElement>) => navigate(createLink(feedName, params.sortType, event.target.value));
 
   return (
-    <header className={styles.topbar}>
+    <header className={styles.topbar} ref={topbarRef}>
       <Link to='/' className={styles.brand}>
         bitbones
       </Link>

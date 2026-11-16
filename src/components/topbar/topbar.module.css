@@ -7,7 +7,8 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 14px;
-  min-height: var(--topbar-height);
+  /* the measured height is written to --topbar-height for the panes, so this must not read it back */
+  min-height: 33px;
   box-sizing: border-box;
   padding: 4px 12px;
   background-color: var(--bg);
