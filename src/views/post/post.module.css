@@ -161,6 +161,17 @@
   text-decoration: underline;
 }
 
+.replyLink {
+  display: inline-block;
+  margin-top: 2px;
+  color: var(--link);
+  font-size: 11px;
+}
+
+.replyLink:hover {
+  text-decoration: underline;
+}
+
 .replyContent {
   margin-top: 2px;
   white-space: pre-wrap;

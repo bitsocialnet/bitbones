@@ -117,6 +117,12 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
         </div>
         {useRepliesOptions.flat && reply.depth > 1 && <ReplyQuote commentCid={reply.parentCid} />}
         <div className={styles.replyContent}>{reply?.content?.trim?.()}</div>
+        {/* a link that is not media has no [+] toggle, so its host is the only way to reach it */}
+        {reply?.link && (
+          <a href={reply.link} target='_blank' rel='noreferrer' className={styles.replyLink}>
+            {utils.getHost(reply.link)}
+          </a>
+        )}
         <CommentMedia comment={reply} />
         {verbose && <CommentLine comment={reply} updatedComment={updatedReply} />}
       </div>
