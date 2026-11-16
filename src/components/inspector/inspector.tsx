@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import stringify from 'json-stringify-pretty-compact';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import useInspectedComment from '../../hooks/use-inspected-comment';
+import useLiveComment from '../../hooks/use-live-comment';
 import { ClientsStatesTable, KeyValueTable, PaneHeading, Timestamp } from '../protocol-details';
 import CommentMedia from '../comment-media';
 import utils from '../../lib/utils';
@@ -11,7 +12,8 @@ import styles from './inspector.module.css';
 const tabs = ['fields', 'clients', 'json'] as const;
 type Tab = (typeof tabs)[number];
 
-// reply pages can hold hundreds of comments, and long strings drown the rest of the record
+// for the on-screen json tab only: reply pages can hold hundreds of comments, and long strings drown
+// the rest of the record. copy json copies the full record.
 const jsonReplacer = (key: string, value: unknown) => {
   if (key === 'replies' && value && typeof value === 'object') {
     return '[reply pages, see useReplies]';
@@ -58,7 +60,7 @@ interface InspectorProps {
 const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
   const [inspectedComment, setInspectedComment] = useInspectedComment();
   const [tab, setTab] = useState<Tab>('fields');
-  const comment = inspectedComment || defaultComment;
+  const comment = useLiveComment(inspectedComment || defaultComment);
   const json = useMemo(() => {
     if (tab !== 'json' || !comment) {
       return '';
@@ -113,10 +115,11 @@ const Inspector = ({ fallback, defaultComment }: InspectorProps) => {
             copy cid
           </button>
         )}
-        <button type='button' onClick={() => copy(JSON.stringify(comment, jsonReplacer, 2))}>
+        <button type='button' onClick={() => copy(JSON.stringify(comment, null, 2))}>
           copy json
         </button>
-        {comment.author?.address && <Link to={`/u/${comment.author.address}/c/${comment.cid}`}>author history</Link>}
+        {/* a pending comment has no cid yet, so its author link has none either */}
+        {comment.author?.address && <Link to={comment.cid ? `/u/${comment.author.address}/c/${comment.cid}` : `/u/${comment.author.address}`}>author history</Link>}
         {comment.link && (
           <a href={comment.link} target='_blank' rel='noreferrer'>
             {utils.getHost(comment.link)}

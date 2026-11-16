@@ -19,7 +19,7 @@ import useRepliesSortType from '../../hooks/use-replies-sort-type';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import useStateString from '../../hooks/use-state-string';
 import useVerbose from '../../hooks/use-verbose';
-import useInspectedComment, { getCommentKey } from '../../hooks/use-inspected-comment';
+import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
 import styles from './post.module.css';
 
 interface ReplyQuoteProps {
@@ -74,7 +74,7 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
   const labels = useCommentLabels(reply, editedReplyState);
   const [verbose] = useVerbose();
   const [inspectedComment, setInspectedComment] = useInspectedComment();
-  const inspected = getCommentKey(inspectedComment) === getCommentKey(reply);
+  const inspected = isSameComment(inspectedComment, reply);
   const inspect = () => setInspectedComment(updatedReply || reply);
 
   const score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);

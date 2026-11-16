@@ -25,7 +25,16 @@ const useInspectedComment = (): [Comment | undefined, (comment?: Comment) => voi
   return [comment, setComment];
 };
 
-// identity of a comment, for highlighting the inspected row. Pending comments have no cid yet.
-export const getCommentKey = (comment?: Comment): string | undefined => comment?.cid || (comment?.index !== undefined ? `index-${comment.index}` : undefined);
+// whether two snapshots are the same comment, for highlighting the inspected row. A pending comment
+// has no cid until it publishes, so the account comment index matches it before and after.
+export const isSameComment = (a?: Comment, b?: Comment): boolean => {
+  if (!a || !b) {
+    return false;
+  }
+  if (a.cid && b.cid) {
+    return a.cid === b.cid;
+  }
+  return typeof a.index === 'number' && a.index === b.index;
+};
 
 export default useInspectedComment;

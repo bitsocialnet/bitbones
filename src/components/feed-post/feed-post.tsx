@@ -11,7 +11,7 @@ import useUpvote from '../../hooks/use-upvote';
 import useDownvote from '../../hooks/use-downvote';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import useVerbose from '../../hooks/use-verbose';
-import useInspectedComment, { getCommentKey } from '../../hooks/use-inspected-comment';
+import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
 import styles from './feed-post.module.css';
 
 interface FeedPostProps {
@@ -44,7 +44,7 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
   const labels = useCommentLabels(updatedPost, editedPostState);
   const [verbose] = useVerbose();
   const [inspectedComment, setInspectedComment] = useInspectedComment();
-  const inspected = !!post && getCommentKey(inspectedComment) === getCommentKey(post);
+  const inspected = isSameComment(inspectedComment, post);
 
   const score = (updatedPost?.upvoteCount || 0) - (updatedPost?.downvoteCount || 0);
   const title = (post?.title?.trim?.() || post?.content?.trim?.())?.substring?.(0, 300) || '-';
