@@ -168,8 +168,13 @@ export type TipTokenType = 'native' | 'erc20' | 'erc721';
 // paid in that ERC-20; a fungible entry's fee is always paid in the entry's own token.
 export type TipFee = { percent: string } | { amount: bigint; token?: Address };
 
+// A chain is identified by its numeric chain id and nothing else. Tickers are free-form labels that
+// two implementations can map to different networks; a chain id is what an RPC reports and what a
+// transaction is signed for.
+const isChainId = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value > 0;
+
 export interface TipToken {
-  chainTicker: string;
+  chainId: number;
   type: TipTokenType;
   // the token contract; undefined for native
   address?: Address;
@@ -220,8 +225,9 @@ const parseToken = (entry: unknown): TipToken | undefined => {
   if (!entry || typeof entry !== 'object') {
     return undefined;
   }
-  const { chainTicker, type, address, minAmount, fee } = entry as Record<string, unknown>;
-  if (typeof chainTicker !== 'string' || !chainTicker) {
+  const { chainId, type, address, minAmount, fee } = entry as Record<string, unknown>;
+  // a positive integer JSON number: an entry without one names no chain, and can't be tipped
+  if (!isChainId(chainId)) {
     return undefined;
   }
   if (type !== 'native' && type !== 'erc20' && type !== 'erc721') {
@@ -239,7 +245,7 @@ const parseToken = (entry: unknown): TipToken | undefined => {
   if (parsedFee === 'invalid') {
     return undefined;
   }
-  return { chainTicker, type, address: address as Address | undefined, minAmount: parsedMinAmount, fee: parsedFee };
+  return { chainId, type, address: address as Address | undefined, minAmount: parsedMinAmount, fee: parsedFee };
 };
 
 interface CommunityLike {
@@ -286,8 +292,7 @@ export const getTippingConfig = (community: CommunityLike | undefined): TippingC
 };
 
 // identifies a token across the config, a tip and the totals
-export const getTokenKey = (token: { chainTicker: string; type: string; address?: string }): string =>
-  `${token.chainTicker}:${token.type}:${token.address?.toLowerCase() ?? ''}`;
+export const getTokenKey = (token: { chainId: number; type: string; address?: string }): string => `${token.chainId}:${token.type}:${token.address?.toLowerCase() ?? ''}`;
 
 // ---------------------------------------------------------------------------------------------
 // fee
@@ -360,15 +365,15 @@ export const getTipAmountError = (token: TipToken, amount: bigint | undefined): 
 // ---------------------------------------------------------------------------------------------
 
 export interface TipClaim {
-  chainTicker: string;
+  chainId: number;
   txHash: Hash;
   // left out when no fee was due, equal to txHash when the fee went in the same transaction
   feeTxHash?: Hash;
 }
 
-export const buildTipClaim = (chainTicker: string, txHash: string, feeTxHash?: string): TipClaim => {
-  if (!chainTicker) {
-    throw Error('tip claim missing chain ticker');
+export const buildTipClaim = (chainId: number, txHash: string, feeTxHash?: string): TipClaim => {
+  if (!isChainId(chainId)) {
+    throw Error('tip claim chain id is not a positive integer');
   }
   if (!isHash(txHash)) {
     throw Error('tip claim tx hash is not a transaction hash');
@@ -376,7 +381,7 @@ export const buildTipClaim = (chainTicker: string, txHash: string, feeTxHash?: s
   if (feeTxHash !== undefined && !isHash(feeTxHash)) {
     throw Error('tip claim fee tx hash is not a transaction hash');
   }
-  return feeTxHash === undefined ? { chainTicker, txHash } : { chainTicker, txHash, feeTxHash };
+  return feeTxHash === undefined ? { chainId, txHash } : { chainId, txHash, feeTxHash };
 };
 
 // Where the claim rides on the published reply. tipping/v1 puts it at the top level of the
@@ -390,7 +395,7 @@ export const getTipClaimPublishOptions = (claim: TipClaim, location: TipClaimLoc
 
 // what the tipping challenge writes to commentUpdate.tip once it has verified the claim on chain
 export interface Tip {
-  chainTicker: string;
+  chainId: number;
   txHash: string;
   type: TipTokenType;
   // the token contract; undefined for native
@@ -414,8 +419,8 @@ export const getTip = (comment: CommentLike | undefined): Tip | undefined => {
   if (!tip || typeof tip !== 'object') {
     return undefined;
   }
-  const { chainTicker, txHash, type, token, from, to, amount, tokenId } = tip as Record<string, unknown>;
-  if (typeof chainTicker !== 'string' || typeof txHash !== 'string' || typeof from !== 'string' || typeof to !== 'string') {
+  const { chainId, txHash, type, token, from, to, amount, tokenId } = tip as Record<string, unknown>;
+  if (!isChainId(chainId) || typeof txHash !== 'string' || typeof from !== 'string' || typeof to !== 'string') {
     return undefined;
   }
   if (type !== 'native' && type !== 'erc20' && type !== 'erc721') {
@@ -425,7 +430,7 @@ export const getTip = (comment: CommentLike | undefined): Tip | undefined => {
     return undefined;
   }
   const tipType: TipTokenType = type;
-  const base = { chainTicker, txHash, type: tipType, token: token as string | undefined, from, to };
+  const base = { chainId, txHash, type: tipType, token: token as string | undefined, from, to };
   if (type === 'erc721') {
     return typeof tokenId === 'string' ? { ...base, tokenId } : undefined;
   }
@@ -434,7 +439,7 @@ export const getTip = (comment: CommentLike | undefined): Tip | undefined => {
 };
 
 export interface TipTotal {
-  chainTicker: string;
+  chainId: number;
   type: TipTokenType;
   token?: string;
   // summed base units for native and erc20; undefined for erc721
@@ -443,12 +448,12 @@ export interface TipTotal {
   count: number;
 }
 
-// one total per token
+// one total per token on a chain
 export const sumTips = (tips: Tip[]): TipTotal[] => {
   const totals = new Map<string, TipTotal>();
   for (const tip of tips) {
-    const key = getTokenKey({ chainTicker: tip.chainTicker, type: tip.type, address: tip.token });
-    const total = totals.get(key) ?? { chainTicker: tip.chainTicker, type: tip.type, token: tip.token, amount: tip.type === 'erc721' ? undefined : 0n, count: 0 };
+    const key = getTokenKey({ chainId: tip.chainId, type: tip.type, address: tip.token });
+    const total = totals.get(key) ?? { chainId: tip.chainId, type: tip.type, token: tip.token, amount: tip.type === 'erc721' ? undefined : 0n, count: 0 };
     total.count += 1;
     if (tip.amount !== undefined && total.amount !== undefined) {
       total.amount += tip.amount;
@@ -466,51 +471,75 @@ interface TipParty {
   cid?: unknown;
   parentCid?: unknown;
   tip?: unknown;
-  author?: { wallets?: Record<string, unknown> };
+  author?: { wallets?: unknown };
   signature?: { publicKey?: unknown };
 }
 
-const isSameAddress = (a: string, b: unknown): boolean => typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
-
 const getPartyKeyAddress = (party: TipParty | undefined): string | undefined =>
   typeof party?.signature?.publicKey === 'string' ? getKeyAddressFromPublicKey(party.signature.publicKey) : undefined;
+
+// The addresses a publication's author has proven, in ascending order of their author.wallets key.
+// Every entry whose proof verifies counts, whatever its key: the key is a label the author chose,
+// and the proof shows control of the address on every chain where the same key controls it.
+export const getProvenWalletAddresses = async (party: TipParty | undefined, nowSeconds?: number): Promise<string[]> => {
+  const wallets = party?.author?.wallets;
+  const keyAddress = getPartyKeyAddress(party);
+  if (!wallets || typeof wallets !== 'object' || !keyAddress) {
+    return [];
+  }
+  // code unit order, so every client sorts the same way
+  const keys = Object.keys(wallets).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  const addresses = await Promise.all(
+    keys.map(async (key) => {
+      const wallet = (wallets as Record<string, unknown>)[key];
+      return (await getWalletProofError(wallet, keyAddress, nowSeconds)) ? undefined : (wallet as WalletProof).address;
+    }),
+  );
+  return addresses.flatMap((address) => address ?? []);
+};
+
+// Where a tip to this comment's author is sent: the author's `eth` entry if its proof verifies,
+// otherwise the first proven entry by key in ascending order. undefined when the author has proven
+// no wallet, and then the author can't be tipped.
+export const getTipRecipientAddress = async (party: TipParty | undefined, nowSeconds?: number): Promise<string | undefined> => {
+  const wallets = party?.author?.wallets;
+  const eth = wallets && typeof wallets === 'object' ? (wallets as Record<string, unknown>).eth : undefined;
+  if (eth && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
+    return (eth as WalletProof).address;
+  }
+  return (await getProvenWalletAddresses(party, nowSeconds))[0];
+};
+
+const includesAddress = (addresses: string[], address: string): boolean => addresses.some((proven) => proven.toLowerCase() === address.toLowerCase());
 
 // The tip a reply carries, once it holds up against the two comments it connects, or undefined.
 // Showing a tip presents its sender and receiver as wallets those authors control, and a community's
 // acceptance can't stand in for the reader's own check: nothing in a comment says whether its
 // community verified wallet proofs. So the tip is shown only when
 // - the reply is a reply to the tipped comment,
-// - the tipper's wallet for the tip's chain is proven, and is the tip's sender,
-// - the tipped author's wallet for that chain is proven, and is the tip's receiver.
+// - the tip's sender is an address the tipper has proven,
+// - the tip's receiver is an address the tipped author has proven.
 // All of it is offline. Whether the transaction exists is the community's word, not checked here.
 export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<Tip | undefined> => {
   const tip = getTip(reply);
   if (!tip || !parent || typeof parent.cid !== 'string' || reply?.parentCid !== parent.cid) {
     return undefined;
   }
-  const tipperWallet = reply?.author?.wallets?.[tip.chainTicker] as Partial<WalletProof> | undefined;
-  const recipientWallet = parent.author?.wallets?.[tip.chainTicker] as Partial<WalletProof> | undefined;
-  if (!isSameAddress(tip.from, tipperWallet?.address) || !isSameAddress(tip.to, recipientWallet?.address)) {
-    return undefined;
-  }
-  const [tipperError, recipientError] = await Promise.all([
-    getWalletProofError(tipperWallet, getPartyKeyAddress(reply), nowSeconds),
-    getWalletProofError(recipientWallet, getPartyKeyAddress(parent), nowSeconds),
-  ]);
-  return tipperError || recipientError ? undefined : tip;
+  const [tipperAddresses, recipientAddresses] = await Promise.all([getProvenWalletAddresses(reply, nowSeconds), getProvenWalletAddresses(parent, nowSeconds)]);
+  return includesAddress(tipperAddresses, tip.from) && includesAddress(recipientAddresses, tip.to) ? tip : undefined;
 };
 
 // everything verifyTip reads, so the same inputs give the same promise and changed ones a new check
-const getVerifiedTipKey = (reply: TipParty, parent: TipParty, chainTicker: string): string | undefined => {
+const getVerifiedTipKey = (reply: TipParty, parent: TipParty): string | undefined => {
   try {
     return JSON.stringify([
       reply.cid,
       reply.parentCid,
       reply.tip,
-      reply.author?.wallets?.[chainTicker],
+      reply.author?.wallets,
       reply.signature?.publicKey,
       parent.cid,
-      parent.author?.wallets?.[chainTicker],
+      parent.author?.wallets,
       parent.signature?.publicKey,
     ]);
   } catch {
@@ -535,7 +564,7 @@ const remember = <Value>(cache: Map<string, Value>, key: string, value: Value): 
 // verifyTip with the promise kept per input, so a component can read it with React's use()
 export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | undefined): Promise<Tip | undefined> => {
   const tip = getTip(reply);
-  const key = tip && reply && parent ? getVerifiedTipKey(reply, parent, tip.chainTicker) : undefined;
+  const key = tip && reply && parent ? getVerifiedTipKey(reply, parent) : undefined;
   if (!key) {
     return noTip;
   }
@@ -547,7 +576,7 @@ export const getTipReplies = <Reply extends TipParty>(parent: TipParty | undefin
   // flat reply sorts list a whole subtree, so keep only the replies to this comment
   typeof parent?.cid === 'string' ? (replies ?? []).flatMap((reply) => (reply && reply.parentCid === parent.cid && getTip(reply) ? [reply] : [])) : [];
 
-// What a comment was tipped: the verified tips on its loaded replies, summed per token. A community
+// What a comment was tipped: the verified tips on its loaded replies, summed per chain and token. A community
 // cannot write to the tipped comment's own update, so this is the only total there is, and it
 // covers only the replies the client has loaded. A tip that fails verifyTip is left out.
 export const getVerifiedTipTotals = (parent: TipParty | undefined, replies: (TipParty | undefined)[] | undefined): Promise<TipTotal[]> => {
@@ -555,7 +584,7 @@ export const getVerifiedTipTotals = (parent: TipParty | undefined, replies: (Tip
   if (!parent || !tipReplies.length) {
     return noTotals;
   }
-  const keys = tipReplies.map((reply) => getVerifiedTipKey(reply, parent, getTip(reply)?.chainTicker ?? ''));
+  const keys = tipReplies.map((reply) => getVerifiedTipKey(reply, parent));
   const key = JSON.stringify(keys);
   return (
     verifiedTipTotals.get(key) ??

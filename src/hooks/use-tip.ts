@@ -2,17 +2,9 @@ import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, ChallengeVerification, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
-import {
-  buildTipClaim,
-  formatTokenAmount,
-  getKeyAddressFromPublicKey,
-  getRequiredFee,
-  getTipAmountError,
-  getTipClaimPublishOptions,
-  getWalletProofError,
-} from '../lib/tipping';
+import { buildTipClaim, formatTokenAmount, getRequiredFee, getTipAmountError, getTipClaimPublishOptions, getTipRecipientAddress } from '../lib/tipping';
 import type { TipToken, TippingConfig } from '../lib/tipping';
-import { getBalance, getChainId, getTokenInfo, sendTransfer, waitForTransaction } from '../lib/tipping-chain';
+import { ensureRpcChainId, getBalance, getTokenInfo, sendTransfer, waitForTransaction } from '../lib/tipping-chain';
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { ensureInAppWallet, getInAppWallet } from './use-in-app-wallet';
 import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
@@ -27,7 +19,7 @@ interface PendingTip {
   parentCid: string;
   postCid: string;
   content: string;
-  chainTicker: string;
+  chainId: number;
   txHash: string;
   // the fee owed, kept so it can still be paid after a reload; amount in base units
   fee?: { token?: string; amount: string; to: string };
@@ -36,8 +28,9 @@ interface PendingTip {
 
 const readStoredPendingTips = (): Record<string, PendingTip> => {
   try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    return stored && typeof stored === 'object' ? stored : {};
+    const stored: Record<string, PendingTip> = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    // a record saved without a chain id names no chain, so its claim can't be built
+    return Object.fromEntries(Object.entries(stored && typeof stored === 'object' ? stored : {}).filter(([, pendingTip]) => typeof pendingTip?.chainId === 'number'));
   } catch {
     return {};
   }
@@ -96,10 +89,12 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
   if (!pendingTip) {
     return;
   }
-  const rpcUrl = getTippingRpcUrl(pendingTip.chainTicker, account?.chainProviders);
+  const rpcUrl = getTippingRpcUrl(pendingTip.chainId, account?.chainProviders);
   if (!rpcUrl) {
-    throw Error(`no RPC url for ${pendingTip.chainTicker}, set one in settings`);
+    throw Error(`no RPC url for chain id ${pendingTip.chainId}, set one in settings`);
   }
+  // the RPC may have been changed since the tip was sent
+  await ensureRpcChainId(rpcUrl, pendingTip.chainId);
   setStatus(parentCid, 'waiting for the tip to be mined...');
   await waitForTransaction(rpcUrl, pendingTip.txHash);
   if (pendingTip.fee && !pendingTip.feeTxHash) {
@@ -111,7 +106,7 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
     const feeTxHash = await sendTransfer({
       rpcUrl,
       privateKey: inAppWallet.privateKey,
-      token: { chainTicker: pendingTip.chainTicker, type: pendingTip.fee.token ? 'erc20' : 'native', address: pendingTip.fee.token },
+      token: { chainId: pendingTip.chainId, type: pendingTip.fee.token ? 'erc20' : 'native', address: pendingTip.fee.token },
       to: pendingTip.fee.to,
       amountOrTokenId: BigInt(pendingTip.fee.amount),
     });
@@ -137,27 +132,28 @@ const formatAmount = (amount: bigint, decimals: number | undefined, symbol: stri
 
 const start = async (account: Account | undefined, comment: Comment, config: TippingConfig, { token, amountOrTokenId, content }: SendTipOptions): Promise<void> => {
   const parentCid: string = comment.cid;
-  const { chainTicker } = token;
+  const { chainId } = token;
   if (token.type !== 'erc721') {
     const amountError = getTipAmountError(token, amountOrTokenId);
     if (amountError) {
       throw Error(amountError);
     }
   }
-  const rpcUrl = getTippingRpcUrl(chainTicker, account?.chainProviders);
+  const rpcUrl = getTippingRpcUrl(chainId, account?.chainProviders);
   if (!rpcUrl) {
-    throw Error(`no RPC url for ${chainTicker}, set one in settings`);
+    throw Error(`no RPC url for chain id ${chainId}, set one in settings`);
   }
+  // before anything is read or sent: the RPC must be on the chain the token names
+  setStatus(parentCid, 'checking the RPC...');
+  await ensureRpcChainId(rpcUrl, chainId);
 
-  // the one place a client verifies a wallet proof: before paying the address it names
+  // before paying an address, the proof that the author controls it is verified here. The author's
+  // `eth` entry is paid if it verifies, otherwise their first proven entry by key.
   setStatus(parentCid, 'verifying the recipient wallet...');
-  const recipientWallet = comment.author?.wallets?.[chainTicker];
-  const recipientKeyAddress = typeof comment.signature?.publicKey === 'string' ? getKeyAddressFromPublicKey(comment.signature.publicKey) : undefined;
-  const recipientError = await getWalletProofError(recipientWallet, recipientKeyAddress);
-  if (recipientError) {
-    throw Error(`can't tip this author: ${recipientError}`);
+  const to = await getTipRecipientAddress(comment);
+  if (!to) {
+    throw Error("can't tip this author: they have not published a wallet with a valid proof");
   }
-  const to: string = recipientWallet.address;
 
   const inAppWallet = getInAppWallet(account);
   if (!inAppWallet) {
@@ -169,9 +165,8 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
 
   setStatus(parentCid, 'reading the chain...');
   const fee = token.type === 'erc721' ? getRequiredFee(config, token, 0n) : getRequiredFee(config, token, amountOrTokenId);
-  const feeToken = fee ? { chainTicker, type: fee.token ? ('erc20' as const) : ('native' as const), address: fee.token } : undefined;
-  const [chainId, tokenInfo, feeTokenInfo, balance, feeBalance] = await Promise.all([
-    getChainId(rpcUrl),
+  const feeToken = fee ? { chainId, type: fee.token ? ('erc20' as const) : ('native' as const), address: fee.token } : undefined;
+  const [tokenInfo, feeTokenInfo, balance, feeBalance] = await Promise.all([
     getTokenInfo(rpcUrl, token),
     feeToken ? getTokenInfo(rpcUrl, feeToken) : undefined,
     getBalance(rpcUrl, token, inAppWallet.address),
@@ -201,9 +196,9 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
     return;
   }
 
-  // the tip's sender must be the wallet this account publishes for the chain
+  // the tip's sender must be a wallet this account has proven
   setStatus(parentCid, 'linking the in-app wallet...');
-  await ensureInAppWallet(account, chainTicker);
+  await ensureInAppWallet(account);
 
   setStatus(parentCid, 'sending the tip...');
   const txHash = await sendTransfer({ rpcUrl, privateKey: inAppWallet.privateKey, token, to, amountOrTokenId });
@@ -212,7 +207,7 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
     parentCid,
     postCid: comment.postCid || parentCid,
     content: content.trim() || 'tip',
-    chainTicker,
+    chainId,
     txHash,
     fee: fee && config.feeRecipient ? { token: fee.token, amount: String(fee.amount), to: config.feeRecipient } : undefined,
   });
@@ -255,7 +250,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
       parentCid,
       postCid: pendingTip.postCid,
       content: pendingTip.content,
-      ...getTipClaimPublishOptions(buildTipClaim(pendingTip.chainTicker, txHash, pendingTip.feeTxHash), claimLocation),
+      ...getTipClaimPublishOptions(buildTipClaim(pendingTip.chainId, txHash, pendingTip.feeTxHash), claimLocation),
       onChallengeVerification: (challengeVerification: ChallengeVerification, publication?: Comment) => {
         if (challengeVerification?.challengeSuccess === true) {
           // accepted: the claim is published, nothing is left to lose. A newer tip on the same

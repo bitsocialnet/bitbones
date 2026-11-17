@@ -1,5 +1,6 @@
 // Node strips the types from src/lib/tipping.ts on import, which is why that file has no relative imports.
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { recoverMessageAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
@@ -14,6 +15,9 @@ import {
   getTipAmountError,
   getTipClaimPublishOptions,
   getTippingConfig,
+  getTipRecipientAddress,
+  getTokenKey,
+  getProvenWalletAddresses,
   getTipReplies,
   getVerifiedTip,
   getVerifiedTipTotals,
@@ -26,6 +30,7 @@ import {
   verifyTip,
   walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
+import { ensureRpcChainId, sendTransfer } from '../../src/lib/tipping-chain.ts';
 
 const usdc = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB48';
 const dai = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
@@ -35,11 +40,11 @@ const txHash = `0x${'a'.repeat(64)}`;
 const feeTxHash = `0x${'b'.repeat(64)}`;
 
 const exampleTokens = [
-  { chainTicker: 'eth', type: 'native', minAmount: '1000000000000000', fee: { percent: '2' } },
-  { chainTicker: 'eth', type: 'erc20', address: usdc, minAmount: '1000000', fee: { percent: '2.5' } },
-  { chainTicker: 'eth', type: 'erc20', address: dai, fee: { amount: '500000000000000000' } },
-  { chainTicker: 'eth', type: 'erc721', address: nft, fee: { amount: '1000000', token: usdc } },
-  { chainTicker: 'eth', type: 'erc721', address: '0x3333333333333333333333333333333333333333' },
+  { chainId: 1, type: 'native', minAmount: '1000000000000000', fee: { percent: '2' } },
+  { chainId: 1, type: 'erc20', address: usdc, minAmount: '1000000', fee: { percent: '2.5' } },
+  { chainId: 1, type: 'erc20', address: dai, fee: { amount: '500000000000000000' } },
+  { chainId: 1, type: 'erc721', address: nft, fee: { amount: '1000000', token: usdc } },
+  { chainId: 1, type: 'erc721', address: '0x3333333333333333333333333333333333333333' },
 ];
 
 const communityWith = (publicOptions) => ({ challenges: [{ type: 'text/plain' }, { type: 'text/plain', publicOptions }] });
@@ -185,7 +190,7 @@ test('reads the tipping/v1 options from whichever challenge publishes them', () 
   const config = getTippingConfig(exampleCommunity);
   assert.equal(config.feeRecipient, feeRecipient);
   assert.equal(config.tokens.length, 5);
-  assert.deepEqual(config.tokens[0], { chainTicker: 'eth', type: 'native', address: undefined, minAmount: 1000000000000000n, fee: { percent: '2' } });
+  assert.deepEqual(config.tokens[0], { chainId: 1, type: 'native', address: undefined, minAmount: 1000000000000000n, fee: { percent: '2' } });
   assert.deepEqual(config.tokens[2].fee, { amount: 500000000000000000n });
   assert.deepEqual(config.tokens[3].fee, { amount: 1000000n, token: usdc });
   assert.equal(config.tokens[4].fee, undefined);
@@ -198,7 +203,7 @@ test('a community without readable tipping options has no tipping, and nothing t
     { challenges: 'nope' },
     { challenges: [null, { publicOptions: null }, { publicOptions: { other: 'x' } }] },
     communityWith({ [tokensOptionName]: 'not json' }),
-    communityWith({ [tokensOptionName]: '{"chainTicker":"eth"}' }),
+    communityWith({ [tokensOptionName]: '{"chainId":1}' }),
     communityWith({ [tokensOptionName]: '[]' }),
     communityWith({ [tokensOptionName]: 42 }),
   ]) {
@@ -210,23 +215,39 @@ test('drops the entries it cannot read and keeps the rest', () => {
   const invalid = [
     null,
     { type: 'erc20', address: usdc },
-    { chainTicker: 'eth', type: 'erc1155', address: usdc },
-    { chainTicker: 'eth', type: 'erc20' },
-    { chainTicker: 'eth', type: 'erc20', address: 'usdc.eth' },
-    { chainTicker: 'eth', type: 'native', address: usdc },
-    { chainTicker: 'eth', type: 'erc20', address: usdc, minAmount: '1.5' },
-    { chainTicker: 'eth', type: 'erc20', address: usdc, minAmount: 5 },
-    { chainTicker: 'eth', type: 'erc721', address: nft, minAmount: '1' },
-    { chainTicker: 'eth', type: 'erc20', address: usdc, fee: {} },
-    { chainTicker: 'eth', type: 'erc20', address: usdc, fee: { percent: '2', amount: '1' } },
-    { chainTicker: 'eth', type: 'erc20', address: usdc, fee: { percent: '-2' } },
-    { chainTicker: 'eth', type: 'erc20', address: usdc, fee: { amount: '1', token: dai } },
-    { chainTicker: 'eth', type: 'erc721', address: nft, fee: { percent: '2' } },
-    { chainTicker: 'eth', type: 'erc721', address: nft, fee: { amount: '1' } },
+    // a chain is named by a positive integer JSON number and nothing else
+    { chainTicker: 'eth', type: 'erc20', address: usdc },
+    { chainId: '1', type: 'erc20', address: usdc },
+    { chainId: 0, type: 'erc20', address: usdc },
+    { chainId: -1, type: 'erc20', address: usdc },
+    { chainId: 1.5, type: 'erc20', address: usdc },
+    { chainId: null, type: 'erc20', address: usdc },
+    { chainId: 1, type: 'erc1155', address: usdc },
+    { chainId: 1, type: 'erc20' },
+    { chainId: 1, type: 'erc20', address: 'usdc.eth' },
+    { chainId: 1, type: 'native', address: usdc },
+    { chainId: 1, type: 'erc20', address: usdc, minAmount: '1.5' },
+    { chainId: 1, type: 'erc20', address: usdc, minAmount: 5 },
+    { chainId: 1, type: 'erc721', address: nft, minAmount: '1' },
+    { chainId: 1, type: 'erc20', address: usdc, fee: {} },
+    { chainId: 1, type: 'erc20', address: usdc, fee: { percent: '2', amount: '1' } },
+    { chainId: 1, type: 'erc20', address: usdc, fee: { percent: '-2' } },
+    { chainId: 1, type: 'erc20', address: usdc, fee: { amount: '1', token: dai } },
+    { chainId: 1, type: 'erc721', address: nft, fee: { percent: '2' } },
+    { chainId: 1, type: 'erc721', address: nft, fee: { amount: '1' } },
   ];
-  const config = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([...invalid, exampleTokens[1]]) }));
-  assert.equal(config.tokens.length, 1);
-  assert.equal(config.tokens[0].address, usdc);
+  const config = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([...invalid, exampleTokens[1], { ...exampleTokens[1], chainId: 11155111 }]) }));
+  assert.deepEqual(
+    config.tokens.map(({ chainId, address }) => [chainId, address]),
+    [
+      [1, usdc],
+      [11155111, usdc],
+    ],
+  );
+  // the same token on two chains is two tokens
+  assert.notEqual(getTokenKey(config.tokens[0]), getTokenKey(config.tokens[1]));
+  // a list with no readable entry is no tipping at all
+  assert.equal(getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainTicker: 'eth', type: 'native' }]) })), undefined);
   // a fee recipient that is not an address means no fee recipient
   assert.equal(
     getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([exampleTokens[1]]), [feeRecipientOptionName]: 'community.eth' })).feeRecipient,
@@ -269,14 +290,18 @@ test('parses and formats amounts in base units', () => {
 });
 
 test('builds the claim a tipper publishes', () => {
-  assert.deepEqual(buildTipClaim('eth', txHash), { chainTicker: 'eth', txHash });
-  assert.deepEqual(buildTipClaim('eth', txHash, feeTxHash), { chainTicker: 'eth', txHash, feeTxHash });
+  assert.deepEqual(buildTipClaim(1, txHash), { chainId: 1, txHash });
+  assert.deepEqual(buildTipClaim(11155111, txHash, feeTxHash), { chainId: 11155111, txHash, feeTxHash });
   // a batched fee names the same transaction
-  assert.deepEqual(buildTipClaim('eth', txHash, txHash), { chainTicker: 'eth', txHash, feeTxHash: txHash });
-  assert.throws(() => buildTipClaim('', txHash));
-  assert.throws(() => buildTipClaim('eth', '0x1234'));
-  assert.throws(() => buildTipClaim('eth', txHash, 'nope'));
-  const claim = buildTipClaim('eth', txHash);
+  assert.deepEqual(buildTipClaim(1, txHash, txHash), { chainId: 1, txHash, feeTxHash: txHash });
+  for (const chainId of ['eth', '1', 0, -1, 1.5, undefined]) {
+    assert.throws(() => buildTipClaim(chainId, txHash));
+  }
+  assert.throws(() => buildTipClaim(1, '0x1234'));
+  assert.throws(() => buildTipClaim(1, txHash, 'nope'));
+  // the claim names its chain by id only
+  assert.deepEqual(Object.keys(buildTipClaim(1, txHash, feeTxHash)), ['chainId', 'txHash', 'feeTxHash']);
+  const claim = buildTipClaim(1, txHash);
   assert.deepEqual(getTipClaimPublishOptions(claim, 'author'), { author: { tip: claim } });
   assert.deepEqual(getTipClaimPublishOptions(claim, 'comment'), { tip: claim });
 });
@@ -284,10 +309,10 @@ test('builds the claim a tipper publishes', () => {
 test('reads the tip a community wrote, and sums tips per token', () => {
   const from = '0x4444444444444444444444444444444444444444';
   const to = '0x5555555555555555555555555555555555555555';
-  const usdcTip = (amount) => ({ chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from, to, amount });
-  assert.deepEqual(getTip({ tip: usdcTip('1500000') }), { chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from, to, amount: 1500000n });
-  assert.deepEqual(getTip({ tip: { chainTicker: 'eth', txHash, type: 'native', from, to, amount: '5' } }).amount, 5n);
-  assert.equal(getTip({ tip: { chainTicker: 'eth', txHash, type: 'erc721', token: nft, from, to, tokenId: '7' } }).tokenId, '7');
+  const usdcTip = (amount) => ({ chainId: 1, txHash, type: 'erc20', token: usdc, from, to, amount });
+  assert.deepEqual(getTip({ tip: usdcTip('1500000') }), { chainId: 1, txHash, type: 'erc20', token: usdc, from, to, amount: 1500000n });
+  assert.deepEqual(getTip({ tip: { chainId: 1, txHash, type: 'native', from, to, amount: '5' } }).amount, 5n);
+  assert.equal(getTip({ tip: { chainId: 1, txHash, type: 'erc721', token: nft, from, to, tokenId: '7' } }).tokenId, '7');
   for (const invalid of [
     undefined,
     {},
@@ -295,6 +320,9 @@ test('reads the tip a community wrote, and sums tips per token', () => {
     { tip: usdcTip(15) },
     { tip: usdcTip('1.5') },
     { tip: { ...usdcTip('1'), type: 'erc1155' } },
+    { tip: { ...usdcTip('1'), chainId: '1' } },
+    { tip: { ...usdcTip('1'), chainId: 0 } },
+    { tip: { ...usdcTip('1'), chainId: undefined, chainTicker: 'eth' } },
     { tip: { ...usdcTip('1'), token: undefined } },
   ]) {
     assert.equal(getTip(invalid), undefined);
@@ -304,22 +332,30 @@ test('reads the tip a community wrote, and sums tips per token', () => {
     sumTips([
       getTip({ tip: usdcTip('1500000') }),
       getTip({ tip: usdcTip('500000') }),
-      getTip({ tip: { chainTicker: 'eth', txHash, type: 'erc721', token: nft, from, to, tokenId: '7' } }),
+      getTip({ tip: { chainId: 1, txHash, type: 'erc721', token: nft, from, to, tokenId: '7' } }),
     ]),
     [
-      { chainTicker: 'eth', type: 'erc20', token: usdc, amount: 2000000n, count: 2 },
-      { chainTicker: 'eth', type: 'erc721', token: nft, amount: undefined, count: 1 },
+      { chainId: 1, type: 'erc20', token: usdc, amount: 2000000n, count: 2 },
+      { chainId: 1, type: 'erc721', token: nft, amount: undefined, count: 1 },
     ],
   );
+  // the same token contract address on another chain is totalled apart
+  assert.deepEqual(sumTips([getTip({ tip: usdcTip('1') }), getTip({ tip: { ...usdcTip('2'), chainId: 10 } })]), [
+    { chainId: 1, type: 'erc20', token: usdc, amount: 1n, count: 1 },
+    { chainId: 10, type: 'erc20', token: usdc, amount: 2n, count: 1 },
+  ]);
   assert.deepEqual(sumTips([]), []);
 });
 
 // an author with a signing key and a wallet proven for it
-const createAuthor = async (publicKey, timestamp = 1700000000) => {
+const createWallet = async (publicKey, timestamp = 1700000000) => {
   const account = privateKeyToAccount(generatePrivateKey());
   const message = getWalletMessageToSign(getKeyAddressFromPublicKey(publicKey), timestamp);
-  const wallet = { address: account.address, timestamp, signature: { signature: normalizeWalletSignature(await account.signMessage({ message })), type: 'eip191' } };
-  return { address: account.address, author: { wallets: { eth: wallet } }, signature: { publicKey } };
+  return { address: account.address, timestamp, signature: { signature: normalizeWalletSignature(await account.signMessage({ message })), type: 'eip191' } };
+};
+const createAuthor = async (publicKey, timestamp) => {
+  const wallet = await createWallet(publicKey, timestamp);
+  return { address: wallet.address, author: { wallets: { eth: wallet } }, signature: { publicKey } };
 };
 const tipperPublicKey = vector.publicKey;
 const recipientPublicKey = '+X1OBktHFm0E1cwKLWu81Va0cAlVhj/i4snOqMz9X2k';
@@ -328,7 +364,7 @@ test('a tip is shown only when both wallet proofs verify and are its sender and 
   const tipper = await createAuthor(tipperPublicKey);
   const recipient = await createAuthor(recipientPublicKey);
   const parent = { cid: 'parent', author: recipient.author, signature: recipient.signature };
-  const tip = { chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from: tipper.address, to: recipient.address, amount: '1500000' };
+  const tip = { chainId: 1, txHash, type: 'erc20', token: usdc, from: tipper.address, to: recipient.address, amount: '1500000' };
   const reply = { cid: 'reply', parentCid: 'parent', author: tipper.author, signature: tipper.signature, tip };
 
   assert.deepEqual(await verifyTip(reply, parent), { ...tip, amount: 1500000n });
@@ -340,8 +376,8 @@ test('a tip is shown only when both wallet proofs verify and are its sender and 
   const failing = {
     'the tip names a sender the tipper did not publish': [{ ...reply, tip: { ...tip, from: stranger.address } }, parent],
     'the tip names a receiver the tipped author did not publish': [{ ...reply, tip: { ...tip, to: stranger.address } }, parent],
-    'the tipper published no wallet for the chain': [{ ...reply, author: {} }, parent],
-    'the tipped author published no wallet for the chain': [reply, { ...parent, author: { wallets: { matic: recipient.author.wallets.eth } } }],
+    'the tipper published no wallet': [{ ...reply, author: {} }, parent],
+    'the tipped author published no wallet': [reply, { ...parent, author: { wallets: {} } }],
     // a wallet entry copied from another author: the address matches the tip, the proof names another key
     'the tipper wallet is proven for another key': [{ ...reply, signature: { publicKey: recipientPublicKey } }, parent],
     'the tipped author wallet is proven for another key': [reply, { ...parent, signature: { publicKey: tipperPublicKey } }],
@@ -365,6 +401,21 @@ test('a tip is shown only when both wallet proofs verify and are its sender and 
   for (const [label, [failingReply, failingParent]] of Object.entries(failing)) {
     assert.equal(await verifyTip(failingReply, failingParent), undefined, label);
   }
+  // the ticker a wallet is published under selects nothing: any proven entry counts, on either side
+  const otherTipperWallet = await createWallet(tipperPublicKey);
+  const anyKey = [
+    { ...reply, author: { wallets: { matic: tipper.author.wallets.eth } } },
+    { ...reply, author: { wallets: { eth: otherTipperWallet, zzz: tipper.author.wallets.eth } } },
+    // an entry that does not verify next to the one that does
+    { ...reply, author: { wallets: { eth: recipient.author.wallets.eth, base: tipper.author.wallets.eth } } },
+  ];
+  for (const anyKeyReply of anyKey) {
+    assert.notEqual(await verifyTip(anyKeyReply, parent), undefined);
+  }
+  assert.notEqual(await verifyTip(reply, { ...parent, author: { wallets: { 'some label': recipient.author.wallets.eth } } }), undefined);
+  // the tip's chain id is not matched against any wallet key either
+  assert.equal((await verifyTip({ ...reply, tip: { ...tip, chainId: 11155111 } }, parent)).chainId, 11155111);
+
   // a proof dated more than 300 seconds ahead of the reader's clock
   assert.equal(await verifyTip(reply, parent, 1700000000 - 301), undefined);
   assert.notEqual(await verifyTip(reply, parent, 1700000000 - 300), undefined);
@@ -381,12 +432,12 @@ test('the total of a comment leaves out the tips that do not verify', async () =
   const recipient = await createAuthor(recipientPublicKey);
   const stranger = await createAuthor(tipperPublicKey);
   const parent = { cid: 'parent', author: recipient.author, signature: recipient.signature };
-  const usdcTip = (amount, from = tipper.address) => ({ chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from, to: recipient.address, amount });
+  const usdcTip = (amount, from = tipper.address) => ({ chainId: 1, txHash, type: 'erc20', token: usdc, from, to: recipient.address, amount });
   const reply = (cid, tip, parentCid = 'parent') => ({ cid, parentCid, author: tipper.author, signature: tipper.signature, tip });
   const replies = [
     reply('a', usdcTip('1500000')),
     reply('b', usdcTip('500000')),
-    reply('c', { chainTicker: 'eth', txHash, type: 'erc721', token: nft, from: tipper.address, to: recipient.address, tokenId: '7' }),
+    reply('c', { chainId: 1, txHash, type: 'erc721', token: nft, from: tipper.address, to: recipient.address, tokenId: '7' }),
     // a tip whose sender is not the tipper's proven wallet
     reply('d', usdcTip('9000000', stranger.address)),
     // a tipper whose wallet entry was copied from someone else
@@ -402,8 +453,8 @@ test('the total of a comment leaves out the tips that do not verify', async () =
     ['a', 'b', 'c', 'd', 'e'],
   );
   assert.deepEqual(await getVerifiedTipTotals(parent, replies), [
-    { chainTicker: 'eth', type: 'erc20', token: usdc, amount: 2000000n, count: 2 },
-    { chainTicker: 'eth', type: 'erc721', token: nft, amount: undefined, count: 1 },
+    { chainId: 1, type: 'erc20', token: usdc, amount: 2000000n, count: 2 },
+    { chainId: 1, type: 'erc721', token: nft, amount: undefined, count: 1 },
   ]);
   assert.equal(getVerifiedTipTotals(parent, replies), getVerifiedTipTotals(parent, [...replies]));
   assert.deepEqual(await getVerifiedTipTotals(undefined, replies), []);
@@ -411,4 +462,83 @@ test('the total of a comment leaves out the tips that do not verify', async () =
   assert.deepEqual(await getVerifiedTipTotals(parent, [replies[5]]), []);
   // the tipped comment's own wallet no longer proven: nothing counts
   assert.deepEqual(await getVerifiedTipTotals({ ...parent, signature: { publicKey: tipperPublicKey } }, replies), []);
+});
+
+test('a tip is sent to the eth entry if it verifies, otherwise to the first proven entry by key', async () => {
+  const publicKey = recipientPublicKey;
+  const [eth, arb, base, matic] = await Promise.all([createWallet(publicKey), createWallet(publicKey), createWallet(publicKey), createWallet(publicKey)]);
+  // proven for another author's key, so not a proof of this author
+  const copied = await createWallet(tipperPublicKey);
+  const party = (wallets) => ({ cid: 'comment', author: { wallets }, signature: { publicKey } });
+
+  assert.equal(await getTipRecipientAddress(party({ matic, eth, arb })), eth.address);
+  // no eth entry: the first by key, whatever order the object lists them in
+  assert.equal(await getTipRecipientAddress(party({ matic, base, arb })), arb.address);
+  // an eth entry that does not verify is passed over, and so is every other one that does not
+  assert.equal(await getTipRecipientAddress(party({ eth: copied, arb: copied, matic, base })), base.address);
+  assert.equal(await getTipRecipientAddress(party({ eth: { ...eth, address: 'someone.eth' }, matic })), matic.address);
+  // keys sort by code unit, so upper case comes before lower case
+  assert.equal(await getTipRecipientAddress(party({ matic, Zeta: arb })), arb.address);
+  for (const wallets of [undefined, {}, { eth: copied }, { eth: 'nope', matic: null }]) {
+    assert.equal(await getTipRecipientAddress(party(wallets)), undefined);
+  }
+  assert.equal(await getTipRecipientAddress(undefined), undefined);
+  // no key to verify against
+  assert.equal(await getTipRecipientAddress({ author: { wallets: { eth } } }), undefined);
+
+  assert.deepEqual(await getProvenWalletAddresses(party({ matic, eth: copied, base, arb })), [arb.address, base.address, matic.address]);
+  assert.deepEqual(await getProvenWalletAddresses(party({ eth })), [eth.address]);
+  assert.deepEqual(await getProvenWalletAddresses(party(undefined)), []);
+  // dated more than 300 seconds ahead of the clock: not proven yet
+  assert.deepEqual(await getProvenWalletAddresses(party({ eth }), 1700000000 - 301), []);
+});
+
+// a JSON-RPC endpoint that reports one chain id, fails every other call, and records what it was asked
+const startRpc = async (chainId) => {
+  const methods = [];
+  const server = createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => (body += chunk));
+    request.on('end', () => {
+      const { id, method } = JSON.parse(body);
+      methods.push(method);
+      const result = method === 'eth_chainId' ? { result: `0x${chainId.toString(16)}` } : { error: { code: -32601, message: 'not available in this test' } };
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ jsonrpc: '2.0', id, ...result }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${server.address().port}`, methods, close: () => new Promise((resolve) => server.close(resolve)) };
+};
+
+test('nothing is sent through an RPC that reports another chain id than the token names', async () => {
+  const sepolia = await startRpc(11155111);
+  try {
+    await ensureRpcChainId(sepolia.url, 11155111);
+    await assert.rejects(ensureRpcChainId(sepolia.url, 1), /reports chain id 11155111\. Nothing was sent/);
+
+    const privateKey = `0x${'02'.repeat(32)}`;
+    const to = '0x5555555555555555555555555555555555555555';
+    for (const token of [
+      { chainId: 1, type: 'native' },
+      { chainId: 1, type: 'erc20', address: usdc },
+      { chainId: 1, type: 'erc721', address: nft },
+    ]) {
+      sepolia.methods.length = 0;
+      await assert.rejects(sendTransfer({ rpcUrl: sepolia.url, privateKey, token, to, amountOrTokenId: 1n }), /reports chain id 11155111/);
+      // refused on the chain id alone: no nonce, gas or send was asked for
+      assert.deepEqual(sepolia.methods, ['eth_chainId']);
+    }
+
+    // on the right chain the transfer goes on to the RPC, which this test endpoint then fails
+    sepolia.methods.length = 0;
+    await assert.rejects(
+      sendTransfer({ rpcUrl: sepolia.url, privateKey, token: { chainId: 11155111, type: 'native' }, to, amountOrTokenId: 1n }),
+      (error) => !/reports chain id/.test(error.message),
+    );
+    assert.ok(sepolia.methods.length > 1);
+    assert.ok(!sepolia.methods.includes('eth_sendRawTransaction'));
+  } finally {
+    await sepolia.close();
+  }
 });

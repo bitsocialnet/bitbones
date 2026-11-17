@@ -20,7 +20,7 @@ import { useTippingRpcUrl } from '../../hooks/use-tipping-settings';
 import styles from './tip-tools.module.css';
 
 interface TokenAmountProps {
-  chainTicker: string;
+  chainId: number;
   type: TipTokenType;
   // the token contract; undefined for native
   address?: string;
@@ -29,9 +29,9 @@ interface TokenAmountProps {
 }
 
 // reads the token's symbol and decimals from the chain, and suspends until it has them
-const LoadedTokenAmount = ({ chainTicker, type, address, amount }: TokenAmountProps) => {
-  const rpcUrl = useTippingRpcUrl(chainTicker);
-  const { symbol, decimals } = use(getTokenInfo(rpcUrl, { chainTicker, type, address }));
+const LoadedTokenAmount = ({ chainId, type, address, amount }: TokenAmountProps) => {
+  const rpcUrl = useTippingRpcUrl(chainId);
+  const { symbol, decimals } = use(getTokenInfo(rpcUrl, { chainId, type, address }));
   if (amount === undefined) {
     return <>{symbol}</>;
   }
@@ -70,8 +70,8 @@ const VerifiedTipLine = ({ comment }: VerifiedTipLineProps) => {
     return null;
   }
   return (
-    <span className={styles.tip} title={`tip ${tip.txHash} from ${tip.from} to ${tip.to}`}>
-      tipped <TokenAmount chainTicker={tip.chainTicker} type={tip.type} address={tip.token} amount={tip.amount} />
+    <span className={styles.tip} title={`tip ${tip.txHash} on chain id ${tip.chainId} from ${tip.from} to ${tip.to}`}>
+      tipped <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} />
       {tip.tokenId !== undefined && ` #${tip.tokenId}`}
     </span>
   );
@@ -110,12 +110,12 @@ const VerifiedTipTotals = ({ comment, replies }: VerifiedTipTotalsProps) => {
     return null;
   }
   return (
-    <span className={styles.tip} title='summed from the verified tips on the loaded replies'>
+    <span className={styles.tip} title='summed per chain and token from the verified tips on the loaded replies'>
       tips:{' '}
       {totals.map((total, index) => (
         <span key={getTokenKey({ ...total, address: total.token })}>
           {index > 0 && ', '}
-          <TokenAmount chainTicker={total.chainTicker} type={total.type} address={total.token} amount={total.amount} />
+          <TokenAmount chainId={total.chainId} type={total.type} address={total.token} amount={total.amount} />
           {total.type === 'erc721' && ` ×${total.count}`}
         </span>
       ))}
@@ -156,7 +156,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
   const [amountText, setAmountText] = useState('');
   const [content, setContent] = useState('');
   const token = tokens.find((token) => getTokenKey(token) === tokenKey) ?? tokens[0];
-  const rpcUrl = useTippingRpcUrl(token.chainTicker);
+  const rpcUrl = useTippingRpcUrl(token.chainId);
   const { decimals } = use(getTokenInfo(rpcUrl, token));
 
   // an NFT is tipped by its token id; a fungible amount is typed in whole tokens when the decimals are known
@@ -170,7 +170,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
       <select aria-label='Tip token' value={getTokenKey(token)} onChange={(event) => setTokenKey(event.target.value)}>
         {tokens.map((token) => (
           <option key={getTokenKey(token)} value={getTokenKey(token)}>
-            {token.chainTicker} {token.type} {token.address ?? ''}
+            chain {token.chainId} {token.type} {token.address ?? ''}
           </option>
         ))}
       </select>
@@ -181,7 +181,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
         value={amountText}
         onChange={(event) => setAmountText(event.target.value)}
       />
-      <TokenAmount chainTicker={token.chainTicker} type={token.type} address={token.address} />
+      <TokenAmount chainId={token.chainId} type={token.type} address={token.address} />
       <input aria-label='Tip message' className={styles.content} placeholder='message (optional)' value={content} onChange={(event) => setContent(event.target.value)} />
       <button
         type='button'
@@ -193,13 +193,13 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
       <span className={[styles.line, styles.dim].join(' ')}>
         {token.minAmount !== undefined && (
           <>
-            minimum <TokenAmount chainTicker={token.chainTicker} type={token.type} address={token.address} amount={token.minAmount} />.{' '}
+            minimum <TokenAmount chainId={token.chainId} type={token.type} address={token.address} amount={token.minAmount} />.{' '}
           </>
         )}
         {fee ? (
           <>
-            community fee <TokenAmount chainTicker={token.chainTicker} type={fee.token ? 'erc20' : 'native'} address={fee.token} amount={fee.amount} />, paid on top in a
-            second transaction.
+            community fee <TokenAmount chainId={token.chainId} type={fee.token ? 'erc20' : 'native'} address={fee.token} amount={fee.amount} />, paid on top in a second
+            transaction.
           </>
         ) : (
           amountText && (inputError ?? 'no community fee.')
@@ -250,9 +250,12 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
   );
 };
 
-// the tokens a comment's author can be tipped in: whitelisted by the community, on a chain the author published a wallet for
-const getTippableTokens = (comment: Comment | undefined, config: TippingConfig | undefined): TipToken[] =>
-  (config?.tokens ?? []).filter((token) => comment?.author?.wallets?.[token.chainTicker]?.signature?.type === walletSignatureType);
+// Whether a comment's author published a wallet that could be paid. Only the shape is read here, so
+// that every comment in a thread stays cheap; the proof itself is verified when a tip is sent.
+const hasWalletEntry = (comment: Comment | undefined): boolean => {
+  const wallets: unknown = comment?.author?.wallets;
+  return Boolean(wallets && typeof wallets === 'object' && Object.values(wallets).some((wallet) => wallet?.signature?.type === walletSignatureType));
+};
 
 interface TipToolsProps {
   comment?: Comment;
@@ -260,13 +263,14 @@ interface TipToolsProps {
 }
 
 // The tip action of a comment. Renders nothing unless the community publishes tipping/v1 options
-// and the comment's author published a wallet on a whitelisted chain. Meant to sit in a wrapping
+// and the comment's author published a wallet. Meant to sit in a wrapping
 // flex row: the form takes a line of its own below the button.
 function TipTools({ comment, config }: TipToolsProps) {
   const [isOpen, setIsOpen] = useState(false);
   // a tip of this comment whose reply is not accepted yet keeps the form on screen
   const hasPendingTip = useHasPendingTip(comment?.cid);
-  const tokens = getTippableTokens(comment, config);
+  // any proven wallet of the author can be paid on any chain, so every whitelisted token is offered
+  const tokens = config && hasWalletEntry(comment) ? config.tokens : [];
   if (!comment?.cid || !config || (!tokens.length && !hasPendingTip)) {
     return null;
   }

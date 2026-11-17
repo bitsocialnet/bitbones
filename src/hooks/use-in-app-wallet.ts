@@ -58,26 +58,45 @@ const signInAppWallet = async (account: Account, inAppWallet: InAppWallet): Prom
   return { address: inAppWallet.address, timestamp, signature: { signature, type: walletSignatureType } };
 };
 
-// Links the in-app wallet to the account under a chain ticker, unless a valid proof of it is
-// already there. Resolves to the wallet address the account now publishes for that chain. Throws
-// when the account publishes another wallet for the chain: only the in-app wallet can send a tip,
-// and the tip's sender must be the wallet the tipper publishes.
-export const ensureInAppWallet = async (account: Account | undefined, chainTicker: string): Promise<string> => {
+// the key the in-app wallet is published under when the account publishes it under none: `eth`,
+// or `evm` when the account already publishes another wallet as `eth`
+const getInAppWalletKey = (wallets: Record<string, Wallet> | undefined): string => (wallets?.eth ? 'evm' : 'eth');
+
+// whether the account publishes a valid proof of the in-app wallet, under any author.wallets key
+export const isInAppWalletProven = async (account: Account | undefined): Promise<boolean> => {
+  const inAppWallet = getInAppWallet(account);
+  const keyAddress = getAccountKeyAddress(account);
+  const wallets: Record<string, Wallet> = account?.author?.wallets ?? {};
+  if (!inAppWallet) {
+    return false;
+  }
+  for (const wallet of Object.values(wallets)) {
+    if (isSameAddress(wallet?.address, inAppWallet.address) && !(await getWalletProofError(wallet, keyAddress))) {
+      return true;
+    }
+  }
+  return false;
+};
+
+// A tip's sender must be an address the tipper has proven, and tips are sent from the in-app wallet,
+// so this makes sure the account publishes a valid proof of it. Which author.wallets key it sits
+// under does not matter. Resolves to the in-app wallet address.
+export const ensureInAppWallet = async (account: Account | undefined): Promise<string> => {
   const inAppWallet = getInAppWallet(account);
   if (!account || !inAppWallet) {
     throw Error('this account has no in-app wallet');
   }
-  const current = account.author?.wallets?.[chainTicker];
-  if (current && !isSameAddress(current.address, inAppWallet.address)) {
-    throw Error(
-      `this account publishes another ${chainTicker} wallet (${current.address}). Tips are sent from the in-app wallet ${inAppWallet.address}, so replace it in settings first`,
-    );
-  }
-  if (current && !(await getWalletProofError(current, getAccountKeyAddress(account)))) {
+  if (await isInAppWalletProven(account)) {
     return inAppWallet.address;
   }
+  const wallets: Record<string, Wallet> | undefined = account.author?.wallets;
+  // an entry of the in-app wallet whose proof no longer verifies is replaced where it is
+  const key = Object.keys(wallets ?? {}).find((key) => isSameAddress(wallets?.[key]?.address, inAppWallet.address)) ?? getInAppWalletKey(wallets);
+  if (wallets?.[key] && !isSameAddress(wallets[key].address, inAppWallet.address)) {
+    throw Error(`this account already publishes other wallets as eth and evm. Remove one in settings so the in-app wallet ${inAppWallet.address} can be published`);
+  }
   const wallet = await signInAppWallet(account, inAppWallet);
-  await setAccount({ ...account, author: { ...account.author, wallets: { ...account.author?.wallets, [chainTicker]: wallet } } });
+  await setAccount({ ...account, author: { ...account.author, wallets: { ...wallets, [key]: wallet } } });
   return inAppWallet.address;
 };
 
@@ -100,9 +119,9 @@ export const useWalletProofMigration = (): void => {
     (async () => {
       const keyAddress = getAccountKeyAddress(account);
       const resigned: Record<string, Wallet> = {};
-      for (const [chainTicker, wallet] of Object.entries(wallets)) {
+      for (const [key, wallet] of Object.entries(wallets)) {
         if (isSameAddress(wallet?.address, inAppWallet.address) && (await getWalletProofError(wallet, keyAddress))) {
-          resigned[chainTicker] = await signInAppWallet(account, inAppWallet);
+          resigned[key] = await signInAppWallet(account, inAppWallet);
         }
       }
       if (Object.keys(resigned).length) {

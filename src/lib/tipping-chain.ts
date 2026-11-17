@@ -16,10 +16,23 @@ const getPublicClient = (rpcUrl: string): PublicClient => {
   return client;
 };
 
-export const getChainId = (rpcUrl: string): Promise<number> => getPublicClient(rpcUrl).getChainId();
+// The chain an RPC serves is whatever it reports, so every write asks first. Rejects when the RPC
+// is on another chain than the one the tip is meant for: a transfer sent there would move funds on
+// the wrong network, and the community would never find it.
+export const ensureRpcChainId = async (rpcUrl: string, chainId: number): Promise<void> => {
+  const reported = await getPublicClient(rpcUrl).getChainId();
+  if (reported !== chainId) {
+    throw Error(`the RPC set for chain id ${chainId} (${rpcUrl}) reports chain id ${reported}. Nothing was sent: set an RPC url of chain ${chainId} in settings`);
+  }
+};
+
+// the coin of the chains a tip is likely to be tried on; any other chain's coin is named by its chain id
+const nativeSymbols: Record<number, string> = { 1: 'ETH', 10: 'ETH', 137: 'POL', 8453: 'ETH', 42161: 'ETH', 11155111: 'SepoliaETH' };
+
+const getNativeSymbol = (chainId: number): string => nativeSymbols[chainId] ?? `coin of chain ${chainId}`;
 
 interface ChainToken {
-  chainTicker: string;
+  chainId: number;
   type: TipTokenType;
   // the token contract; undefined for native
   address?: string;
@@ -35,8 +48,8 @@ const shortAddress = (address: string | undefined): string => (address ? `${addr
 
 const loadTokenInfo = async (rpcUrl: string, token: ChainToken): Promise<TokenInfo> => {
   if (token.type === 'native') {
-    // the chain's own coin: named after the ticker, and 18 decimals on every EVM chain
-    return { symbol: token.chainTicker.toUpperCase(), decimals: 18 };
+    // the chain's own coin, which has 18 decimals on every EVM chain
+    return { symbol: getNativeSymbol(token.chainId), decimals: 18 };
   }
   const client = getPublicClient(rpcUrl);
   const address = token.address as Address;
@@ -53,10 +66,10 @@ const tokenInfos = new Map<string, Promise<TokenInfo>>();
 // The same promise for the same token, so a component can read it with React's use(). It never
 // rejects: a token whose contract can't be read is shown by its address, in base units.
 export const getTokenInfo = (rpcUrl: string | undefined, token: ChainToken): Promise<TokenInfo> => {
-  const key = `${rpcUrl}\n${token.chainTicker}\n${token.type}\n${token.address?.toLowerCase()}`;
+  const key = `${rpcUrl}\n${token.chainId}\n${token.type}\n${token.address?.toLowerCase()}`;
   let tokenInfo = tokenInfos.get(key);
   if (!tokenInfo) {
-    const fallback: TokenInfo = { symbol: token.type === 'native' ? token.chainTicker.toUpperCase() : shortAddress(token.address) };
+    const fallback: TokenInfo = { symbol: token.type === 'native' ? getNativeSymbol(token.chainId) : shortAddress(token.address) };
     tokenInfo = rpcUrl ? loadTokenInfo(rpcUrl, token).catch(() => fallback) : Promise.resolve(token.type === 'native' ? { ...fallback, decimals: 18 } : fallback);
     tokenInfos.set(key, tokenInfo);
   }
@@ -83,7 +96,9 @@ interface SendTransferOptions {
 
 // One plain transfer from the in-app wallet, returned as soon as it is broadcast. A plain transfer
 // is what tipping/v1 verifies: the Transfer event, or for the native coin the transaction itself.
-export const sendTransfer = ({ rpcUrl, privateKey, token, to, amountOrTokenId }: SendTransferOptions): Promise<Hash> => {
+// Refuses to send unless the RPC reports the token's chain id.
+export const sendTransfer = async ({ rpcUrl, privateKey, token, to, amountOrTokenId }: SendTransferOptions): Promise<Hash> => {
+  await ensureRpcChainId(rpcUrl, token.chainId);
   const account = privateKeyToAccount(privateKey);
   const client = createWalletClient({ account, transport: http(rpcUrl) });
   if (token.type === 'native') {
