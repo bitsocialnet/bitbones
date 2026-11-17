@@ -6,6 +6,7 @@ import stringify from 'json-stringify-pretty-compact';
 import useTheme, { themes, useCustomCss } from '../../hooks/use-theme';
 import NftAvatar from './nft-avatar';
 import CryptoWallets from './crypto-wallets';
+import InAppWallet from './in-app-wallet';
 
 const Theme = () => {
   const [theme, setTheme] = useTheme();
@@ -187,6 +188,7 @@ function Settings() {
       <AuthorAddress />
       <NftAvatar />
       <CryptoWallets />
+      <InAppWallet />
       <AccountSettings />
     </div>
   );

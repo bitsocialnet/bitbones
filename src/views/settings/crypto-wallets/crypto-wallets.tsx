@@ -1,12 +1,8 @@
 import { useState } from 'react';
 import { useAccount, setAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, Wallet } from '@bitsocial/bitsocial-react-hooks';
-
-const getWalletMessageToSign = (authorAddress: string, timestamp: number) => {
-  // use plain JSON so the user can read what he's signing
-  // property names must always be in this order for signature to match so don't use JSON.stringify
-  return `{"domainSeparator":"pkc-author-wallet","authorAddress":"${authorAddress}","timestamp":${timestamp}}`;
-};
+import { getAccountKeyAddress } from '../../../hooks/use-in-app-wallet';
+import { getWalletMessageToSign, getWalletProofError, walletSignatureType } from '../../../lib/tipping';
 
 // the form edits a flat row per chain, while the account stores the signature nested inside a Wallet
 interface WalletInput {
@@ -25,7 +21,8 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   if (!account) {
     throw Error('CryptoWalletsForm account prop must be defined');
   }
-  const authorAddress = account?.author?.address;
+  // a wallet proof names the account's signing key, never author.address, which may be a name
+  const authorPublicKey = getAccountKeyAddress(account);
   const defaultWalletsArray: WalletInput[] = Object.keys(account?.author?.wallets || {}).map((chainTicker) => ({
     chainTicker,
     address: account?.author?.wallets?.[chainTicker]?.address,
@@ -56,8 +53,12 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
             if (!wallet.address) {
               return alert('missing address');
             }
-            const timestamp = wallet.timestamp || Math.floor(Date.now() / 1000);
-            const messageToSign = getWalletMessageToSign(authorAddress, timestamp);
+            if (!authorPublicKey) {
+              return alert('account has no signing key');
+            }
+            // always a new timestamp: a saved one may belong to a proof signed over an older message
+            const timestamp = Math.floor(Date.now() / 1000);
+            const messageToSign = getWalletMessageToSign(authorPublicKey, timestamp);
 
             // if timestamp changed, update it so it gets saved properly
             if (timestamp !== wallet.timestamp) {
@@ -82,7 +83,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
     );
   });
 
-  const save = () => {
+  const save = async () => {
     const wallets: Record<string, Wallet> = {};
     for (const wallet of walletsArray) {
       if (!wallet.chainTicker) {
@@ -97,15 +98,13 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       if (!wallet.timestamp) {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
-      const type = wallet.chainTicker === 'sol' ? 'sol' : 'eip191';
-      wallets[wallet.chainTicker] = {
-        address: wallet.address,
-        timestamp: wallet.timestamp,
-        signature: {
-          signature: wallet.signature,
-          type,
-        },
-      };
+      // eip191 is the only proof a community accepts
+      const proof: Wallet = { address: wallet.address, timestamp: wallet.timestamp, signature: { signature: wallet.signature, type: walletSignatureType } };
+      const proofError = await getWalletProofError(proof, authorPublicKey);
+      if (proofError) {
+        return alert(`${wallet.chainTicker}: ${proofError}. click "copy message to sign", sign that message with the wallet, and paste the new signature`);
+      }
+      wallets[wallet.chainTicker] = proof;
     }
     setAccount({ ...account, author: { ...account?.author, wallets } });
     alert(`saved`);
