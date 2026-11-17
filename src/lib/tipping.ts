@@ -186,6 +186,8 @@ export interface TippingConfig {
   tokens: TipToken[];
   // without it no fee is due, whatever the tokens say
   feeRecipient?: Address;
+  // the position of the tipping challenge in community.challenges: the key its pre-answer goes under
+  challengeIndex: number;
 }
 
 const parseBaseUnits = (value: unknown): bigint | undefined => (typeof value === 'string' && /^\d+$/.test(value) ? BigInt(value) : undefined);
@@ -262,7 +264,7 @@ export const getTippingConfig = (community: CommunityLike | undefined): TippingC
   if (!Array.isArray(challenges)) {
     return undefined;
   }
-  for (const challenge of challenges) {
+  for (const [challengeIndex, challenge] of challenges.entries()) {
     const publicOptions: unknown = challenge?.publicOptions;
     if (!publicOptions || typeof publicOptions !== 'object') {
       continue;
@@ -286,7 +288,7 @@ export const getTippingConfig = (community: CommunityLike | undefined): TippingC
     }
     const feeRecipientOption = (publicOptions as Record<string, unknown>)[feeRecipientOptionName];
     const feeRecipient = typeof feeRecipientOption === 'string' && isAddress(feeRecipientOption, { strict: false }) ? (feeRecipientOption as Address) : undefined;
-    return { tokens, feeRecipient };
+    return { tokens, feeRecipient, challengeIndex };
   }
   return undefined;
 };
@@ -384,14 +386,13 @@ export const buildTipClaim = (chainId: number, txHash: string, feeTxHash?: strin
   return feeTxHash === undefined ? { chainId, txHash } : { chainId, txHash, feeTxHash };
 };
 
-// Where the claim rides on the published reply. tipping/v1 puts it at the top level of the
-// comment, but pkc-js 0.0.148 rejects an unknown top-level key in createComment
-// (ERR_INVALID_CREATE_COMMENT_ARGS_SCHEMA), while unknown keys under author are accepted and
-// signed. 'author' is therefore the only location that publishes today.
-export type TipClaimLocation = 'author' | 'comment';
-
-export const getTipClaimPublishOptions = (claim: TipClaim, location: TipClaimLocation): { tip: TipClaim } | { author: { tip: TipClaim } } =>
-  location === 'comment' ? { tip: claim } : { author: { tip: claim } };
+// How the claim rides on the published reply: as the pre-answer of the tipping challenge. pkc-js
+// (0.0.152 and later) takes pre-answers as a record keyed by challenge index, as a decimal string,
+// and challenge answers are strings, so the claim travels as JSON text. The claim is not part of the
+// signed comment.
+export const getTipClaimPublishOptions = (claim: TipClaim, challengeIndex: number): { challengeRequest: { challengeAnswers: Record<string, string> } } => ({
+  challengeRequest: { challengeAnswers: { [String(challengeIndex)]: JSON.stringify(claim) } },
+});
 
 // what the tipping challenge writes to commentUpdate.tip once it has verified the claim on chain
 export interface Tip {

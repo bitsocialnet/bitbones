@@ -87,8 +87,6 @@ const InAppWallet = () => {
   const inAppWallet = getInAppWallet(account);
   const subscriptions: string[] | undefined = account?.subscriptions;
   const { communities } = useCommunities({ communities: useCommunityIdentifiers(subscriptions) });
-  const claimLocation = useTippingSettingsStore((state) => state.claimLocation);
-  const setClaimLocation = useTippingSettingsStore((state) => state.setClaimLocation);
   const rpcUrlOverrides = useTippingSettingsStore((state) => state.rpcUrls);
   const [addedChainIds, setAddedChainIds] = useState<number[]>([]);
   const [newChainId, setNewChainId] = useState('');
@@ -180,15 +178,6 @@ const InAppWallet = () => {
       {balances?.map(({ key, text }) => (
         <div key={key}>{text}</div>
       ))}
-      <div>
-        <label>
-          tip claim location:{' '}
-          <select value={claimLocation} onChange={(event) => setClaimLocation(event.target.value === 'comment' ? 'comment' : 'author')}>
-            <option value='author'>author.tip (publishes with the installed pkc-js)</option>
-            <option value='comment'>comment.tip (tipping/v1, rejected by the installed pkc-js)</option>
-          </select>
-        </label>
-      </div>
     </div>
   );
 };

@@ -3293,21 +3293,21 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@ipld/dag-pb@npm:4.2.0, @ipld/dag-pb@npm:^4.2.0":
+  version: 4.2.0
+  resolution: "@ipld/dag-pb@npm:4.2.0"
+  dependencies:
+    multiformats: "npm:^14.0.0"
+  checksum: 10c0/f65427c32b08e35b0b0c4bb54110b145b492722824f4198d3c18c9983170e6b5d16aa33b033e643681e209c08f6773ef2680cafc8f94ee6ef4f2a54ba373b949
+  languageName: node
+  linkType: hard
+
 "@ipld/dag-pb@npm:^4.0.0, @ipld/dag-pb@npm:^4.1.7":
   version: 4.1.7
   resolution: "@ipld/dag-pb@npm:4.1.7"
   dependencies:
     multiformats: "npm:^14.0.0"
   checksum: 10c0/93c68778c05749f021393c2a98f7966700ab921216ca632c7dded7ae8191e98770dafe15623755d4ea04c690d73d3980ef3b2ca08448fb7950353d071bdad133
-  languageName: node
-  linkType: hard
-
-"@ipld/dag-pb@npm:^4.2.0":
-  version: 4.2.0
-  resolution: "@ipld/dag-pb@npm:4.2.0"
-  dependencies:
-    multiformats: "npm:^14.0.0"
-  checksum: 10c0/f65427c32b08e35b0b0c4bb54110b145b492722824f4198d3c18c9983170e6b5d16aa33b033e643681e209c08f6773ef2680cafc8f94ee6ef4f2a54ba373b949
   languageName: node
   linkType: hard
 
@@ -4341,6 +4341,15 @@ __metadata:
     uint8-varint: "npm:^3.0.0"
     uint8arrays: "npm:^6.1.1"
   checksum: 10c0/00266178623c4b98a6ce9e25e4a657c6c17a70e3111b337a91762aa756ad9ce905670024ac3f1fa46533792ff1d95e2c95dc7739ae916263daa8b5a344c2cd80
+  languageName: node
+  linkType: hard
+
+"@multiformats/murmur3@npm:2.2.5":
+  version: 2.2.5
+  resolution: "@multiformats/murmur3@npm:2.2.5"
+  dependencies:
+    multiformats: "npm:^14.0.0"
+  checksum: 10c0/f3e081af0ba8da49f719fa5b2608e77aaedf83cd872bf1bf777d60bd96dbb49373b12538d168933f9a6ed5d67684dac1afbdbf0c4cbc1caebc03270a5fa55859
   languageName: node
   linkType: hard
 
@@ -5667,9 +5676,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.148":
-  version: 0.0.148
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.148"
+"@pkcprotocol/pkc-js@npm:0.0.152":
+  version: 0.0.152
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.152"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/bitswap": "npm:4.0.20"
@@ -5678,6 +5687,7 @@ __metadata:
     "@helia/libp2p": "npm:2.1.5"
     "@helia/unixfs": "npm:8.0.9"
     "@ipld/dag-cbor": "npm:9.2.7"
+    "@ipld/dag-pb": "npm:4.2.0"
     "@libp2p/crypto": "npm:5.2.0"
     "@libp2p/fetch": "npm:4.1.17"
     "@libp2p/gossipsub": "npm:17.2.1"
@@ -5687,6 +5697,7 @@ __metadata:
     "@libp2p/utils": "npm:7.4.5"
     "@libp2p/webtransport": "npm:6.0.44"
     "@multiformats/multiaddr": "npm:13.0.3"
+    "@multiformats/murmur3": "npm:2.2.5"
     "@noble/curves": "npm:2.2.0"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@pkcprotocol/proper-lock-file": "npm:4.2.1"
@@ -5737,7 +5748,7 @@ __metadata:
     uuid: "npm:14.0.3"
     ws: "npm:8.22.0"
     zod: "npm:4.6.7"
-  checksum: 10c0/b532299e54d35b13f88d99b218410109ecda167694e114243d19b70e8e5f988aae5fdc078fb998da593d6aca9a24f1728acde89bc6de344a867eb4ed273a21e7
+  checksum: 10c0/8eb94f148d8848cd08d8a374102ddec7ed0ae77fd0d25fd5b3c2716a7e0c2ba69654701ca805703bdfbc81d9f258fd946111bc44c96daf56d66b91e7ae482c30
   languageName: node
   linkType: hard
 
@@ -7326,7 +7337,7 @@ __metadata:
     "@electron-forge/maker-zip": "npm:7.8.0"
     "@electron/rebuild": "npm:3.7.2"
     "@floating-ui/react": "npm:0.27.20"
-    "@pkcprotocol/pkc-js": "npm:0.0.148"
+    "@pkcprotocol/pkc-js": "npm:0.0.152"
     "@playwright/cli": "npm:0.1.24"
     "@reforged/maker-appimage": "npm:5.1.1"
     "@types/memoizee": "npm:0.4.12"

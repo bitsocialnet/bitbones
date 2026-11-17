@@ -189,6 +189,8 @@ test('a wallet proof is valid only for the author key it names', async () => {
 test('reads the tipping/v1 options from whichever challenge publishes them', () => {
   const config = getTippingConfig(exampleCommunity);
   assert.equal(config.feeRecipient, feeRecipient);
+  // the position in community.challenges, past the challenge that has no options
+  assert.equal(config.challengeIndex, 1);
   assert.equal(config.tokens.length, 5);
   assert.deepEqual(config.tokens[0], { chainId: 1, type: 'native', address: undefined, minAmount: 1000000000000000n, fee: { percent: '2' } });
   assert.deepEqual(config.tokens[2].fee, { amount: 500000000000000000n });
@@ -302,8 +304,9 @@ test('builds the claim a tipper publishes', () => {
   // the claim names its chain by id only
   assert.deepEqual(Object.keys(buildTipClaim(1, txHash, feeTxHash)), ['chainId', 'txHash', 'feeTxHash']);
   const claim = buildTipClaim(1, txHash);
-  assert.deepEqual(getTipClaimPublishOptions(claim, 'author'), { author: { tip: claim } });
-  assert.deepEqual(getTipClaimPublishOptions(claim, 'comment'), { tip: claim });
+  // the claim is the pre-answer of the tipping challenge: JSON text under its index, as a string key
+  assert.deepEqual(getTipClaimPublishOptions(claim, 2), { challengeRequest: { challengeAnswers: { 2: JSON.stringify(claim) } } });
+  assert.deepEqual(Object.keys(getTipClaimPublishOptions(claim, 0).challengeRequest.challengeAnswers), ['0']);
 });
 
 test('reads the tip a community wrote, and sums tips per token', () => {

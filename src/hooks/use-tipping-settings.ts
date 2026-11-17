@@ -1,6 +1,5 @@
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import { create } from 'zustand';
-import type { TipClaimLocation } from '../lib/tipping';
 
 const STORAGE_KEY = 'bitbonesTipping';
 
@@ -9,10 +8,9 @@ interface StoredTippingSettings {
   // A chain is tried without real funds by tipping a token on a testnet chain id and setting that
   // chain's RPC here. An RPC that reports another chain id than its key is refused before any send.
   rpcUrls: Record<string, string>;
-  claimLocation: TipClaimLocation;
 }
 
-const defaultSettings: StoredTippingSettings = { rpcUrls: {}, claimLocation: 'author' };
+const defaultSettings: StoredTippingSettings = { rpcUrls: {} };
 
 const readStoredSettings = (): StoredTippingSettings => {
   try {
@@ -24,7 +22,7 @@ const readStoredSettings = (): StoredTippingSettings => {
         rpcUrls[key] = url;
       }
     }
-    return { rpcUrls, claimLocation: stored?.claimLocation === 'comment' ? 'comment' : 'author' };
+    return { rpcUrls };
   } catch {
     return defaultSettings;
   }
@@ -32,12 +30,11 @@ const readStoredSettings = (): StoredTippingSettings => {
 
 interface TippingSettingsState extends StoredTippingSettings {
   setRpcUrl: (chainId: number, rpcUrl: string) => void;
-  setClaimLocation: (claimLocation: TipClaimLocation) => void;
 }
 
-const save = ({ rpcUrls, claimLocation }: StoredTippingSettings) => {
+const save = ({ rpcUrls }: StoredTippingSettings) => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ rpcUrls, claimLocation }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ rpcUrls }));
   } catch {}
 };
 
@@ -51,10 +48,6 @@ const useTippingSettingsStore = create<TippingSettingsState>((setState, getState
       delete rpcUrls[chainId];
     }
     setState({ rpcUrls });
-    save(getState());
-  },
-  setClaimLocation: (claimLocation) => {
-    setState({ claimLocation });
     save(getState());
   },
 }));

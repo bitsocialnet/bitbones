@@ -202,6 +202,10 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
 
   setStatus(parentCid, 'sending the tip...');
   const txHash = await sendTransfer({ rpcUrl, privateKey: inAppWallet.privateKey, token, to, amountOrTokenId });
+  // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
+  // publish this tip's reply at once, before its transaction is mined, and the community would
+  // answer "not mined yet".
+  useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: false } }));
   useTipStore.getState().setPendingTip(parentCid, {
     communityAddress: comment.communityAddress,
     parentCid,
@@ -238,10 +242,11 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   const status = useTipStore((state) => (parentCid ? state.status[parentCid] : undefined));
   const error = useTipStore((state) => (parentCid ? state.error[parentCid] : undefined));
   const mined = useTipStore((state) => Boolean(parentCid && state.mined[parentCid]));
-  const claimLocation = useTippingSettingsStore((state) => state.claimLocation);
 
   const publishCommentOptions = useMemo((): PublishCommentOptions | undefined => {
-    if (!pendingTip || !mined) {
+    // the challenge index comes from the community's current challenges, so a tip resumed after a
+    // reload waits for the community to load instead of guessing the key
+    if (!pendingTip || !mined || !config) {
       return undefined;
     }
     const { parentCid, txHash } = pendingTip;
@@ -250,7 +255,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
       parentCid,
       postCid: pendingTip.postCid,
       content: pendingTip.content,
-      ...getTipClaimPublishOptions(buildTipClaim(pendingTip.chainId, txHash, pendingTip.feeTxHash), claimLocation),
+      ...getTipClaimPublishOptions(buildTipClaim(pendingTip.chainId, txHash, pendingTip.feeTxHash), config.challengeIndex),
       onChallengeVerification: (challengeVerification: ChallengeVerification, publication?: Comment) => {
         if (challengeVerification?.challengeSuccess === true) {
           // accepted: the claim is published, nothing is left to lose. A newer tip on the same
@@ -268,7 +273,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
         setError(parentCid, getErrorMessage(error));
       },
     };
-  }, [pendingTip, mined, claimLocation]);
+  }, [pendingTip, mined, config]);
 
   const { publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment);
 
