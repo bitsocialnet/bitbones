@@ -1,6 +1,18 @@
 import { Suspense, use, useState, type MouseEvent } from 'react';
+import { useComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
-import { formatTokenAmount, getRequiredFee, getTip, getTipAmountError, getTipTotals, getTokenKey, parseTokenAmount, walletSignatureType } from '../../lib/tipping';
+import {
+  formatTokenAmount,
+  getRequiredFee,
+  getTip,
+  getTipAmountError,
+  getTipReplies,
+  getTokenKey,
+  getVerifiedTip,
+  getVerifiedTipTotals,
+  parseTokenAmount,
+  walletSignatureType,
+} from '../../lib/tipping';
 import type { TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
 import { getTokenInfo } from '../../lib/tipping-chain';
 import useTip, { useHasPendingTip } from '../../hooks/use-tip';
@@ -33,13 +45,27 @@ const TokenAmount = (props: TokenAmountProps) => (
   </Suspense>
 );
 
+// The reply as its author signed it, with the tip from its live update when one has arrived. The
+// wallets and the key are read from the signed comment, and only the tip from the update.
+const withLatestTip = (comment: Comment | undefined, updatedComment: Comment | undefined): Comment | undefined =>
+  comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip } : comment;
+
 interface TipLineProps {
+  comment?: Comment;
+  // the live version of the comment, where one has arrived
+  updatedComment?: Comment;
+}
+
+interface VerifiedTipLineProps {
   comment?: Comment;
 }
 
-// the verified tip a reply carries, as the community wrote it to the comment update
-export const TipLine = ({ comment }: TipLineProps) => {
-  const tip = getTip(comment);
+// suspends while the two wallet proofs behind the tip are checked, and shows nothing if one fails
+const VerifiedTipLine = ({ comment }: VerifiedTipLineProps) => {
+  // the tipped comment, whose author's wallet the tip must have been sent to. Not fetched: a tip
+  // whose parent is not loaded can't be verified, so it is not shown.
+  const parent: Comment = useComment({ commentCid: comment?.parentCid, onlyIfCached: true });
+  const tip = use(getVerifiedTip(comment, parent));
   if (!tip) {
     return null;
   }
@@ -51,6 +77,21 @@ export const TipLine = ({ comment }: TipLineProps) => {
   );
 };
 
+// The tip a reply carries, as the community wrote it to the comment update. Shown only once the
+// tipper's and the tipped author's wallet proofs verify and are the tip's sender and receiver.
+export const TipLine = ({ comment, updatedComment }: TipLineProps) => {
+  const latest = withLatestTip(comment, updatedComment);
+  // most replies carry no tip, and those mount nothing
+  if (!getTip(latest)) {
+    return null;
+  }
+  return (
+    <Suspense fallback={null}>
+      <VerifiedTipLine comment={latest} />
+    </Suspense>
+  );
+};
+
 interface TipTotalsProps {
   comment?: Comment;
   replies?: (Comment | undefined)[];
@@ -58,17 +99,18 @@ interface TipTotalsProps {
   updatedReplies?: (Comment | undefined)[];
 }
 
-// what a comment was tipped, summed from its loaded replies, one total per token
-export const TipTotals = ({ comment, replies, updatedReplies }: TipTotalsProps) => {
-  const totals = getTipTotals(
-    comment?.cid,
-    replies?.map((reply, index) => updatedReplies?.[index] || reply),
-  );
+interface VerifiedTipTotalsProps {
+  comment: Comment;
+  replies: (Comment | undefined)[];
+}
+
+const VerifiedTipTotals = ({ comment, replies }: VerifiedTipTotalsProps) => {
+  const totals = use(getVerifiedTipTotals(comment, replies));
   if (!totals.length) {
     return null;
   }
   return (
-    <span className={styles.tip} title='summed from the loaded replies'>
+    <span className={styles.tip} title='summed from the verified tips on the loaded replies'>
       tips:{' '}
       {totals.map((total, index) => (
         <span key={getTokenKey({ ...total, address: total.token })}>
@@ -78,6 +120,20 @@ export const TipTotals = ({ comment, replies, updatedReplies }: TipTotalsProps) 
         </span>
       ))}
     </span>
+  );
+};
+
+// what a comment was tipped, summed from its loaded replies, one total per token. A tip that does
+// not verify against its tipper's and this comment's author's wallets is left out.
+export const TipTotals = ({ comment, replies, updatedReplies }: TipTotalsProps) => {
+  const latestReplies = replies?.map((reply, index) => withLatestTip(reply, updatedReplies?.[index])) ?? [];
+  if (!comment || !getTipReplies(comment, latestReplies).length) {
+    return null;
+  }
+  return (
+    <Suspense fallback={null}>
+      <VerifiedTipTotals comment={comment} replies={latestReplies} />
+    </Suspense>
   );
 };
 

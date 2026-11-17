@@ -2,7 +2,14 @@ import { setAccount, useAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, Wallet } from '@bitsocial/bitsocial-react-hooks';
 import { useEffect } from 'react';
 import type { Hex } from 'viem';
-import { getEthPrivateKeyFromSignerPrivateKey, getKeyAddressFromPublicKey, getWalletMessageToSign, getWalletProofError, walletSignatureType } from '../lib/tipping';
+import {
+  getEthPrivateKeyFromSignerPrivateKey,
+  getKeyAddressFromPublicKey,
+  getWalletMessageToSign,
+  getWalletProofError,
+  normalizeWalletSignature,
+  walletSignatureType,
+} from '../lib/tipping';
 import { getWalletAddress, signWalletMessage } from '../lib/tipping-chain';
 
 interface InAppWallet {
@@ -43,7 +50,11 @@ const signInAppWallet = async (account: Account, inAppWallet: InAppWallet): Prom
     throw Error('account has no signing key');
   }
   const timestamp = Math.floor(Date.now() / 1000);
-  const signature = await signWalletMessage(inAppWallet.privateKey, getWalletMessageToSign(keyAddress, timestamp));
+  // stored in the one encoding a proof may have, whatever the signer returned
+  const signature = normalizeWalletSignature(await signWalletMessage(inAppWallet.privateKey, getWalletMessageToSign(keyAddress, timestamp)));
+  if (!signature) {
+    throw Error('the wallet returned a signature that is not 65 bytes');
+  }
   return { address: inAppWallet.address, timestamp, signature: { signature, type: walletSignatureType } };
 };
 

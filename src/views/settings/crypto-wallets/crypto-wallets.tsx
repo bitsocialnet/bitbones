@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useAccount, setAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, Wallet } from '@bitsocial/bitsocial-react-hooks';
 import { getAccountKeyAddress } from '../../../hooks/use-in-app-wallet';
-import { getWalletMessageToSign, getWalletProofError, walletSignatureType } from '../../../lib/tipping';
+import { getWalletMessageToSign, getWalletProofError, normalizeWalletSignature, walletSignatureType } from '../../../lib/tipping';
 
 // the form edits a flat row per chain, while the account stores the signature nested inside a Wallet
 interface WalletInput {
@@ -99,7 +99,9 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
       // eip191 is the only proof a community accepts
-      const proof: Wallet = { address: wallet.address, timestamp: wallet.timestamp, signature: { signature: wallet.signature, type: walletSignatureType } };
+      // a pasted signature may have v as 0 or 1, or a high s: store it in the one encoding a proof may have
+      const signature = normalizeWalletSignature(wallet.signature.trim()) ?? wallet.signature.trim();
+      const proof: Wallet = { address: wallet.address.trim(), timestamp: wallet.timestamp, signature: { signature, type: walletSignatureType } };
       const proofError = await getWalletProofError(proof, authorPublicKey);
       if (proofError) {
         return alert(`${wallet.chainTicker}: ${proofError}. click "copy message to sign", sign that message with the wallet, and paste the new signature`);

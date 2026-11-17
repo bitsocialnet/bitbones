@@ -1,6 +1,7 @@
 // Node strips the types from src/lib/tipping.ts on import, which is why that file has no relative imports.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { recoverMessageAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
   buildTipClaim,
@@ -13,11 +14,17 @@ import {
   getTipAmountError,
   getTipClaimPublishOptions,
   getTippingConfig,
-  getTipTotals,
+  getTipReplies,
+  getVerifiedTip,
+  getVerifiedTipTotals,
   getWalletMessageToSign,
   getWalletProofError,
+  normalizeWalletSignature,
   parseTokenAmount,
+  sumTips,
   tokensOptionName,
+  verifyTip,
+  walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
 
 const usdc = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB48';
@@ -57,28 +64,121 @@ test('the in-app wallet key is the 32 signer bytes as hex', () => {
   assert.equal(getEthPrivateKeyFromSignerPrivateKey(btoa('short')), undefined);
 });
 
-test('a wallet proof is valid only for the author key it names', async () => {
-  const account = privateKeyToAccount(generatePrivateKey());
-  const author = '12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J';
-  const timestamp = 1770000000;
-  const sign = async (message) => ({ address: account.address, timestamp, signature: { signature: await account.signMessage({ message }), type: 'eip191' } });
-  const wallet = await sign(getWalletMessageToSign(author, timestamp));
-  const now = timestamp + 10;
+const secp256k1Order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 
-  assert.equal(await getWalletProofError(wallet, author, now), undefined);
-  // copied into another author's profile
-  assert.equal(await getWalletProofError(wallet, '12D3KooWAnotherAuthor', now), 'the wallet did not sign for this author');
-  // the strings older clients signed
-  for (const separator of ['pkc-author-wallet', 'plebbit-author-wallet']) {
-    const old = await sign(`{"domainSeparator":"${separator}","authorAddress":"${author}","timestamp":${timestamp}}`);
-    assert.equal(await getWalletProofError(old, author, now), 'the wallet did not sign for this author');
+// the high s form of a signature: s replaced by n - s and v flipped. It recovers the same address.
+const toHighS = (signature) => {
+  const s = secp256k1Order - BigInt(`0x${signature.substring(66, 130)}`);
+  const v = signature.substring(130) === '1b' ? '1c' : '1b';
+  return `${signature.substring(0, 66)}${s.toString(16).padStart(64, '0')}${v}`;
+};
+// the same signature with v written as 0 or 1
+const toV01 = (signature) => `${signature.substring(0, 130)}${signature.substring(130) === '1b' ? '00' : '01'}`;
+
+// the test vector of the author wallet proofs BSIP
+const vector = {
+  publicKey: 'iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w',
+  keyAddress: '12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5',
+  walletPrivateKey: `0x${'02'.repeat(32)}`,
+  message: '{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5","timestamp":1790000000}',
+  entry: {
+    address: '0x5050A4F4b3f9338C3472dcC01A87C76A144b3c9c',
+    timestamp: 1790000000,
+    signature: {
+      signature: '0x689cdb0da488b458f4deb758ea77c3d205b6d17d690e9ffab497bc44eb9536a25fbc48ce7c3e6cab651efe176f94d856ebbe8fcad920dfece8cb5f0cb355d8ac1c',
+      type: 'eip191',
+    },
+  },
+};
+const withSignature = (signature) => ({ ...vector.entry, signature: { ...vector.entry.signature, signature } });
+
+test('the BSIP test vector is a valid proof, and this client produces the same one', async () => {
+  assert.equal(getKeyAddressFromPublicKey(vector.publicKey), vector.keyAddress);
+  assert.equal(getWalletMessageToSign(vector.keyAddress, vector.entry.timestamp), vector.message);
+  assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1790000000), undefined);
+  // the address is compared without regard to letter case
+  assert.equal(await getWalletProofError({ ...vector.entry, address: vector.entry.address.toLowerCase() }, vector.keyAddress, 1790000000), undefined);
+
+  const account = privateKeyToAccount(vector.walletPrivateKey);
+  assert.equal(account.address, vector.entry.address);
+  assert.equal(normalizeWalletSignature(await account.signMessage({ message: vector.message })), vector.entry.signature.signature);
+});
+
+test('a proof may be dated at most 300 seconds ahead of the verifier', async () => {
+  assert.equal(walletTimestampAllowanceSeconds, 300);
+  // valid from the proof's timestamp less the allowance
+  assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999700), undefined);
+  assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999699), 'the wallet timestamp is in the future');
+  assert.equal(await getWalletProofError({ ...vector.entry, timestamp: 1790000301 }, vector.keyAddress, 1790000000), 'the wallet timestamp is in the future');
+  for (const timestamp of [1790000000.5, -1, '1790000000', undefined]) {
+    assert.equal(await getWalletProofError({ ...vector.entry, timestamp }, vector.keyAddress, 1790000000), 'the wallet timestamp is not an integer');
   }
-  assert.equal(await getWalletProofError(wallet, author, timestamp - 1), 'the wallet timestamp is in the future');
-  assert.equal(await getWalletProofError({ ...wallet, address: 'someone.eth' }, author, now), 'the wallet address is not a 0x address');
-  assert.equal(await getWalletProofError({ ...wallet, signature: { ...wallet.signature, type: 'sol' } }, author, now), 'the wallet signature type is not eip191');
-  assert.equal(await getWalletProofError({ ...wallet, signature: { ...wallet.signature, signature: '0x1234' } }, author, now), 'the wallet signature is malformed');
-  assert.equal(await getWalletProofError(undefined, author, now), 'no wallet');
-  assert.equal(await getWalletProofError(wallet, undefined, now), 'the author has no public key');
+});
+
+test('a proof has one accepted signature encoding: v of 27 or 28 and a low s', async () => {
+  const now = 1790000000;
+  const { signature } = vector.entry.signature;
+  // v written as 1 in place of 28
+  const v01 = toV01(signature);
+  assert.equal(v01.substring(130), '01');
+  assert.equal(await getWalletProofError(withSignature(v01), vector.keyAddress, now), 'the wallet signature v is not 27 or 28');
+  assert.equal(await getWalletProofError(withSignature(`${signature.substring(0, 130)}00`), vector.keyAddress, now), 'the wallet signature v is not 27 or 28');
+
+  // the high s twin recovers the same address, which is why it has to be rejected by rule
+  const highS = toHighS(signature);
+  assert.equal(highS.substring(130), '1b');
+  assert.equal((await recoverMessageAddress({ message: vector.message, signature: highS })).toLowerCase(), vector.entry.address.toLowerCase());
+  assert.equal(await getWalletProofError(withSignature(highS), vector.keyAddress, now), 'the wallet signature s is in the upper half of the curve order');
+
+  for (const malformed of ['0x1234', signature.substring(0, 130), `${signature}00`, signature.substring(2), `0x${'zz'.repeat(65)}`, undefined]) {
+    assert.equal(await getWalletProofError(withSignature(malformed), vector.keyAddress, now), 'the wallet signature is not 65 bytes of hex');
+  }
+});
+
+test('a signature is normalised to the accepted encoding before it is stored', async () => {
+  const { signature } = vector.entry.signature;
+  assert.equal(normalizeWalletSignature(signature), signature);
+  assert.equal(normalizeWalletSignature(toV01(signature)), signature);
+  assert.equal(normalizeWalletSignature(toHighS(signature)), signature);
+  assert.equal(normalizeWalletSignature(toV01(toHighS(signature))), signature);
+  // upper case hex in, the same bytes out
+  assert.equal(normalizeWalletSignature(`0x${signature.substring(2).toUpperCase()}`).toLowerCase(), signature);
+  for (const invalid of ['0x1234', `${signature.substring(0, 130)}02`, `${signature.substring(0, 130)}1d`, 'nope']) {
+    assert.equal(normalizeWalletSignature(invalid), undefined);
+  }
+  // every proof this client signs verifies
+  for (let index = 0; index < 8; index++) {
+    const account = privateKeyToAccount(generatePrivateKey());
+    const normalized = normalizeWalletSignature(await account.signMessage({ message: vector.message }));
+    assert.equal(await getWalletProofError({ ...withSignature(normalized), address: account.address }, vector.keyAddress, 1790000000), undefined);
+  }
+});
+
+test('a wallet proof is valid only for the author key it names', async () => {
+  const now = 1790000000;
+  // copied into a publication signed by another key
+  assert.equal(await getWalletProofError(vector.entry, '12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J', now), 'the wallet did not sign for this author');
+  // the strings older clients signed, and the field name they used
+  const account = privateKeyToAccount(vector.walletPrivateKey);
+  for (const message of [
+    `{"domainSeparator":"pkc-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
+    `{"domainSeparator":"plebbit-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
+    `{"domainSeparator":"bitsocial-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
+  ]) {
+    const old = withSignature(normalizeWalletSignature(await account.signMessage({ message })));
+    assert.equal(await getWalletProofError(old, vector.keyAddress, now), 'the wallet did not sign for this author');
+  }
+  for (const address of ['example.eth', vector.entry.address.substring(2), `${vector.entry.address}00`, undefined]) {
+    assert.equal(await getWalletProofError({ ...vector.entry, address }, vector.keyAddress, now), 'the wallet address is not a 0x address');
+  }
+  for (const type of ['sol', 'eip712', undefined]) {
+    assert.equal(
+      await getWalletProofError({ ...vector.entry, signature: { ...vector.entry.signature, type } }, vector.keyAddress, now),
+      'the wallet signature type is not eip191',
+    );
+  }
+  assert.equal(await getWalletProofError(undefined, vector.keyAddress, now), 'no wallet');
+  assert.equal(await getWalletProofError(vector.entry, undefined, now), 'the author has no public key');
 });
 
 test('reads the tipping/v1 options from whichever challenge publishes them', () => {
@@ -181,7 +281,7 @@ test('builds the claim a tipper publishes', () => {
   assert.deepEqual(getTipClaimPublishOptions(claim, 'comment'), { tip: claim });
 });
 
-test('reads the verified tip a community wrote, and sums the tips on a comment', () => {
+test('reads the tip a community wrote, and sums tips per token', () => {
   const from = '0x4444444444444444444444444444444444444444';
   const to = '0x5555555555555555555555555555555555555555';
   const usdcTip = (amount) => ({ chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from, to, amount });
@@ -200,20 +300,115 @@ test('reads the verified tip a community wrote, and sums the tips on a comment',
     assert.equal(getTip(invalid), undefined);
   }
 
+  assert.deepEqual(
+    sumTips([
+      getTip({ tip: usdcTip('1500000') }),
+      getTip({ tip: usdcTip('500000') }),
+      getTip({ tip: { chainTicker: 'eth', txHash, type: 'erc721', token: nft, from, to, tokenId: '7' } }),
+    ]),
+    [
+      { chainTicker: 'eth', type: 'erc20', token: usdc, amount: 2000000n, count: 2 },
+      { chainTicker: 'eth', type: 'erc721', token: nft, amount: undefined, count: 1 },
+    ],
+  );
+  assert.deepEqual(sumTips([]), []);
+});
+
+// an author with a signing key and a wallet proven for it
+const createAuthor = async (publicKey, timestamp = 1700000000) => {
+  const account = privateKeyToAccount(generatePrivateKey());
+  const message = getWalletMessageToSign(getKeyAddressFromPublicKey(publicKey), timestamp);
+  const wallet = { address: account.address, timestamp, signature: { signature: normalizeWalletSignature(await account.signMessage({ message })), type: 'eip191' } };
+  return { address: account.address, author: { wallets: { eth: wallet } }, signature: { publicKey } };
+};
+const tipperPublicKey = vector.publicKey;
+const recipientPublicKey = '+X1OBktHFm0E1cwKLWu81Va0cAlVhj/i4snOqMz9X2k';
+
+test('a tip is shown only when both wallet proofs verify and are its sender and receiver', async () => {
+  const tipper = await createAuthor(tipperPublicKey);
+  const recipient = await createAuthor(recipientPublicKey);
+  const parent = { cid: 'parent', author: recipient.author, signature: recipient.signature };
+  const tip = { chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from: tipper.address, to: recipient.address, amount: '1500000' };
+  const reply = { cid: 'reply', parentCid: 'parent', author: tipper.author, signature: tipper.signature, tip };
+
+  assert.deepEqual(await verifyTip(reply, parent), { ...tip, amount: 1500000n });
+  // addresses are compared without regard to letter case
+  assert.equal((await verifyTip({ ...reply, tip: { ...tip, from: tip.from.toLowerCase(), to: tip.to.toUpperCase().replace('0X', '0x') } }, parent)).amount, 1500000n);
+
+  const stranger = await createAuthor(tipperPublicKey);
+  const withWallet = (party, wallet) => ({ ...party, author: { wallets: { eth: wallet } } });
+  const failing = {
+    'the tip names a sender the tipper did not publish': [{ ...reply, tip: { ...tip, from: stranger.address } }, parent],
+    'the tip names a receiver the tipped author did not publish': [{ ...reply, tip: { ...tip, to: stranger.address } }, parent],
+    'the tipper published no wallet for the chain': [{ ...reply, author: {} }, parent],
+    'the tipped author published no wallet for the chain': [reply, { ...parent, author: { wallets: { matic: recipient.author.wallets.eth } } }],
+    // a wallet entry copied from another author: the address matches the tip, the proof names another key
+    'the tipper wallet is proven for another key': [{ ...reply, signature: { publicKey: recipientPublicKey } }, parent],
+    'the tipped author wallet is proven for another key': [reply, { ...parent, signature: { publicKey: tipperPublicKey } }],
+    'the tipper proof has v as 0 or 1': [
+      withWallet(reply, { ...tipper.author.wallets.eth, signature: { signature: toV01(tipper.author.wallets.eth.signature.signature), type: 'eip191' } }),
+      parent,
+    ],
+    'the tipped author proof is the high s twin': [
+      reply,
+      withWallet(parent, { ...recipient.author.wallets.eth, signature: { signature: toHighS(recipient.author.wallets.eth.signature.signature), type: 'eip191' } }),
+    ],
+    'the tipped author proof is not eip191': [
+      reply,
+      withWallet(parent, { ...recipient.author.wallets.eth, signature: { ...recipient.author.wallets.eth.signature, type: 'sol' } }),
+    ],
+    'the reply is not a reply to the tipped comment': [{ ...reply, parentCid: 'other' }, parent],
+    'the tipped comment is not loaded': [reply, undefined],
+    'the reply has no key': [{ ...reply, signature: undefined }, parent],
+    'the tip is malformed': [{ ...reply, tip: { ...tip, amount: 15 } }, parent],
+  };
+  for (const [label, [failingReply, failingParent]] of Object.entries(failing)) {
+    assert.equal(await verifyTip(failingReply, failingParent), undefined, label);
+  }
+  // a proof dated more than 300 seconds ahead of the reader's clock
+  assert.equal(await verifyTip(reply, parent, 1700000000 - 301), undefined);
+  assert.notEqual(await verifyTip(reply, parent, 1700000000 - 300), undefined);
+
+  // the same inputs give the same promise, which is what lets a component read it during render
+  assert.equal(getVerifiedTip(reply, parent), getVerifiedTip({ ...reply }, { ...parent }));
+  assert.notEqual(getVerifiedTip(reply, parent), getVerifiedTip({ ...reply, tip: { ...tip, amount: '2' } }, parent));
+  assert.deepEqual(await getVerifiedTip(reply, parent), { ...tip, amount: 1500000n });
+  assert.equal(await getVerifiedTip({ cid: 'reply', parentCid: 'parent' }, parent), undefined);
+});
+
+test('the total of a comment leaves out the tips that do not verify', async () => {
+  const tipper = await createAuthor(tipperPublicKey);
+  const recipient = await createAuthor(recipientPublicKey);
+  const stranger = await createAuthor(tipperPublicKey);
+  const parent = { cid: 'parent', author: recipient.author, signature: recipient.signature };
+  const usdcTip = (amount, from = tipper.address) => ({ chainTicker: 'eth', txHash, type: 'erc20', token: usdc, from, to: recipient.address, amount });
+  const reply = (cid, tip, parentCid = 'parent') => ({ cid, parentCid, author: tipper.author, signature: tipper.signature, tip });
   const replies = [
-    { parentCid: 'parent', tip: usdcTip('1500000') },
-    { parentCid: 'parent', tip: usdcTip('500000') },
-    { parentCid: 'parent', tip: { chainTicker: 'eth', txHash, type: 'erc721', token: nft, from, to, tokenId: '7' } },
-    { parentCid: 'parent', content: 'no tip' },
-    { parentCid: 'parent', tip: { broken: true } },
+    reply('a', usdcTip('1500000')),
+    reply('b', usdcTip('500000')),
+    reply('c', { chainTicker: 'eth', txHash, type: 'erc721', token: nft, from: tipper.address, to: recipient.address, tokenId: '7' }),
+    // a tip whose sender is not the tipper's proven wallet
+    reply('d', usdcTip('9000000', stranger.address)),
+    // a tipper whose wallet entry was copied from someone else
+    { ...reply('e', usdcTip('9000000', stranger.address)), author: stranger.author, signature: { publicKey: recipientPublicKey } },
+    { cid: 'f', parentCid: 'parent', content: 'no tip' },
+    reply('g', { broken: true }),
     // a tip on a nested reply, as a flat sort lists it
-    { parentCid: 'other', tip: usdcTip('9000000') },
+    reply('h', usdcTip('9000000'), 'other'),
     undefined,
   ];
-  assert.deepEqual(getTipTotals('parent', replies), [
+  assert.deepEqual(
+    getTipReplies(parent, replies).map(({ cid }) => cid),
+    ['a', 'b', 'c', 'd', 'e'],
+  );
+  assert.deepEqual(await getVerifiedTipTotals(parent, replies), [
     { chainTicker: 'eth', type: 'erc20', token: usdc, amount: 2000000n, count: 2 },
     { chainTicker: 'eth', type: 'erc721', token: nft, amount: undefined, count: 1 },
   ]);
-  assert.deepEqual(getTipTotals(undefined, replies), []);
-  assert.deepEqual(getTipTotals('parent', undefined), []);
+  assert.equal(getVerifiedTipTotals(parent, replies), getVerifiedTipTotals(parent, [...replies]));
+  assert.deepEqual(await getVerifiedTipTotals(undefined, replies), []);
+  assert.deepEqual(await getVerifiedTipTotals(parent, undefined), []);
+  assert.deepEqual(await getVerifiedTipTotals(parent, [replies[5]]), []);
+  // the tipped comment's own wallet no longer proven: nothing counts
+  assert.deepEqual(await getVerifiedTipTotals({ ...parent, signature: { publicKey: tipperPublicKey } }, replies), []);
 });

@@ -1,6 +1,6 @@
 // Pure logic for the tipping/v1 contract and the author wallet proof. No React, no network, and no
 // relative imports, so scripts/__tests__/tipping.node-test.mjs can import this file directly.
-import { formatUnits, isAddress, isHash, parseUnits, verifyMessage } from 'viem';
+import { formatUnits, isAddress, isHash, parseUnits, recoverMessageAddress } from 'viem';
 import type { Address, Hash, Hex } from 'viem';
 
 // ---------------------------------------------------------------------------------------------
@@ -76,7 +76,45 @@ export interface WalletProof {
   signature: { signature: string; type: string };
 }
 
-// undefined when the proof is valid, otherwise why it is not
+// a proof may be dated this far ahead of the verifier's clock, and no further. Fixed, not a setting.
+export const walletTimestampAllowanceSeconds = 300;
+
+// the order of the secp256k1 curve, and its lower half: a signature's s must not exceed the half
+const secp256k1Order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
+const secp256k1HalfOrder = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0n;
+
+const walletAddressPattern = /^0x[0-9a-fA-F]{40}$/;
+// r || s || v, 65 bytes
+const walletSignaturePattern = /^0x[0-9a-fA-F]{130}$/;
+
+// The one encoding a stored proof may have: v of 27 or 28 and s in the lower half of the curve
+// order. Signers differ: some return v as 0 or 1, and a few return the high s form. Both are the
+// same signature written another way, so they are rewritten here before a proof is stored.
+// undefined when the value is not a 65 byte signature at all.
+export const normalizeWalletSignature = (signature: string): Hex | undefined => {
+  if (!walletSignaturePattern.test(signature)) {
+    return undefined;
+  }
+  const r = signature.substring(2, 66);
+  let s = BigInt(`0x${signature.substring(66, 130)}`);
+  let v = Number.parseInt(signature.substring(130), 16);
+  if (v === 0 || v === 1) {
+    v += 27;
+  }
+  if (v !== 27 && v !== 28) {
+    return undefined;
+  }
+  if (s > secp256k1HalfOrder) {
+    // the high s twin recovers the same address with the other v
+    s = secp256k1Order - s;
+    v = v === 27 ? 28 : 27;
+  }
+  return `0x${r}${s.toString(16).padStart(64, '0')}${v.toString(16)}`;
+};
+
+// undefined when the proof is valid, otherwise why it is not. Offline: one hash and one public key
+// recovery. The v and s rules are checked here because viem's recovery accepts both forms of each,
+// and verifiers that follow their libraries would disagree about the same entry.
 export const getWalletProofError = async (wallet: unknown, authorPublicKey: string | undefined, nowSeconds: number = Date.now() / 1000): Promise<string | undefined> => {
   const proof = wallet as Partial<WalletProof> | undefined;
   if (!authorPublicKey) {
@@ -86,28 +124,32 @@ export const getWalletProofError = async (wallet: unknown, authorPublicKey: stri
     return 'no wallet';
   }
   // a literal address only: a name here would need an RPC and changes meaning when repointed
-  if (typeof proof.address !== 'string' || !isAddress(proof.address, { strict: false })) {
+  if (typeof proof.address !== 'string' || !walletAddressPattern.test(proof.address)) {
     return 'the wallet address is not a 0x address';
   }
   if (proof.signature?.type !== walletSignatureType) {
     return `the wallet signature type is not ${walletSignatureType}`;
   }
-  if (typeof proof.timestamp !== 'number' || !Number.isInteger(proof.timestamp)) {
+  if (typeof proof.timestamp !== 'number' || !Number.isSafeInteger(proof.timestamp) || proof.timestamp < 0) {
     return 'the wallet timestamp is not an integer';
   }
-  if (proof.timestamp > nowSeconds) {
+  if (proof.timestamp > nowSeconds + walletTimestampAllowanceSeconds) {
     return 'the wallet timestamp is in the future';
   }
-  if (typeof proof.signature.signature !== 'string' || !/^0x[0-9a-fA-F]+$/.test(proof.signature.signature)) {
-    return 'the wallet signature is not hex';
+  const signature = proof.signature.signature;
+  if (typeof signature !== 'string' || !walletSignaturePattern.test(signature)) {
+    return 'the wallet signature is not 65 bytes of hex';
+  }
+  const v = Number.parseInt(signature.substring(130), 16);
+  if (v !== 27 && v !== 28) {
+    return 'the wallet signature v is not 27 or 28';
+  }
+  if (BigInt(`0x${signature.substring(66, 130)}`) > secp256k1HalfOrder) {
+    return 'the wallet signature s is in the upper half of the curve order';
   }
   try {
-    const valid = await verifyMessage({
-      address: proof.address as Address,
-      message: getWalletMessageToSign(authorPublicKey, proof.timestamp),
-      signature: proof.signature.signature as Hex,
-    });
-    return valid ? undefined : 'the wallet did not sign for this author';
+    const recovered = await recoverMessageAddress({ message: getWalletMessageToSign(authorPublicKey, proof.timestamp), signature: signature as Hex });
+    return recovered.toLowerCase() === proof.address.toLowerCase() ? undefined : 'the wallet did not sign for this author';
   } catch {
     return 'the wallet signature is malformed';
   }
@@ -401,20 +443,10 @@ export interface TipTotal {
   count: number;
 }
 
-// Sums the verified tips on the loaded replies to a comment, one total per token. A community
-// cannot write to the tipped comment's own update, so this is the only total there is, and it
-// covers only the replies the client has loaded.
-export const getTipTotals = (parentCid: string | undefined, replies: (CommentLike | undefined)[] | undefined): TipTotal[] => {
+// one total per token
+export const sumTips = (tips: Tip[]): TipTotal[] => {
   const totals = new Map<string, TipTotal>();
-  for (const reply of replies ?? []) {
-    // flat reply sorts list a whole subtree, so keep only the tips on this comment
-    if (!parentCid || reply?.parentCid !== parentCid) {
-      continue;
-    }
-    const tip = getTip(reply);
-    if (!tip) {
-      continue;
-    }
+  for (const tip of tips) {
     const key = getTokenKey({ chainTicker: tip.chainTicker, type: tip.type, address: tip.token });
     const total = totals.get(key) ?? { chainTicker: tip.chainTicker, type: tip.type, token: tip.token, amount: tip.type === 'erc721' ? undefined : 0n, count: 0 };
     total.count += 1;
@@ -424,4 +456,113 @@ export const getTipTotals = (parentCid: string | undefined, replies: (CommentLik
     totals.set(key, total);
   }
   return [...totals.values()];
+};
+
+// ---------------------------------------------------------------------------------------------
+// verifying a tip before it is shown
+// ---------------------------------------------------------------------------------------------
+
+interface TipParty {
+  cid?: unknown;
+  parentCid?: unknown;
+  tip?: unknown;
+  author?: { wallets?: Record<string, unknown> };
+  signature?: { publicKey?: unknown };
+}
+
+const isSameAddress = (a: string, b: unknown): boolean => typeof b === 'string' && a.toLowerCase() === b.toLowerCase();
+
+const getPartyKeyAddress = (party: TipParty | undefined): string | undefined =>
+  typeof party?.signature?.publicKey === 'string' ? getKeyAddressFromPublicKey(party.signature.publicKey) : undefined;
+
+// The tip a reply carries, once it holds up against the two comments it connects, or undefined.
+// Showing a tip presents its sender and receiver as wallets those authors control, and a community's
+// acceptance can't stand in for the reader's own check: nothing in a comment says whether its
+// community verified wallet proofs. So the tip is shown only when
+// - the reply is a reply to the tipped comment,
+// - the tipper's wallet for the tip's chain is proven, and is the tip's sender,
+// - the tipped author's wallet for that chain is proven, and is the tip's receiver.
+// All of it is offline. Whether the transaction exists is the community's word, not checked here.
+export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<Tip | undefined> => {
+  const tip = getTip(reply);
+  if (!tip || !parent || typeof parent.cid !== 'string' || reply?.parentCid !== parent.cid) {
+    return undefined;
+  }
+  const tipperWallet = reply?.author?.wallets?.[tip.chainTicker] as Partial<WalletProof> | undefined;
+  const recipientWallet = parent.author?.wallets?.[tip.chainTicker] as Partial<WalletProof> | undefined;
+  if (!isSameAddress(tip.from, tipperWallet?.address) || !isSameAddress(tip.to, recipientWallet?.address)) {
+    return undefined;
+  }
+  const [tipperError, recipientError] = await Promise.all([
+    getWalletProofError(tipperWallet, getPartyKeyAddress(reply), nowSeconds),
+    getWalletProofError(recipientWallet, getPartyKeyAddress(parent), nowSeconds),
+  ]);
+  return tipperError || recipientError ? undefined : tip;
+};
+
+// everything verifyTip reads, so the same inputs give the same promise and changed ones a new check
+const getVerifiedTipKey = (reply: TipParty, parent: TipParty, chainTicker: string): string | undefined => {
+  try {
+    return JSON.stringify([
+      reply.cid,
+      reply.parentCid,
+      reply.tip,
+      reply.author?.wallets?.[chainTicker],
+      reply.signature?.publicKey,
+      parent.cid,
+      parent.author?.wallets?.[chainTicker],
+      parent.signature?.publicKey,
+    ]);
+  } catch {
+    return undefined;
+  }
+};
+
+const cacheLimit = 2000;
+const verifiedTips = new Map<string, Promise<Tip | undefined>>();
+const verifiedTipTotals = new Map<string, Promise<TipTotal[]>>();
+const noTip: Promise<Tip | undefined> = Promise.resolve(undefined);
+const noTotals: Promise<TipTotal[]> = Promise.resolve([]);
+
+const remember = <Value>(cache: Map<string, Value>, key: string, value: Value): Value => {
+  if (cache.size >= cacheLimit) {
+    cache.clear();
+  }
+  cache.set(key, value);
+  return value;
+};
+
+// verifyTip with the promise kept per input, so a component can read it with React's use()
+export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | undefined): Promise<Tip | undefined> => {
+  const tip = getTip(reply);
+  const key = tip && reply && parent ? getVerifiedTipKey(reply, parent, tip.chainTicker) : undefined;
+  if (!key) {
+    return noTip;
+  }
+  return verifiedTips.get(key) ?? remember(verifiedTips, key, verifyTip(reply, parent));
+};
+
+// the replies of a comment that carry something shaped like a tip, verified or not
+export const getTipReplies = <Reply extends TipParty>(parent: TipParty | undefined, replies: (Reply | undefined)[] | undefined): Reply[] =>
+  // flat reply sorts list a whole subtree, so keep only the replies to this comment
+  typeof parent?.cid === 'string' ? (replies ?? []).flatMap((reply) => (reply && reply.parentCid === parent.cid && getTip(reply) ? [reply] : [])) : [];
+
+// What a comment was tipped: the verified tips on its loaded replies, summed per token. A community
+// cannot write to the tipped comment's own update, so this is the only total there is, and it
+// covers only the replies the client has loaded. A tip that fails verifyTip is left out.
+export const getVerifiedTipTotals = (parent: TipParty | undefined, replies: (TipParty | undefined)[] | undefined): Promise<TipTotal[]> => {
+  const tipReplies = getTipReplies(parent, replies);
+  if (!parent || !tipReplies.length) {
+    return noTotals;
+  }
+  const keys = tipReplies.map((reply) => getVerifiedTipKey(reply, parent, getTip(reply)?.chainTicker ?? ''));
+  const key = JSON.stringify(keys);
+  return (
+    verifiedTipTotals.get(key) ??
+    remember(
+      verifiedTipTotals,
+      key,
+      Promise.all(tipReplies.map((reply) => getVerifiedTip(reply, parent))).then((tips) => sumTips(tips.flatMap((tip) => tip ?? []))),
+    )
+  );
 };
