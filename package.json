@@ -63,7 +63,7 @@
     "agent:verify": "yarn build && yarn lint && yarn type-check && yarn doctor:check && yarn perf:check"
   },
   "dependencies": {
-    "@bitsocial/bitsocial-react-hooks": "0.2.4",
+    "@bitsocial/bitsocial-react-hooks": "0.2.5",
     "@bitsocial/bso-resolver": "0.0.11",
     "@capacitor/app": "7.0.1",
     "@dnd-kit/core": "6.3.1",
