@@ -61,3 +61,36 @@
   border: 1px solid var(--border);
   font-size: 10px;
 }
+
+/* the list of a comment's tips, on a line of its own in the wrapping flex header */
+.tipListWrapper {
+  flex-basis: 100%;
+  font-size: 12px;
+  cursor: default;
+}
+
+.tipList {
+  margin: 4px 0;
+  padding-left: 16px;
+}
+
+.tipList summary {
+  cursor: pointer;
+}
+
+.tipDetails {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 8px;
+  margin: 4px 0 8px;
+  font-size: 11px;
+}
+
+.tipDetails dt {
+  color: var(--dim);
+}
+
+.tipDetails dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}

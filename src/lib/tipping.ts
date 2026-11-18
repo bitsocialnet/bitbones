@@ -513,21 +513,52 @@ export const getTipRecipientAddress = async (party: TipParty | undefined, nowSec
 
 const includesAddress = (addresses: string[], address: string): boolean => addresses.some((proven) => proven.toLowerCase() === address.toLowerCase());
 
-// The tip a reply carries, once it holds up against the two comments it connects, or undefined.
-// Showing a tip presents its sender and receiver as wallets those authors control, and a community's
-// acceptance can't stand in for the reader's own check: nothing in a comment says whether its
-// community verified wallet proofs. So the tip is shown only when
+// What the offline check of a tip found out. The check is all signature work on the two comments,
+// no RPC call, and every part is reported so the reader can be shown which one failed.
+export interface TipCheck {
+  tip: Tip;
+  // the reply is a reply to the tipped comment, which is loaded
+  isReplyToParent: boolean;
+  // the tip's sender is an address the tipper has proven
+  senderProven: boolean;
+  // the tip's receiver is an address the tipped author has proven
+  receiverProven: boolean;
+}
+
+// why a tip did not verify, or undefined when it did
+export const getTipCheckError = (check: TipCheck): string | undefined =>
+  !check.isReplyToParent
+    ? 'the tipped comment is not loaded, or this is not a reply to it'
+    : !check.senderProven
+      ? 'the sender is not a wallet the tipper proved'
+      : !check.receiverProven
+        ? 'the receiver is not a wallet the tipped author proved'
+        : undefined;
+
+// Checks the tip a reply carries against the two comments it connects. Undefined when the reply has no
+// tip this client reads. Showing a tip presents its sender and receiver as wallets those authors
+// control, and a community's acceptance can't stand in for the reader's own check: nothing in a
+// comment says whether its community verified wallet proofs. So a tip counts as verified only when
 // - the reply is a reply to the tipped comment,
 // - the tip's sender is an address the tipper has proven,
 // - the tip's receiver is an address the tipped author has proven.
 // All of it is offline. Whether the transaction exists is the community's word, not checked here.
-export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<Tip | undefined> => {
+export const checkTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<TipCheck | undefined> => {
   const tip = getTip(reply);
-  if (!tip || !parent || typeof parent.cid !== 'string' || reply?.parentCid !== parent.cid) {
+  if (!tip) {
     return undefined;
   }
+  if (!parent || typeof parent.cid !== 'string' || reply?.parentCid !== parent.cid) {
+    return { tip, isReplyToParent: false, senderProven: false, receiverProven: false };
+  }
   const [tipperAddresses, recipientAddresses] = await Promise.all([getProvenWalletAddresses(reply, nowSeconds), getProvenWalletAddresses(parent, nowSeconds)]);
-  return includesAddress(tipperAddresses, tip.from) && includesAddress(recipientAddresses, tip.to) ? tip : undefined;
+  return { tip, isReplyToParent: true, senderProven: includesAddress(tipperAddresses, tip.from), receiverProven: includesAddress(recipientAddresses, tip.to) };
+};
+
+// The tip a reply carries once it verifies, or undefined.
+export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<Tip | undefined> => {
+  const check = await checkTip(reply, parent, nowSeconds);
+  return check && !getTipCheckError(check) ? check.tip : undefined;
 };
 
 // everything verifyTip reads, so the same inputs give the same promise and changed ones a new check
@@ -551,7 +582,9 @@ const getVerifiedTipKey = (reply: TipParty, parent: TipParty): string | undefine
 const cacheLimit = 2000;
 const verifiedTips = new Map<string, Promise<Tip | undefined>>();
 const verifiedTipTotals = new Map<string, Promise<TipTotal[]>>();
+const tipChecks = new Map<string, Promise<TipCheck | undefined>>();
 const noTip: Promise<Tip | undefined> = Promise.resolve(undefined);
+const noCheck: Promise<TipCheck | undefined> = Promise.resolve(undefined);
 const noTotals: Promise<TipTotal[]> = Promise.resolve([]);
 
 const remember = <Value>(cache: Map<string, Value>, key: string, value: Value): Value => {
@@ -562,14 +595,29 @@ const remember = <Value>(cache: Map<string, Value>, key: string, value: Value): 
   return value;
 };
 
-// verifyTip with the promise kept per input, so a component can read it with React's use()
+// checkTip with the promise kept per input, so a component can read it with React's use()
+export const getTipCheck = (reply: TipParty | undefined, parent: TipParty | undefined): Promise<TipCheck | undefined> => {
+  const key = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent) : undefined;
+  if (!key) {
+    return noCheck;
+  }
+  return tipChecks.get(key) ?? remember(tipChecks, key, checkTip(reply, parent));
+};
+
+// verifyTip with the promise kept per input
 export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | undefined): Promise<Tip | undefined> => {
-  const tip = getTip(reply);
-  const key = tip && reply && parent ? getVerifiedTipKey(reply, parent) : undefined;
+  const key = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent) : undefined;
   if (!key) {
     return noTip;
   }
-  return verifiedTips.get(key) ?? remember(verifiedTips, key, verifyTip(reply, parent));
+  return (
+    verifiedTips.get(key) ??
+    remember(
+      verifiedTips,
+      key,
+      getTipCheck(reply, parent).then((check) => (check && !getTipCheckError(check) ? check.tip : undefined)),
+    )
+  );
 };
 
 // the replies of a comment that carry something shaped like a tip, verified or not

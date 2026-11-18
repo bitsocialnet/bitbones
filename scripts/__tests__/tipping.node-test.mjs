@@ -19,6 +19,8 @@ import {
   getTokenKey,
   getProvenWalletAddresses,
   getTipReplies,
+  getTipCheck,
+  getTipCheckError,
   getVerifiedTip,
   getVerifiedTipTotals,
   getWalletMessageToSign,
@@ -27,6 +29,7 @@ import {
   parseTokenAmount,
   sumTips,
   tokensOptionName,
+  checkTip,
   verifyTip,
   walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
@@ -460,6 +463,21 @@ test('the total of a comment leaves out the tips that do not verify', async () =
     { chainId: 1, type: 'erc721', token: nft, amount: undefined, count: 1 },
   ]);
   assert.equal(getVerifiedTipTotals(parent, replies), getVerifiedTipTotals(parent, [...replies]));
+  // the list checks each reply on its own and says which part failed: a, b, c verify, d and e do not
+  const checks = await Promise.all(getTipReplies(parent, replies).map((tipReply) => getTipCheck(tipReply, parent)));
+  assert.deepEqual(
+    checks.map((check) => check && getTipCheckError(check)),
+    [undefined, undefined, undefined, 'the sender is not a wallet the tipper proved', 'the sender is not a wallet the tipper proved'],
+  );
+  assert.deepEqual(checks[3], { tip: getTip(replies[3]), isReplyToParent: true, senderProven: false, receiverProven: true });
+  assert.equal(getTipCheck(replies[0], parent), getTipCheck({ ...replies[0] }, { ...parent }));
+  // no tip to check, or the tipped comment is not loaded
+  assert.equal(await getTipCheck(replies[5], parent), undefined);
+  assert.equal(getTipCheckError(await checkTip(replies[0], undefined)), 'the tipped comment is not loaded, or this is not a reply to it');
+  assert.equal(
+    getTipCheckError(await checkTip(replies[0], { ...parent, signature: { publicKey: tipperPublicKey } })),
+    'the receiver is not a wallet the tipped author proved',
+  );
   assert.deepEqual(await getVerifiedTipTotals(undefined, replies), []);
   assert.deepEqual(await getVerifiedTipTotals(parent, undefined), []);
   assert.deepEqual(await getVerifiedTipTotals(parent, [replies[5]]), []);

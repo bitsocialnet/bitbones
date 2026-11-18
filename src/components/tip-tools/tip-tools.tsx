@@ -8,13 +8,16 @@ import {
   getTipAmountError,
   getTipReplies,
   getTokenKey,
+  getTipCheck,
+  getTipCheckError,
   getVerifiedTip,
   getVerifiedTipTotals,
   parseTokenAmount,
   walletSignatureType,
 } from '../../lib/tipping';
-import type { TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
-import { getTokenInfo } from '../../lib/tipping-chain';
+import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
+import { checkTipOnChain, getTokenInfo } from '../../lib/tipping-chain';
+import type { OnChainTipCheck } from '../../lib/tipping-chain';
 import useTip, { useHasPendingTip } from '../../hooks/use-tip';
 import { useTippingRpcUrl } from '../../hooks/use-tipping-settings';
 import styles from './tip-tools.module.css';
@@ -104,22 +107,218 @@ interface VerifiedTipTotalsProps {
   replies: (Comment | undefined)[];
 }
 
+interface TipRowProps {
+  comment: Comment;
+  reply: Comment;
+  tip: Tip;
+}
+
+// The offline check of one tip. Suspends while the wallet proofs are being checked.
+const useTipCheckResult = (comment: Comment, reply: Comment) => {
+  const check = use(getTipCheck(reply, comment));
+  return { check, error: check ? getTipCheckError(check) : undefined };
+};
+
+const TipStatus = ({ comment, reply }: Omit<TipRowProps, 'tip'>) => {
+  const { error } = useTipCheckResult(comment, reply);
+  return error ? <span className={styles.error}>unverified</span> : <span className={styles.dim}>verified</span>;
+};
+
+const yesNo = (value: boolean): string => (value ? 'yes' : 'no');
+
+const TipCheckDetails = ({ comment, reply }: Omit<TipRowProps, 'tip'>) => {
+  const { check, error } = useTipCheckResult(comment, reply);
+  if (!check) {
+    return null;
+  }
+  return (
+    <>
+      <dd className={error ? styles.error : undefined}>{error ? `unverified: ${error}` : 'verified'}</dd>
+      <dt>checked</dt>
+      <dd>
+        reply to the tipped comment: {yesNo(check.isReplyToParent)}; sender is a wallet the tipper proved: {yesNo(check.senderProven)}; receiver is a wallet the tipped
+        author proved: {yesNo(check.receiverProven)}. The wallet proofs are checked in this client. The transaction is only looked up when you ask below, otherwise its
+        existence is the community's word.
+      </dd>
+    </>
+  );
+};
+
+type OnChainState = { status: 'idle' } | { status: 'checking' } | { status: 'done'; result: OnChainTipCheck } | { status: 'error'; message: string };
+
+const getOnChainError = (result: OnChainTipCheck, commentTimestamp: unknown): string | undefined => {
+  if (!result.mined) {
+    return 'the transaction was not found on this chain';
+  }
+  if (!result.succeeded) {
+    return 'the transaction failed';
+  }
+  if (!result.matchesTip) {
+    return 'the transaction is not a transfer of this token between these wallets of this amount';
+  }
+  if (typeof commentTimestamp === 'number' && result.blockTimestamp <= commentTimestamp) {
+    return 'the transaction is older than the tipped comment';
+  }
+  return undefined;
+};
+
+// Looks the transaction up through the RPC set for its chain. Only on a click: every check is an
+// RPC call, and a thread can carry many tips.
+const OnChainCheck = ({ comment, tip }: Pick<TipRowProps, 'comment' | 'tip'>) => {
+  const rpcUrl = useTippingRpcUrl(tip.chainId);
+  const [state, setState] = useState<OnChainState>({ status: 'idle' });
+  const verify = () => {
+    if (!rpcUrl) {
+      return;
+    }
+    setState({ status: 'checking' });
+    checkTipOnChain(rpcUrl, tip).then(
+      (result) => setState({ status: 'done', result }),
+      (error: unknown) => setState({ status: 'error', message: error instanceof Error ? error.message : String(error) }),
+    );
+  };
+  const error = state.status === 'done' ? getOnChainError(state.result, comment.timestamp) : undefined;
+  return (
+    <>
+      <dt>on chain</dt>
+      <dd>
+        {state.status === 'idle' &&
+          (rpcUrl ? (
+            <button type='button' onClick={verify}>
+              verify with RPC
+            </button>
+          ) : (
+            <span className={styles.dim}>not checked: no RPC url is set for chain id {tip.chainId}</span>
+          ))}
+        {state.status === 'checking' && <span className={styles.dim}>verifying with RPC...</span>}
+        {state.status === 'error' && <span className={styles.error}>could not check: {state.message}</span>}
+        {state.status === 'done' &&
+          (error ? (
+            <span className={styles.error}>not verified: {error}</span>
+          ) : (
+            <span className={styles.dim}>verified on chain: mined, succeeded, and matches the tip</span>
+          ))}
+      </dd>
+    </>
+  );
+};
+
+// one tip of the list. It shows at once, and says "verifying" until its own check is done.
+const TipRow = ({ comment, reply, tip }: TipRowProps) => (
+  <li>
+    <details>
+      <summary>
+        <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} />
+        {tip.tokenId !== undefined && ` #${tip.tokenId}`} from {reply.author?.shortAddress ?? reply.author?.address}{' '}
+        <span className={styles.dim}>{formatTipTime(reply.timestamp)}</span>{' '}
+        <Suspense fallback={<span className={styles.dim}>verifying...</span>}>
+          <TipStatus comment={comment} reply={reply} />
+        </Suspense>
+      </summary>
+      <dl className={styles.tipDetails}>
+        <dt>status</dt>
+        <Suspense fallback={<dd className={styles.dim}>verifying the wallet proofs...</dd>}>
+          <TipCheckDetails comment={comment} reply={reply} />
+        </Suspense>
+        <dt>message</dt>
+        <dd>{reply.content || <span className={styles.dim}>none</span>}</dd>
+        <dt>tipper</dt>
+        <dd>{reply.author?.address}</dd>
+        <dt>from wallet</dt>
+        <dd>{tip.from}</dd>
+        <dt>to wallet</dt>
+        <dd>{tip.to}</dd>
+        <dt>token</dt>
+        <dd>
+          {tip.type}
+          {tip.token && ` ${tip.token}`}
+          {tip.tokenId !== undefined && ` #${tip.tokenId}`}
+        </dd>
+        {tip.amount !== undefined && (
+          <>
+            <dt>amount</dt>
+            <dd>
+              <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} /> ({tip.amount.toString()} base units)
+            </dd>
+          </>
+        )}
+        <dt>chain id</dt>
+        <dd>{tip.chainId}</dd>
+        <dt>transaction</dt>
+        <dd>{tip.txHash}</dd>
+        <OnChainCheck comment={comment} tip={tip} />
+        <dt>reply</dt>
+        <dd>{reply.cid}</dd>
+      </dl>
+    </details>
+  </li>
+);
+
+interface TipListProps {
+  comment: Comment;
+  replies: (Comment | undefined)[];
+}
+
+const formatTipTime = (timestamp: unknown): string => (typeof timestamp === 'number' ? new Date(timestamp * 1000).toLocaleString() : 'unknown');
+
+// Every tip the loaded replies claim for the comment, newest first, each with its own verification
+// state. A tip that does not verify is listed as unverified and is not in the totals.
+const TipList = ({ comment, replies }: TipListProps) => {
+  const entries = getTipReplies(comment, replies)
+    .flatMap((reply) => {
+      const tip = getTip(reply);
+      return tip ? [{ reply, tip }] : [];
+    })
+    .sort((a, b) => (b.reply.timestamp ?? 0) - (a.reply.timestamp ?? 0));
+  return (
+    <ul className={styles.tipList}>
+      {entries.map(({ reply, tip }) => (
+        <TipRow key={reply.cid ?? tip.txHash} comment={comment} reply={reply} tip={tip} />
+      ))}
+    </ul>
+  );
+};
+
+// the click on a reply's body selects it for the inspector
+const stopPropagation = (event: MouseEvent) => event.stopPropagation();
+
 const VerifiedTipTotals = ({ comment, replies }: VerifiedTipTotalsProps) => {
+  const [isListOpen, setIsListOpen] = useState(false);
   const totals = use(getVerifiedTipTotals(comment, replies));
   if (!totals.length) {
     return null;
   }
   return (
-    <span className={styles.tip} title='summed per chain and token from the verified tips on the loaded replies'>
-      tips:{' '}
-      {totals.map((total, index) => (
-        <span key={getTokenKey({ ...total, address: total.token })}>
-          {index > 0 && ', '}
-          <TokenAmount chainId={total.chainId} type={total.type} address={total.token} amount={total.amount} />
-          {total.type === 'erc721' && ` ×${total.count}`}
-        </span>
-      ))}
-    </span>
+    <>
+      <span className={styles.tip} title='summed per chain and token from the verified tips on the loaded replies'>
+        tips:{' '}
+        {totals.map((total, index) => (
+          <span key={getTokenKey({ ...total, address: total.token })}>
+            {index > 0 && ', '}
+            <TokenAmount chainId={total.chainId} type={total.type} address={total.token} amount={total.amount} />
+            {total.type === 'erc721' && ` ×${total.count}`}
+          </span>
+        ))}
+      </span>
+      <button
+        type='button'
+        className={styles.linkButton}
+        aria-expanded={isListOpen}
+        onClick={(event) => {
+          event.stopPropagation();
+          setIsListOpen(!isListOpen);
+        }}
+      >
+        {isListOpen ? 'hide tips' : 'list tips'}
+      </button>
+      {isListOpen && (
+        <div className={styles.tipListWrapper} onClick={stopPropagation}>
+          <Suspense fallback={<span className={styles.dim}>checking the tips...</span>}>
+            <TipList comment={comment} replies={replies} />
+          </Suspense>
+        </div>
+      )}
+    </>
   );
 };
 
@@ -213,8 +412,6 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
 // accepted yet is listed with a way to continue, since its transfer can't be taken back.
 const TipForm = ({ comment, config, tokens }: TipFormProps) => {
   const { pendingTip, status, error, mined, sendTip, resumeTip, discardTip } = useTip(comment, config);
-  // the click on a reply's body selects it for the inspector
-  const stopPropagation = (event: MouseEvent) => event.stopPropagation();
   const discard = () => {
     if (window.confirm('forget this tip? its transfer was already sent and stays sent, only the reply that claims it is dropped.')) {
       discardTip();

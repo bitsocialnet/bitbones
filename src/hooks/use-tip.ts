@@ -8,7 +8,7 @@ import { ensureRpcChainId, getBalance, getTokenInfo, sendTransfer, waitForTransa
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { ensureInAppWallet, getInAppWallet } from './use-in-app-wallet';
 import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
-import useTippingSettingsStore, { getTippingRpcUrl } from './use-tipping-settings';
+import { getTippingRpcUrl } from './use-tipping-settings';
 
 const STORAGE_KEY = 'bitbonesPendingTips';
 

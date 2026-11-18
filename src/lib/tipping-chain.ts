@@ -3,7 +3,7 @@
 import { createPublicClient, createWalletClient, erc20Abi, erc721Abi, http } from 'viem';
 import type { Address, Hash, Hex, PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import type { TipTokenType } from './tipping';
+import type { Tip, TipTokenType } from './tipping';
 
 const publicClients = new Map<string, PublicClient>();
 
@@ -127,3 +127,52 @@ export const waitForTransaction = async (rpcUrl: string, hash: string): Promise<
 export const getWalletAddress = (privateKey: Hex): Address => privateKeyToAccount(privateKey).address;
 
 export const signWalletMessage = (privateKey: Hex, message: string): Promise<Hex> => privateKeyToAccount(privateKey).signMessage({ message });
+
+export interface OnChainTipCheck {
+  mined: boolean;
+  succeeded: boolean;
+  matchesTip: boolean;
+  // the block's time in seconds, which has to be later than the tipped comment
+  blockTimestamp: number;
+}
+
+// Looks the tip's transaction up on its chain and compares it with what the community wrote: mined,
+// succeeded, and a transfer of that token, between those wallets, of that amount. Rejects with the
+// RPC's own error when the chain cannot be reached or reports another chain id.
+export const checkTipOnChain = async (rpcUrl: string, tip: Tip): Promise<OnChainTipCheck> => {
+  await ensureRpcChainId(rpcUrl, tip.chainId);
+  const client = getPublicClient(rpcUrl);
+  const hash = tip.txHash as Hash;
+  const receipt = await client.getTransactionReceipt({ hash }).catch(() => undefined);
+  if (!receipt) {
+    return { mined: false, succeeded: false, matchesTip: false, blockTimestamp: 0 };
+  }
+  const block = await client.getBlock({ blockNumber: receipt.blockNumber });
+  const from = tip.from.toLowerCase();
+  const to = tip.to.toLowerCase();
+  let matchesTip = false;
+  if (tip.type === 'native') {
+    const transaction = await client.getTransaction({ hash });
+    matchesTip = transaction.from.toLowerCase() === from && transaction.to?.toLowerCase() === to && (tip.amount === undefined || transaction.value >= tip.amount);
+  } else {
+    const token = tip.token?.toLowerCase();
+    // ERC-20 and ERC-721 emit the same Transfer event; only the last argument differs (value or token id)
+    matchesTip = receipt.logs.some((log) => {
+      if (log.address.toLowerCase() !== token || log.topics[0] !== transferTopic) {
+        return false;
+      }
+      const topicAddress = (topic: Hex | undefined) => `0x${(topic ?? '').slice(26)}`.toLowerCase();
+      if (topicAddress(log.topics[1]) !== from || topicAddress(log.topics[2]) !== to) {
+        return false;
+      }
+      if (tip.type === 'erc721') {
+        return log.topics[3] !== undefined && BigInt(log.topics[3]).toString() === tip.tokenId;
+      }
+      return tip.amount === undefined || BigInt(log.data) >= tip.amount;
+    });
+  }
+  return { mined: true, succeeded: receipt.status === 'success', matchesTip, blockTimestamp: Number(block.timestamp) };
+};
+
+// keccak256("Transfer(address,address,uint256)")
+const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
