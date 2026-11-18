@@ -110,7 +110,7 @@ const Reply = ({ reply, updatedReply, tippingConfig }: ReplyProps) => {
           {publishingStateString && <span className={styles.dim}>{publishingStateString}</span>}
           {/* the tip this reply carries, and what its own replies tipped it */}
           <TipLine comment={reply} updatedComment={updatedReply} />
-          <TipTotals comment={reply} replies={replies} updatedReplies={updatedReplies} />
+          <TipTotals config={tippingConfig} comment={reply} replies={replies} updatedReplies={updatedReplies} />
           <ReplyTools reply={reply}>
             <span className={styles.linkButton}>reply</span>
           </ReplyTools>
@@ -266,7 +266,7 @@ function Post() {
             <PostReplyTools reply={post}>
               <span className={styles.linkButton}>reply</span>
             </PostReplyTools>
-            <TipTotals comment={post} replies={replies} updatedReplies={updatedReplies} />
+            <TipTotals config={tippingConfig} comment={post} replies={replies} updatedReplies={updatedReplies} />
             <TipTools comment={post} config={tippingConfig} />
           </div>
           {stateString && <div className={styles.stateString}>{stateString}</div>}

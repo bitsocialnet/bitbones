@@ -10,6 +10,7 @@ import {
   getTokenKey,
   getTipCheck,
   getTipCheckError,
+  getTipFeeConfigError,
   getVerifiedTip,
   getVerifiedTipTotals,
   parseTokenAmount,
@@ -17,7 +18,7 @@ import {
 } from '../../lib/tipping';
 import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
 import { checkTipOnChain, getTokenInfo } from '../../lib/tipping-chain';
-import type { OnChainTipCheck } from '../../lib/tipping-chain';
+import type { OnChainTipCheck, OnChainTipResult } from '../../lib/tipping-chain';
 import useTip, { useHasPendingTip } from '../../hooks/use-tip';
 import { useTippingRpcUrl } from '../../hooks/use-tipping-settings';
 import styles from './tip-tools.module.css';
@@ -96,6 +97,7 @@ export const TipLine = ({ comment, updatedComment }: TipLineProps) => {
 };
 
 interface TipTotalsProps {
+  config?: TippingConfig;
   comment?: Comment;
   replies?: (Comment | undefined)[];
   // the live version of each reply, by the same index, where one has arrived
@@ -103,11 +105,13 @@ interface TipTotalsProps {
 }
 
 interface VerifiedTipTotalsProps {
+  config?: TippingConfig;
   comment: Comment;
   replies: (Comment | undefined)[];
 }
 
 interface TipRowProps {
+  config?: TippingConfig;
   comment: Comment;
   reply: Comment;
   tip: Tip;
@@ -144,27 +148,27 @@ const TipCheckDetails = ({ comment, reply }: Omit<TipRowProps, 'tip'>) => {
   );
 };
 
-type OnChainState = { status: 'idle' } | { status: 'checking' } | { status: 'done'; result: OnChainTipCheck } | { status: 'error'; message: string };
+type OnChainState = { status: 'idle' } | { status: 'checking' } | { status: 'done'; result: OnChainTipResult } | { status: 'error'; message: string };
 
-const getOnChainError = (result: OnChainTipCheck, commentTimestamp: unknown): string | undefined => {
+const getOnChainError = (result: OnChainTipCheck, commentTimestamp: unknown, what: string): string | undefined => {
   if (!result.mined) {
-    return 'the transaction was not found on this chain';
+    return `the ${what} transaction was not found on this chain`;
   }
   if (!result.succeeded) {
-    return 'the transaction failed';
+    return `the ${what} transaction failed`;
   }
   if (!result.matchesTip) {
-    return 'the transaction is not a transfer of this token between these wallets of this amount';
+    return `the ${what} transaction is not a transfer of this token between these wallets of this amount`;
   }
   if (typeof commentTimestamp === 'number' && result.blockTimestamp <= commentTimestamp) {
-    return 'the transaction is older than the tipped comment';
+    return `the ${what} transaction is older than the tipped comment`;
   }
   return undefined;
 };
 
 // Looks the transaction up through the RPC set for its chain. Only on a click: every check is an
 // RPC call, and a thread can carry many tips.
-const OnChainCheck = ({ comment, tip }: Pick<TipRowProps, 'comment' | 'tip'>) => {
+const OnChainCheck = ({ comment, tip, config }: Pick<TipRowProps, 'comment' | 'tip' | 'config'>) => {
   const rpcUrl = useTippingRpcUrl(tip.chainId);
   const [state, setState] = useState<OnChainState>({ status: 'idle' });
   const verify = () => {
@@ -177,7 +181,12 @@ const OnChainCheck = ({ comment, tip }: Pick<TipRowProps, 'comment' | 'tip'>) =>
       (error: unknown) => setState({ status: 'error', message: error instanceof Error ? error.message : String(error) }),
     );
   };
-  const error = state.status === 'done' ? getOnChainError(state.result, comment.timestamp) : undefined;
+  const error =
+    state.status === 'done'
+      ? (getOnChainError(state.result.tip, comment.timestamp, 'tip') ??
+        (state.result.fee ? getOnChainError(state.result.fee, comment.timestamp, 'fee') : undefined) ??
+        (config ? getTipFeeConfigError(config, tip) : undefined))
+      : undefined;
   return (
     <>
       <dt>on chain</dt>
@@ -196,7 +205,10 @@ const OnChainCheck = ({ comment, tip }: Pick<TipRowProps, 'comment' | 'tip'>) =>
           (error ? (
             <span className={styles.error}>not verified: {error}</span>
           ) : (
-            <span className={styles.dim}>verified on chain: mined, succeeded, and matches the tip</span>
+            <span className={styles.dim}>
+              verified on chain: the tip{tip.fee && ' and its fee'} mined, succeeded, and match{tip.fee ? '' : 'es'} what the community wrote
+              {config ? ', and the fee follows the community config' : ''}
+            </span>
           ))}
       </dd>
     </>
@@ -204,7 +216,7 @@ const OnChainCheck = ({ comment, tip }: Pick<TipRowProps, 'comment' | 'tip'>) =>
 };
 
 // one tip of the list. It shows at once, and says "verifying" until its own check is done.
-const TipRow = ({ comment, reply, tip }: TipRowProps) => (
+const TipRow = ({ config, comment, reply, tip }: TipRowProps) => (
   <li>
     <details>
       <summary>
@@ -246,7 +258,16 @@ const TipRow = ({ comment, reply, tip }: TipRowProps) => (
         <dd>{tip.chainId}</dd>
         <dt>transaction</dt>
         <dd>{tip.txHash}</dd>
-        <OnChainCheck comment={comment} tip={tip} />
+        {tip.fee && (
+          <>
+            <dt>fee</dt>
+            <dd>
+              <TokenAmount chainId={tip.chainId} type={tip.fee.token ? 'erc20' : 'native'} address={tip.fee.token} amount={tip.fee.amount} /> to {tip.fee.to}, transaction{' '}
+              {tip.fee.txHash}
+            </dd>
+          </>
+        )}
+        <OnChainCheck comment={comment} tip={tip} config={config} />
         <dt>reply</dt>
         <dd>{reply.cid}</dd>
       </dl>
@@ -255,6 +276,7 @@ const TipRow = ({ comment, reply, tip }: TipRowProps) => (
 );
 
 interface TipListProps {
+  config?: TippingConfig;
   comment: Comment;
   replies: (Comment | undefined)[];
 }
@@ -263,7 +285,7 @@ const formatTipTime = (timestamp: unknown): string => (typeof timestamp === 'num
 
 // Every tip the loaded replies claim for the comment, newest first, each with its own verification
 // state. A tip that does not verify is listed as unverified and is not in the totals.
-const TipList = ({ comment, replies }: TipListProps) => {
+const TipList = ({ config, comment, replies }: TipListProps) => {
   const entries = getTipReplies(comment, replies)
     .flatMap((reply) => {
       const tip = getTip(reply);
@@ -273,7 +295,7 @@ const TipList = ({ comment, replies }: TipListProps) => {
   return (
     <ul className={styles.tipList}>
       {entries.map(({ reply, tip }) => (
-        <TipRow key={reply.cid ?? tip.txHash} comment={comment} reply={reply} tip={tip} />
+        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} />
       ))}
     </ul>
   );
@@ -282,7 +304,7 @@ const TipList = ({ comment, replies }: TipListProps) => {
 // the click on a reply's body selects it for the inspector
 const stopPropagation = (event: MouseEvent) => event.stopPropagation();
 
-const VerifiedTipTotals = ({ comment, replies }: VerifiedTipTotalsProps) => {
+const VerifiedTipTotals = ({ config, comment, replies }: VerifiedTipTotalsProps) => {
   const [isListOpen, setIsListOpen] = useState(false);
   const totals = use(getVerifiedTipTotals(comment, replies));
   if (!totals.length) {
@@ -314,7 +336,7 @@ const VerifiedTipTotals = ({ comment, replies }: VerifiedTipTotalsProps) => {
       {isListOpen && (
         <div className={styles.tipListWrapper} onClick={stopPropagation}>
           <Suspense fallback={<span className={styles.dim}>checking the tips...</span>}>
-            <TipList comment={comment} replies={replies} />
+            <TipList config={config} comment={comment} replies={replies} />
           </Suspense>
         </div>
       )}
@@ -324,14 +346,14 @@ const VerifiedTipTotals = ({ comment, replies }: VerifiedTipTotalsProps) => {
 
 // what a comment was tipped, summed from its loaded replies, one total per token. A tip that does
 // not verify against its tipper's and this comment's author's wallets is left out.
-export const TipTotals = ({ comment, replies, updatedReplies }: TipTotalsProps) => {
+export const TipTotals = ({ config, comment, replies, updatedReplies }: TipTotalsProps) => {
   const latestReplies = replies?.map((reply, index) => withLatestTip(reply, updatedReplies?.[index])) ?? [];
   if (!comment || !getTipReplies(comment, latestReplies).length) {
     return null;
   }
   return (
     <Suspense fallback={null}>
-      <VerifiedTipTotals comment={comment} replies={latestReplies} />
+      <VerifiedTipTotals config={config} comment={comment} replies={latestReplies} />
     </Suspense>
   );
 };

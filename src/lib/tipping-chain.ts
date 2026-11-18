@@ -136,26 +136,38 @@ export interface OnChainTipCheck {
   blockTimestamp: number;
 }
 
-// Looks the tip's transaction up on its chain and compares it with what the community wrote: mined,
-// succeeded, and a transfer of that token, between those wallets, of that amount. Rejects with the
-// RPC's own error when the chain cannot be reached or reports another chain id.
-export const checkTipOnChain = async (rpcUrl: string, tip: Tip): Promise<OnChainTipCheck> => {
-  await ensureRpcChainId(rpcUrl, tip.chainId);
-  const client = getPublicClient(rpcUrl);
-  const hash = tip.txHash as Hash;
+interface TransferToCheck {
+  txHash: string;
+  type: TipTokenType;
+  // the token contract; undefined for native
+  token?: string;
+  from: string;
+  to: string;
+  amount?: bigint;
+  tokenId?: string;
+}
+
+// keccak256("Transfer(address,address,uint256)")
+const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+
+// Looks one transaction up: mined, succeeded, and a transfer of that token, between those wallets,
+// of at least that amount.
+const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCheck): Promise<OnChainTipCheck> => {
+  const hash = transfer.txHash as Hash;
   const receipt = await client.getTransactionReceipt({ hash }).catch(() => undefined);
   if (!receipt) {
     return { mined: false, succeeded: false, matchesTip: false, blockTimestamp: 0 };
   }
   const block = await client.getBlock({ blockNumber: receipt.blockNumber });
-  const from = tip.from.toLowerCase();
-  const to = tip.to.toLowerCase();
+  const from = transfer.from.toLowerCase();
+  const to = transfer.to.toLowerCase();
   let matchesTip = false;
-  if (tip.type === 'native') {
+  if (transfer.type === 'native') {
     const transaction = await client.getTransaction({ hash });
-    matchesTip = transaction.from.toLowerCase() === from && transaction.to?.toLowerCase() === to && (tip.amount === undefined || transaction.value >= tip.amount);
+    matchesTip =
+      transaction.from.toLowerCase() === from && transaction.to?.toLowerCase() === to && (transfer.amount === undefined || transaction.value >= transfer.amount);
   } else {
-    const token = tip.token?.toLowerCase();
+    const token = transfer.token?.toLowerCase();
     // ERC-20 and ERC-721 emit the same Transfer event; only the last argument differs (value or token id)
     matchesTip = receipt.logs.some((log) => {
       if (log.address.toLowerCase() !== token || log.topics[0] !== transferTopic) {
@@ -165,14 +177,38 @@ export const checkTipOnChain = async (rpcUrl: string, tip: Tip): Promise<OnChain
       if (topicAddress(log.topics[1]) !== from || topicAddress(log.topics[2]) !== to) {
         return false;
       }
-      if (tip.type === 'erc721') {
-        return log.topics[3] !== undefined && BigInt(log.topics[3]).toString() === tip.tokenId;
+      if (transfer.type === 'erc721') {
+        return log.topics[3] !== undefined && BigInt(log.topics[3]).toString() === transfer.tokenId;
       }
-      return tip.amount === undefined || BigInt(log.data) >= tip.amount;
+      return transfer.amount === undefined || BigInt(log.data) >= transfer.amount;
     });
   }
   return { mined: true, succeeded: receipt.status === 'success', matchesTip, blockTimestamp: Number(block.timestamp) };
 };
 
-// keccak256("Transfer(address,address,uint256)")
-const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+export interface OnChainTipResult {
+  tip: OnChainTipCheck;
+  // undefined when the tip carries no fee
+  fee?: OnChainTipCheck;
+}
+
+// Looks the tip's transaction, and its fee's, up on their chain. Rejects with the RPC's own error
+// when the chain cannot be reached or reports another chain id.
+export const checkTipOnChain = async (rpcUrl: string, tip: Tip): Promise<OnChainTipResult> => {
+  await ensureRpcChainId(rpcUrl, tip.chainId);
+  const client = getPublicClient(rpcUrl);
+  const [tipCheck, feeCheck] = await Promise.all([
+    checkTransferOnChain(client, tip),
+    tip.fee
+      ? checkTransferOnChain(client, {
+          txHash: tip.fee.txHash,
+          type: tip.fee.token ? 'erc20' : 'native',
+          token: tip.fee.token,
+          from: tip.from,
+          to: tip.fee.to,
+          amount: tip.fee.amount,
+        })
+      : undefined,
+  ]);
+  return { tip: tipCheck, fee: feeCheck };
+};

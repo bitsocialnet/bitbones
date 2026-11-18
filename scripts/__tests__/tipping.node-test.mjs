@@ -15,6 +15,7 @@ import {
   getTipAmountError,
   getTipClaimPublishOptions,
   getTippingConfig,
+  getTipFeeConfigError,
   getTipRecipientAddress,
   getTokenKey,
   getProvenWalletAddresses,
@@ -562,4 +563,27 @@ test('nothing is sent through an RPC that reports another chain id than the toke
   } finally {
     await sepolia.close();
   }
+});
+
+test('reads the fee a tip carries, and checks it against the community config', () => {
+  const config = getTippingConfig(exampleCommunity);
+  const from = '0x4444444444444444444444444444444444444444';
+  const to = '0x5555555555555555555555555555555555555555';
+  const fee = { txHash: feeTxHash, to: feeRecipient, amount: '250000', token: usdc };
+  const base = { chainId: 1, txHash, type: 'erc20', token: usdc, from, to, amount: '10000000' };
+  const tip = getTip({ tip: { ...base, fee } });
+  assert.deepEqual(tip.fee, { txHash: feeTxHash, to: feeRecipient, amount: 250000n, token: usdc });
+  assert.equal(getTipFeeConfigError(config, tip), undefined);
+  // a fee that does not parse drops the whole tip
+  assert.equal(getTip({ tip: { ...base, fee: { ...fee, amount: 'x' } } }), undefined);
+  assert.equal(getTipFeeConfigError(config, getTip({ tip: base })), 'the community requires a fee and the tip has none');
+  assert.equal(getTipFeeConfigError(config, getTip({ tip: { ...base, fee: { ...fee, to: from } } })), 'the fee did not go to the community fee recipient');
+  assert.equal(getTipFeeConfigError(config, getTip({ tip: { ...base, fee: { ...fee, token: dai } } })), 'the fee was paid in another token than the community asks');
+  assert.equal(getTipFeeConfigError(config, getTip({ tip: { ...base, fee: { ...fee, amount: '249999' } } })), 'the fee is below what the community asks');
+  // a token without a fee owes none
+  assert.equal(
+    getTipFeeConfigError(config, getTip({ tip: { chainId: 1, txHash, type: 'erc721', token: '0x3333333333333333333333333333333333333333', from, to, tokenId: '1' } })),
+    undefined,
+  );
+  assert.equal(getTipFeeConfigError(config, getTip({ tip: { ...base, token: '0x6666666666666666666666666666666666666666' } })), 'the community does not list this token');
 });

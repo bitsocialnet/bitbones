@@ -407,6 +407,16 @@ export interface Tip {
   amount?: bigint;
   // for erc721
   tokenId?: string;
+  // the community's fee, paid by the tipper in its own transaction
+  fee?: TipFeePaid;
+}
+
+export interface TipFeePaid {
+  txHash: string;
+  to: string;
+  amount: bigint;
+  // the ERC-20 the fee was paid in; undefined for the chain's coin
+  token?: string;
 }
 
 interface CommentLike {
@@ -414,13 +424,25 @@ interface CommentLike {
   parentCid?: unknown;
 }
 
+const parseFeePaid = (fee: unknown): TipFeePaid | undefined => {
+  if (!fee || typeof fee !== 'object') {
+    return undefined;
+  }
+  const { txHash, to, amount, token } = fee as Record<string, unknown>;
+  const parsedAmount = parseBaseUnits(amount);
+  if (typeof txHash !== 'string' || typeof to !== 'string' || parsedAmount === undefined || (token !== undefined && typeof token !== 'string')) {
+    return undefined;
+  }
+  return { txHash, to, amount: parsedAmount, token };
+};
+
 // the verified tip on a comment, or undefined when it has none or its shape is not one this client reads
 export const getTip = (comment: CommentLike | undefined): Tip | undefined => {
   const tip = comment?.tip;
   if (!tip || typeof tip !== 'object') {
     return undefined;
   }
-  const { chainId, txHash, type, token, from, to, amount, tokenId } = tip as Record<string, unknown>;
+  const { chainId, txHash, type, token, from, to, amount, tokenId, fee } = tip as Record<string, unknown>;
   if (!isChainId(chainId) || typeof txHash !== 'string' || typeof from !== 'string' || typeof to !== 'string') {
     return undefined;
   }
@@ -431,12 +453,39 @@ export const getTip = (comment: CommentLike | undefined): Tip | undefined => {
     return undefined;
   }
   const tipType: TipTokenType = type;
-  const base = { chainId, txHash, type: tipType, token: token as string | undefined, from, to };
+  const paid = parseFeePaid(fee);
+  if (fee !== undefined && !paid) {
+    return undefined;
+  }
+  const base = { chainId, txHash, type: tipType, token: token as string | undefined, from, to, ...(paid && { fee: paid }) };
   if (type === 'erc721') {
     return typeof tokenId === 'string' ? { ...base, tokenId } : undefined;
   }
   const parsedAmount = parseBaseUnits(amount);
   return parsedAmount === undefined ? undefined : { ...base, amount: parsedAmount };
+};
+
+// What the tipping config says about a tip's fee: that it went to the community's fee recipient, in
+// the token and for at least the amount owed. undefined when it matches or no fee is owed.
+export const getTipFeeConfigError = (config: TippingConfig, tip: Tip): string | undefined => {
+  const token = config.tokens.find((entry) => getTokenKey(entry) === getTokenKey({ chainId: tip.chainId, type: tip.type, address: tip.token }));
+  if (!token) {
+    return 'the community does not list this token';
+  }
+  const required = getRequiredFee(config, token, tip.type === 'erc721' ? 0n : (tip.amount ?? 0n));
+  if (!required) {
+    return undefined;
+  }
+  if (!tip.fee) {
+    return 'the community requires a fee and the tip has none';
+  }
+  if (tip.fee.to.toLowerCase() !== config.feeRecipient?.toLowerCase()) {
+    return 'the fee did not go to the community fee recipient';
+  }
+  if ((tip.fee.token?.toLowerCase() ?? '') !== (required.token?.toLowerCase() ?? '')) {
+    return 'the fee was paid in another token than the community asks';
+  }
+  return tip.fee.amount < required.amount ? 'the fee is below what the community asks' : undefined;
 };
 
 export interface TipTotal {
