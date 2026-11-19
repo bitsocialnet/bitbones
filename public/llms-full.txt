@@ -417,6 +417,7 @@ Record recurring repository surprises with concrete mitigation in [known-surpris
 | Translation keys/values | Use `translate`; one writer applies all locale changes |
 | `package.json` changed | Run `corepack yarn install` and keep `yarn.lock` synchronized |
 | Dependencies/imports changed | Run advisory `yarn knip`; resolve relevant new findings |
+| Choosing a native control, focus behavior, browser API, or browser-sensitive layout | Consult [Modern Web Guidance](.agents/skills/modern-web-guidance/SKILL.md) for the relevant feature |
 | AI workflow files changed | Edit shared sources; run `yarn ai-workflow:sync`, `yarn ai-workflow:check`, `yarn ai-workflow:test` |
 | Bug fix or substantive review correction exposes a preventable mistake | Use [retro](.agents/skills/retro/SKILL.md) for the smallest worthwhile prevention |
 | Public English docs or AI context changed | Run `yarn llms:generate` and include resulting tracked indexes |
