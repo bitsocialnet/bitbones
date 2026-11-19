@@ -10,6 +10,25 @@ export type ChallengePublication = {
   vote?: number;
 };
 
+type ChallengeItem = {
+  type?: string;
+  challenge?: string;
+  caseInsensitive?: boolean;
+};
+
+// challenge answers keyed by challenge index (the position in community.challenges, as a decimal string)
+export type ChallengeAnswersByIndex = { [challengeIndex: string]: string };
+
+// a CHALLENGE lists only the challenges still pending, keyed by challenge index, so the keys can be
+// sparse ("1" and "3"); the modal steps through them in challenge index order
+export const getChallengeEntries = (challenges: { [challengeIndex: string]: ChallengeItem } | undefined): [string, ChallengeItem][] =>
+  Object.entries(challenges || {}).sort(([a], [b]) => Number(a) - Number(b));
+
+// one answer per key of the CHALLENGE, empty for a step left blank (an iframe challenge is solved
+// inside the iframe), because a missing key fails that challenge
+export const getChallengeAnswers = (challengeEntries: [string, ChallengeItem][], answers: ChallengeAnswersByIndex): ChallengeAnswersByIndex =>
+  Object.fromEntries(challengeEntries.map(([challengeIndex]) => [challengeIndex, answers[challengeIndex] || '']));
+
 type PublicationType = 'vote' | 'reply' | 'edit' | 'community edit' | 'post';
 
 export const getPublicationType = (publication: ChallengePublication | undefined): PublicationType | undefined => {
