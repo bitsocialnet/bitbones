@@ -12,4 +12,4 @@ DISABLE_TELEMETRY=1 yarn modern-web-guidance search "label checkbox control"
 DISABLE_TELEMETRY=1 yarn modern-web-guidance retrieve checkbox
 ```
 
-Apply the relevant advice to the component under review. Preserve the design and browser support requirements for Bitbones. Verify the observable behavior using the [browser verification playbook](../../../docs/agent-playbooks/verification.md).
+Apply the relevant advice to the component under review. Preserve the design and browser support requirements for bitbones. Verify the observable behavior using the [browser verification playbook](../../../docs/agent-playbooks/verification.md).
