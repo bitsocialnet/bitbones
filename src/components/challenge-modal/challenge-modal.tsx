@@ -1,16 +1,9 @@
 import { useState, type ChangeEvent, type KeyboardEvent, type MouseEvent } from 'react';
 import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFocusManager, useId } from '@floating-ui/react';
+import type { ChallengeAnswersByIndex } from '@bitsocial/bitsocial-react-hooks';
 import styles from './challenge-modal.module.css';
 import useChallenges, { type PendingChallenge } from '../../hooks/use-challenges';
-import {
-  getChallengeAnswers,
-  getChallengeEntries,
-  getPublicationType,
-  getVotePreview,
-  getPublicationPreview,
-  type ChallengeAnswersByIndex,
-  type ChallengePublication,
-} from './utils';
+import { getChallengeAnswers, getChallengeEntries, getPublicationType, getVotePreview, getPublicationPreview, type ChallengePublication } from './utils';
 
 // the library hands onChallenge an open record, so name the answer-publishing method the modal
 // calls on it alongside the preview fields the utils read

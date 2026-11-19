@@ -1,3 +1,5 @@
+import type { ChallengeAnswersByIndex } from '@bitsocial/bitsocial-react-hooks';
+
 // the library types every publication as an open record, so name the fields the previews below read
 export type ChallengePublication = {
   commentCid?: string;
@@ -15,9 +17,6 @@ type ChallengeItem = {
   challenge?: string;
   caseInsensitive?: boolean;
 };
-
-// challenge answers keyed by challenge index (the position in community.challenges, as a decimal string)
-export type ChallengeAnswersByIndex = { [challengeIndex: string]: string };
 
 // a CHALLENGE lists only the challenges still pending, keyed by challenge index, so the keys can be
 // sparse ("1" and "3"); the modal steps through them in challenge index order
