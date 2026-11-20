@@ -2,7 +2,6 @@ import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import useDefaultList from '../../hooks/use-default-list';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { Components, StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from './feed-post';
@@ -26,15 +25,15 @@ function Home() {
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'hot';
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments }) as FeedResult;
-  const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
+  const { feed, updatedFeed, hasMore, loadMore, state: feedState } = useFeed({ communities, sortType, accountComments });
+  const { stateString } = useFeedStateString(communityAddresses, feedState);
 
   let Footer: Components['Footer'];
   if (feed?.length === 0) {
     Footer = NoPosts;
   }
   if (hasMore || communityAddresses.length === 0) {
-    Footer = () => loadingStateString;
+    Footer = () => stateString;
   }
 
   // save last virtuoso state on each scroll

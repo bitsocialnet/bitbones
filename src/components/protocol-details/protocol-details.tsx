@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useClientsStates } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, Community, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, Community, UseCommunityResult, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
 import styles from './protocol-details.module.css';
 
@@ -94,7 +94,8 @@ export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
   }
   const updated = updatedComment || comment;
   const parts: [string, ReactNode][] = [
-    ['cid', comment.cid ? utils.getShortCid(comment.cid) : `pending #${comment.index}`],
+    // only the account's own comment has an index, a comment that failed to load before it had a cid is not pending
+    ['cid', comment.cid ? utils.getShortCid(comment.cid) : typeof comment.index === 'number' ? `pending #${comment.index}` : undefined],
     ['v', comment.protocolVersion],
     ['sig', comment.signature?.type],
     ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : 'none yet'],
@@ -115,7 +116,7 @@ export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
 };
 
 interface CommunityDetailsProps {
-  community?: Community;
+  community?: UseCommunityResult;
 }
 
 export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
@@ -131,6 +132,12 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
           { name: 'address', value: community.address },
           { name: 'publicKey', value: community.publicKey },
           { name: 'updatingState', value: community.updatingState },
+          // state is 'failed' while there is no record and the load failed non-retriably; firstLoadFailed
+          // also covers an unreachable community that pkc-js keeps retrying, which keeps a loading state
+          { name: 'state', value: community.state },
+          { name: 'firstLoadFailed', value: community.firstLoadFailed ? 'true' : undefined },
+          { name: 'error', value: community.error?.message },
+          { name: 'lastRetriableError', value: community.lastRetriableError?.message },
           { name: 'updatedAt', value: community.updatedAt ? <Timestamp timestamp={community.updatedAt} /> : undefined },
           { name: 'createdAt', value: community.createdAt ? <Timestamp timestamp={community.createdAt} /> : undefined },
           { name: 'protocolVersion', value: community.protocolVersion },
@@ -148,7 +155,7 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
 };
 
 interface FeedDetailsProps {
-  feedResult: UseFeedResult & { bufferedFeed?: Comment[] };
+  feedResult: UseFeedResult;
   communityCount: number;
   sortType: string;
   newerThan?: number;
@@ -169,6 +176,7 @@ export const FeedDetails = ({ feedResult, communityCount, sortType, newerThan, s
           { name: 'feed', value: `${feed?.length || 0} posts` },
           { name: 'bufferedFeed', value: `${bufferedFeed?.length || 0} posts` },
           { name: 'hasMore', value: String(hasMore) },
+          { name: 'state', value: feedResult.state },
           { name: 'communityKeysWithMore', value: communityKeysWithMore?.length || undefined },
           { name: 'communityKeysWithNewerPosts', value: communityKeysWithNewerPosts?.length || undefined },
           { name: 'communityKeysWithUnavailableSort', value: communityKeysWithUnavailableSort?.length ? communityKeysWithUnavailableSort.join(', ') : undefined },

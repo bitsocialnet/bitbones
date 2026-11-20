@@ -51,7 +51,12 @@ function Catalog() {
   // eslint-disable-next-line
   const postsPerPage = useMemo(() => (columnCount <= 2 ? 10 : columnCount === 3 ? 15 : columnCount === 4 ? 20 : 25), []);
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, hasMore, loadMore } = useFeed({
+  const {
+    feed,
+    hasMore,
+    loadMore,
+    state: feedState,
+  } = useFeed({
     communities,
     sortType,
     postsPerPage,
@@ -59,7 +64,7 @@ function Catalog() {
     newerThan: timeFilterSeconds,
     accountComments,
   });
-  const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
+  const { stateString } = useFeedStateString(communityAddresses, feedState);
 
   // split feed into rows
   const rows = useFeedRows(feed, columnCount);
@@ -72,7 +77,7 @@ function Catalog() {
     Footer = NoSubscriptions;
   }
   if (hasMore || !account) {
-    Footer = () => loadingStateString;
+    Footer = () => stateString;
   }
 
   // save last virtuoso state on each scroll
