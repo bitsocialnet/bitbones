@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import type { Comment, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
+import type { UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import styles from './feed-header.module.css';
 
 interface FeedHeaderProps {
-  feedResult: UseFeedResult & { bufferedFeed?: Comment[] };
+  feedResult: UseFeedResult;
   sortType: string;
   timeFilterName?: string;
   stateString?: string;

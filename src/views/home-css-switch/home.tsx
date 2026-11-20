@@ -1,7 +1,6 @@
 import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { Components } from 'react-virtuoso';
 import FeedPost from './feed-post';
@@ -26,7 +25,7 @@ function Home() {
   // const {timeFilterSeconds} = useTimeFilter()
   const timeFilterSeconds = undefined;
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
+  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments });
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 
   let Footer: Components['Footer'];

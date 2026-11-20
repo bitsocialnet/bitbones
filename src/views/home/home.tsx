@@ -2,7 +2,6 @@ import { useRef, useEffect } from 'react';
 import useDefaultCommunityAddresses from '../../hooks/use-default-community-addresses';
 import useDefaultList from '../../hooks/use-default-list';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { Components, StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
@@ -36,7 +35,7 @@ function Home({ sortType: sortTypeProp }: HomeProps) {
   const { timeFilterSeconds, timeFilterNames } = useTimeFilter();
   const timeFilterName = params?.timeFilterName || timeFilterNames[0];
   const communities = useCommunityIdentifiers(communityAddresses);
-  const feedResult = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments }) as FeedResult;
+  const feedResult = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments });
   const { feed, updatedFeed, hasMore, loadMore } = feedResult;
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 

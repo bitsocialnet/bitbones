@@ -1,6 +1,5 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { Components, StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import { useParams } from 'react-router-dom';
@@ -31,7 +30,7 @@ function Community() {
   // single community feeds only need the time filter for sort types top and controversial
   const newerThan = sortType === 'topAll' || sortType === 'controversialAll' ? timeFilterSeconds : undefined;
   const communities = useCommunityIdentifiers(communityAddresses);
-  const feedResult = useFeed({ communities, sortType, newerThan, accountComments }) as FeedResult;
+  const feedResult = useFeed({ communities, sortType, newerThan, accountComments });
   const { feed, updatedFeed, hasMore, loadMore } = feedResult;
   const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
 

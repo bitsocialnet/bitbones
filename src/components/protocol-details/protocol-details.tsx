@@ -148,7 +148,7 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
 };
 
 interface FeedDetailsProps {
-  feedResult: UseFeedResult & { bufferedFeed?: Comment[] };
+  feedResult: UseFeedResult;
   communityCount: number;
   sortType: string;
   newerThan?: number;
