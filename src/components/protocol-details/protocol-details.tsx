@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { useClientsStates } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, Community, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, Community, UseCommunityResult, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
 import styles from './protocol-details.module.css';
 
@@ -115,7 +115,7 @@ export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
 };
 
 interface CommunityDetailsProps {
-  community?: Community;
+  community?: UseCommunityResult;
 }
 
 export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
@@ -131,6 +131,12 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
           { name: 'address', value: community.address },
           { name: 'publicKey', value: community.publicKey },
           { name: 'updatingState', value: community.updatingState },
+          // state is 'failed' while there is no record and the load failed non-retriably; firstLoadFailed
+          // also covers an unreachable community that pkc-js keeps retrying, which keeps a loading state
+          { name: 'state', value: community.state },
+          { name: 'firstLoadFailed', value: community.firstLoadFailed ? 'true' : undefined },
+          { name: 'error', value: community.error?.message },
+          { name: 'lastRetriableError', value: community.lastRetriableError?.message },
           { name: 'updatedAt', value: community.updatedAt ? <Timestamp timestamp={community.updatedAt} /> : undefined },
           { name: 'createdAt', value: community.createdAt ? <Timestamp timestamp={community.createdAt} /> : undefined },
           { name: 'protocolVersion', value: community.protocolVersion },

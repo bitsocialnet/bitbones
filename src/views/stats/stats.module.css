@@ -67,3 +67,7 @@
 .table .loading {
   color: var(--warn);
 }
+
+.table .failed {
+  color: var(--error);
+}
