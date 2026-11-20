@@ -94,7 +94,8 @@ export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
   }
   const updated = updatedComment || comment;
   const parts: [string, ReactNode][] = [
-    ['cid', comment.cid ? utils.getShortCid(comment.cid) : `pending #${comment.index}`],
+    // only the account's own comment has an index, a comment that failed to load before it had a cid is not pending
+    ['cid', comment.cid ? utils.getShortCid(comment.cid) : typeof comment.index === 'number' ? `pending #${comment.index}` : undefined],
     ['v', comment.protocolVersion],
     ['sig', comment.signature?.type],
     ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : 'none yet'],
