@@ -1,6 +1,6 @@
 // The chain side of tipping: reads and plain transfers through one RPC url. Every write here moves
 // real funds, and nothing in this file is covered by an automated test.
-import { concatHex, createPublicClient, createWalletClient, encodeFunctionData, erc20Abi, erc721Abi, http } from 'viem';
+import { concatHex, createPublicClient, createWalletClient, encodeFunctionData, erc20Abi, erc721Abi, http, keccak256, parseTransaction } from 'viem';
 import type { Address, Hash, Hex, PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Tip, TipTokenType } from './tipping';
@@ -110,29 +110,89 @@ const buildTransfer = ({ token, to, amountOrTokenId, parentBinding: suffix }: Tr
   return { to: token.address as Address, data: concatHex([data, suffix]) };
 };
 
-// What sending would cost, without sending: the gas the transfer needs, and the gas price now. A
-// receiver with code, or a token contract that rejects trailing calldata, reverts here, before any
-// money has moved. Rejects with the RPC's error then.
+// The fees a transfer is signed with, so that the cost checked before sending is the cost sent: the
+// node refuses a transaction whose balance does not cover gas times the fee cap. A chain without
+// EIP-1559 fees is priced by its gas price.
+const getFees = async (client: PublicClient): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint } | { gasPrice: bigint }> => {
+  try {
+    const { maxFeePerGas, maxPriorityFeePerGas } = await client.estimateFeesPerGas({ chain: null, type: 'eip1559' });
+    return { maxFeePerGas, maxPriorityFeePerGas };
+  } catch {
+    return { gasPrice: await client.getGasPrice() };
+  }
+};
+
+// What sending would cost, without sending: the gas the transfer needs, and the most the transaction
+// will pay per gas. A receiver with code, or a token contract that rejects trailing calldata, reverts
+// here, before any money has moved. Rejects with the RPC's error then.
 export const simulateTransfer = async (options: TransferOptions & { privateKey: Hex }): Promise<{ gas: bigint; gasPrice: bigint }> => {
   await ensureRpcChainId(options.rpcUrl, options.token.chainId);
   const account = privateKeyToAccount(options.privateKey);
   const client = getPublicClient(options.rpcUrl);
-  const [gas, gasPrice] = await Promise.all([client.estimateGas({ account, ...buildTransfer(options, account.address) }), client.getGasPrice()]);
-  return { gas, gasPrice };
+  const [gas, fees] = await Promise.all([client.estimateGas({ account, ...buildTransfer(options, account.address) }), getFees(client)]);
+  return { gas, gasPrice: 'gasPrice' in fees ? fees.gasPrice : fees.maxFeePerGas };
 };
 
-// One plain transfer from the in-app wallet, returned as soon as it is broadcast. A plain transfer
-// is what tipping/v1 verifies: the Transfer event, or for the native coin the transaction itself.
-// Refuses to send unless the RPC reports the token's chain id.
-// A tip and its fee are sent back to back, before either is mined. `nonce` pins the transaction's
-// place in the sender's queue: left to the RPC, the second send could read a pending count that
-// does not include the first yet and take the same nonce.
-export const sendTransfer = async (options: TransferOptions & { privateKey: Hex; nonce?: number }): Promise<Hash> => {
+// A transfer signed here and not sent yet. Its hash is known before the RPC has seen it, so it can
+// be saved first: a broadcast whose response is lost then leaves a record of what may be in the
+// mempool, and `raw` can be sent again without signing a second transaction.
+export interface SignedTransfer {
+  hash: Hash;
+  raw: Hex;
+}
+
+// A tip and its fee are signed back to back, before either is mined. `nonce` pins the transaction's
+// place in the sender's queue: left to the RPC, the second could read a pending count that does not
+// include the first yet and take the same nonce. Refuses to sign unless the RPC reports the token's chain id.
+export const signTransfer = async (options: TransferOptions & { privateKey: Hex; nonce: number }): Promise<SignedTransfer> => {
   await ensureRpcChainId(options.rpcUrl, options.token.chainId);
   const account = privateKeyToAccount(options.privateKey);
-  const client = createWalletClient({ account, transport: http(options.rpcUrl) });
-  return client.sendTransaction({ chain: null, ...buildTransfer(options, account.address), nonce: options.nonce });
+  const walletClient = createWalletClient({ account, transport: http(options.rpcUrl) });
+  const fees = await getFees(getPublicClient(options.rpcUrl));
+  const request = await walletClient.prepareTransactionRequest({ chain: null, ...buildTransfer(options, account.address), nonce: options.nonce, ...fees });
+  const raw = await walletClient.signTransaction(request);
+  return { hash: keccak256(raw), raw };
 };
+
+const isKnown = (client: PublicClient, hash: Hash): Promise<boolean> =>
+  client.getTransaction({ hash }).then(
+    () => true,
+    () => false,
+  );
+
+// The node answered a broadcast with an error: it did not take the transaction, which is not in its
+// mempool, and its nonce may be taken by another. Different from a lost response, after which it may be.
+export class BroadcastRejectedError extends Error {}
+
+// Makes sure the RPC has a signed transfer: nothing is done when it already knows it, pending or mined,
+// so this is safe to run again after a failure or a reload. A plain transfer is what tipping/v1
+// verifies: the Transfer event, or for the native coin the transaction itself. Rejects with
+// BroadcastRejectedError when the node refuses it, and with the transport's error when no answer came.
+export const ensureBroadcast = async (rpcUrl: string, { hash, raw }: SignedTransfer): Promise<void> => {
+  const client = getPublicClient(rpcUrl);
+  if (await isKnown(client, hash)) {
+    return;
+  }
+  try {
+    await client.sendRawTransaction({ serializedTransaction: raw });
+  } catch (error) {
+    // another node of the RPC already had it, or it was mined in between
+    if (
+      /already known|known transaction|already imported/i.test(String((error as { details?: string; message?: string })?.details ?? (error as Error)?.message)) ||
+      (await isKnown(client, hash))
+    ) {
+      return;
+    }
+    // a JSON-RPC error carries a numeric code; an HTTP failure or a timeout does not
+    if (typeof (error as { code?: unknown })?.code === 'number') {
+      throw new BroadcastRejectedError(String((error as { details?: string }).details ?? (error as Error).message));
+    }
+    throw error;
+  }
+};
+
+// the nonce a signed transaction takes
+export const getSignedNonce = (raw: string): number => parseTransaction(raw as Hex).nonce ?? 0;
 
 // the nonce the next transaction of this address takes, counting those still waiting to be mined
 export const getPendingNonce = (rpcUrl: string, address: string): Promise<number> =>

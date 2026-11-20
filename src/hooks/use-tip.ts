@@ -1,6 +1,7 @@
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, ChallengeVerification, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { useEffect, useMemo } from 'react';
+import type { Hash, Hex } from 'viem';
 import { create } from 'zustand';
 import {
   buildTipClaim,
@@ -15,11 +16,14 @@ import {
 } from '../lib/tipping';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
 import {
+  BroadcastRejectedError,
+  ensureBroadcast,
   ensureRpcChainId,
   getBalance,
   getPendingNonce,
+  getSignedNonce,
   getTokenInfo,
-  sendTransfer,
+  signTransfer,
   simulateTransfer,
   TransferFailedError,
   waitForTransaction,
@@ -55,6 +59,10 @@ interface PendingTip {
   // the fee owed, kept so it can still be paid after a reload; amount in base units
   fee?: { token?: string; amount: string; to: string };
   feeTxHash?: string;
+  // The signed transactions behind the hashes, saved before they are broadcast so that a broadcast
+  // whose response was lost is sent again instead of signed anew. Records from before have none.
+  txRaw?: string;
+  feeRaw?: string;
 }
 
 const readStoredPendingTips = (): Record<string, PendingTip> => {
@@ -82,19 +90,35 @@ interface TipState {
   setPendingTip: (parentCid: string, pendingTip: PendingTip | undefined) => void;
 }
 
-const useTipStore = create<TipState>((setState, getState) => ({
+const useTipStore = create<TipState>((setState) => ({
   pendingTips: readStoredPendingTips(),
   status: {},
   error: {},
   mined: {},
   feeFailed: {},
   setPendingTip: (parentCid, pendingTip) => {
-    setState((state) => ({ pendingTips: { ...state.pendingTips, [parentCid]: pendingTip } }));
+    // Merged into what is stored now and not written from this tab's map: another tab may have
+    // saved or cleared a tip on another comment since this one loaded, and a recovery record lost
+    // after the money has moved can't be rebuilt.
+    const pendingTips: Record<string, PendingTip | undefined> = { ...readStoredPendingTips(), [parentCid]: pendingTip };
+    if (!pendingTip) {
+      delete pendingTips[parentCid];
+    }
+    setState({ pendingTips });
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(getState().pendingTips));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingTips));
     } catch {}
   },
 }));
+
+// the tips another tab saved or cleared
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === STORAGE_KEY) {
+      useTipStore.setState({ pendingTips: readStoredPendingTips() });
+    }
+  });
+}
 
 const setStatus = (parentCid: string, status: string | undefined) => useTipStore.setState((state) => ({ status: { ...state.status, [parentCid]: status } }));
 const setError = (parentCid: string, error: string | undefined) => useTipStore.setState((state) => ({ error: { ...state.error, [parentCid]: error } }));
@@ -147,6 +171,18 @@ const getFeeTransfer = (pendingTip: PendingTip, fee: NonNullable<PendingTip['fee
 const getExpectedTipTransfer = ({ transfer }: PendingTip) =>
   transfer.token.type === 'erc20' && transfer.token.address ? { token: transfer.token.address, to: transfer.to, amount: BigInt(transfer.amountOrTokenId) } : undefined;
 
+// Where the next transaction of a sender goes: after every transaction the RPC counts as pending, and
+// after those saved here and not accepted yet, which may be from another tab. The RPC's pending count can
+// lag behind a transaction broadcast seconds ago (a public RPC answers from several nodes), and a second
+// transaction at the same nonce is refused or replaces the first.
+const getNextNonce = async (rpcUrl: string, address: string, pendingTip: PendingTip): Promise<number> => {
+  const saved = Object.values(readStoredPendingTips()).flatMap((other) =>
+    pendingTip.accountId && other.accountId === pendingTip.accountId && other.chainId === pendingTip.chainId ? [other.feeRaw, other.txRaw] : [],
+  );
+  const savedNonces = saved.filter((raw): raw is string => Boolean(raw)).map((raw) => getSignedNonce(raw) + 1);
+  return Math.max(await getPendingNonce(rpcUrl, address), ...savedNonces);
+};
+
 const setMined = (parentCid: string, mined: boolean) => useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: mined } }));
 const setFeeFailed = (parentCid: string, feeFailed: boolean) => useTipStore.setState((state) => ({ feeFailed: { ...state.feeFailed, [parentCid]: feeFailed } }));
 
@@ -190,29 +226,61 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
   setFeeFailed(parentCid, false);
 
   const { sendFee, sendTip } = getTipSendPlan(pendingTip);
-  if (sendFee || sendTip) {
-    setStatus(parentCid, sendFee && sendTip ? 'sending the fee and the tip...' : sendFee ? 'sending the community fee...' : 'sending the tip...');
-    await withSendLock(async () => {
-      // read once and counted up by hand: the RPC's pending count can lag behind the transaction just sent
-      let nonce = await getPendingNonce(rpcUrl, address);
-      if (sendFee && pendingTip.fee) {
-        const feeTxHash = await sendTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, pendingTip.fee), parentBinding, nonce });
-        nonce += 1;
-        pendingTip = { ...pendingTip, feeTxHash };
-        setPendingTip(parentCid, pendingTip);
-      }
-      if (sendTip) {
-        const { token, to, amountOrTokenId } = pendingTip.transfer;
-        const txHash = await sendTransfer({ rpcUrl, privateKey, token, to, amountOrTokenId: BigInt(amountOrTokenId), parentBinding, nonce });
-        // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
-        // publish this tip's reply at once, before its transaction is mined, and the community would
-        // answer "not mined yet".
+  setStatus(
+    parentCid,
+    sendFee || sendTip
+      ? sendFee && sendTip
+        ? 'sending the fee and the tip...'
+        : sendFee
+          ? 'sending the community fee...'
+          : 'sending the tip...'
+      : 'checking that the transactions were sent...',
+  );
+  await withSendLock(async () => {
+    if (sendFee || sendTip) {
+      // Both are signed before either is saved or sent, so a signing failure leaves nothing behind. The
+      // nonce is read once and counted up by hand: the RPC's pending count can lag behind a transaction just sent.
+      let nonce = await getNextNonce(rpcUrl, address, pendingTip);
+      const feeSigned =
+        sendFee && pendingTip.fee ? await signTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, pendingTip.fee), parentBinding, nonce: nonce++ }) : undefined;
+      const { token, to, amountOrTokenId } = pendingTip.transfer;
+      const tipSigned = sendTip ? await signTransfer({ rpcUrl, privateKey, token, to, amountOrTokenId: BigInt(amountOrTokenId), parentBinding, nonce }) : undefined;
+      // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
+      // publish this tip's reply at once, before its transaction is mined, and the community would
+      // answer "not mined yet".
+      if (tipSigned) {
         setMined(parentCid, false);
-        pendingTip = { ...pendingTip, txHash };
-        setPendingTip(parentCid, pendingTip);
       }
-    });
-  }
+      // the hashes are saved before the first broadcast: from then on the money may be gone
+      pendingTip = {
+        ...pendingTip,
+        ...(feeSigned && { feeTxHash: feeSigned.hash, feeRaw: feeSigned.raw }),
+        ...(tipSigned && { txHash: tipSigned.hash, txRaw: tipSigned.raw }),
+      };
+      setPendingTip(parentCid, pendingTip);
+    }
+    // The fee first, so it is the one in front in the queue. This is also what a resume does for a
+    // transaction that was saved but is not known to the RPC.
+    let step: 'fee' | 'tip' = 'fee';
+    try {
+      if (pendingTip.feeTxHash && pendingTip.feeRaw) {
+        await ensureBroadcast(rpcUrl, { hash: pendingTip.feeTxHash as Hash, raw: pendingTip.feeRaw as Hex });
+      }
+      step = 'tip';
+      if (pendingTip.txHash && pendingTip.txRaw) {
+        await ensureBroadcast(rpcUrl, { hash: pendingTip.txHash as Hash, raw: pendingTip.txRaw as Hex });
+      }
+    } catch (error) {
+      if (error instanceof BroadcastRejectedError) {
+        // The node refused it, so it was never sent and can't be mined: forget it, and what was signed behind
+        // it, and the next try signs again at a fresh nonce.
+        const { feeTxHash, feeRaw, txHash: _txHash, txRaw: _txRaw, ...rest } = pendingTip;
+        setPendingTip(parentCid, step === 'fee' ? rest : { ...rest, feeTxHash, feeRaw });
+        throw Error(`the ${step} transaction was refused (${error.message}), so nothing was sent for it. Continue to send it again.`);
+      }
+      throw error;
+    }
+  });
 
   const { fee, feeTxHash, txHash } = pendingTip;
   if (!txHash) {
@@ -243,12 +311,21 @@ const resendFee = async (account: Account | undefined, parentCid: string): Promi
   if (!pendingTip?.fee || !pendingTip.txHash) {
     return;
   }
-  const { rpcUrl, privateKey } = await getSender(account, pendingTip);
-  setStatus(parentCid, 'sending the fee again...');
+  const { rpcUrl, privateKey, address } = await getSender(account, pendingTip);
   const { fee } = pendingTip;
-  const feeTxHash = await withSendLock(() => sendTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, fee), parentBinding: getParentBindingSuffix(parentCid) }));
-  setMined(parentCid, false);
-  useTipStore.getState().setPendingTip(parentCid, { ...pendingTip, feeTxHash });
+  setStatus(parentCid, 'sending the fee again...');
+  await withSendLock(async () => {
+    const signed = await signTransfer({
+      rpcUrl,
+      privateKey,
+      ...getFeeTransfer(pendingTip, fee),
+      parentBinding: getParentBindingSuffix(parentCid),
+      nonce: await getNextNonce(rpcUrl, address, pendingTip),
+    });
+    setMined(parentCid, false);
+    useTipStore.getState().setPendingTip(parentCid, { ...pendingTip, feeTxHash: signed.hash, feeRaw: signed.raw });
+    await ensureBroadcast(rpcUrl, signed);
+  });
   await settle(account, parentCid);
 };
 
@@ -371,6 +448,24 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
 // a tip's reply is published once on its own; after a failed publish it is the user's call
 const publishedTxHashes = new Set<string>();
 
+// Publishing a claim is started by the effect below when the transfers are mined, and by the "publish
+// the tip reply again" button, which is on screen at the same time. One at a time per tip: a second
+// call before the first returns would send the claim twice.
+const publishing = new Set<string>();
+const publishOnce = async (txHash: string, publish: () => Promise<unknown>): Promise<void> => {
+  if (publishing.has(txHash)) {
+    return;
+  }
+  publishing.add(txHash);
+  // whoever starts it, the effect must not start it again: it runs after the click, whose call may already have returned
+  publishedTxHashes.add(txHash);
+  try {
+    await publish();
+  } finally {
+    publishing.delete(txHash);
+  }
+};
+
 interface UseTipResult {
   pendingTip: PendingTip | undefined;
   status: string | undefined;
@@ -441,8 +536,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     if (!txHash || publishedTxHashes.has(txHash)) {
       return;
     }
-    publishedTxHashes.add(txHash);
-    publishComment().catch((error: unknown) => {
+    publishOnce(txHash, publishComment).catch((error: unknown) => {
       console.warn(error);
       if (parentCid) {
         setError(parentCid, getErrorMessage(error));
@@ -472,7 +566,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
       }
       if (publishCommentOptions) {
         setError(parentCid, undefined);
-        await publishComment().catch((error: unknown) => setError(parentCid, getErrorMessage(error)));
+        await publishOnce(pendingTip?.txHash ?? parentCid, publishComment).catch((error: unknown) => setError(parentCid, getErrorMessage(error)));
       } else {
         await run(parentCid, () => settle(account, parentCid));
       }

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
-import { recoverMessageAddress } from 'viem';
+import { keccak256, parseTransaction, recoverMessageAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
   buildTipClaim,
@@ -40,7 +40,7 @@ import {
   verifyTip,
   walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
-import { ensureRpcChainId, sendTransfer } from '../../src/lib/tipping-chain.ts';
+import { BroadcastRejectedError, ensureBroadcast, ensureRpcChainId, getSignedNonce, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
 
 const usdc = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB48';
 const dai = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
@@ -165,6 +165,18 @@ test('a signature is normalised to the accepted encoding before it is stored', a
   }
 });
 
+// Deliberately the protocol's former domain string, which the first clients signed: it is the one case that
+// proves a proof over those old messages is refused. It is not a name used anywhere in the client.
+test('a proof signed over the former domain string is not valid', async () => {
+  const now = 1790000000;
+  const account = privateKeyToAccount(vector.walletPrivateKey);
+  for (const authorField of ['authorAddress', 'authorPublicKey']) {
+    const message = `{"domainSeparator":"plebbit-author-wallet","${authorField}":"${vector.keyAddress}","walletAddress":"${vector.entry.address.toLowerCase()}","timestamp":${vector.entry.timestamp}}`;
+    const old = withSignature(normalizeWalletSignature(await account.signMessage({ message })));
+    assert.equal(await getWalletProofError(old, vector.keyAddress, now), 'the wallet did not sign for this author');
+  }
+});
+
 test('a wallet proof is valid only for the author key it names', async () => {
   const now = 1790000000;
   // copied into a publication signed by another key
@@ -173,7 +185,7 @@ test('a wallet proof is valid only for the author key it names', async () => {
   const account = privateKeyToAccount(vector.walletPrivateKey);
   for (const message of [
     `{"domainSeparator":"pkc-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
-    `{"domainSeparator":"plebbit-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
+    `{"domainSeparator":"legacy-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
     `{"domainSeparator":"bitsocial-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
   ]) {
     const old = withSignature(normalizeWalletSignature(await account.signMessage({ message })));
@@ -543,13 +555,14 @@ test('nothing is sent through an RPC that reports another chain id than the toke
 
     const privateKey = `0x${'02'.repeat(32)}`;
     const to = '0x5555555555555555555555555555555555555555';
+    const parentBinding = getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG');
     for (const token of [
       { chainId: 1, type: 'native' },
       { chainId: 1, type: 'erc20', address: usdc },
       { chainId: 1, type: 'erc721', address: nft },
     ]) {
       sepolia.methods.length = 0;
-      await assert.rejects(sendTransfer({ rpcUrl: sepolia.url, privateKey, token, to, amountOrTokenId: 1n }), /reports chain id 11155111/);
+      await assert.rejects(signTransfer({ rpcUrl: sepolia.url, privateKey, token, to, amountOrTokenId: 1n, parentBinding, nonce: 0 }), /reports chain id 11155111/);
       // refused on the chain id alone: no nonce, gas or send was asked for
       assert.deepEqual(sepolia.methods, ['eth_chainId']);
     }
@@ -557,7 +570,7 @@ test('nothing is sent through an RPC that reports another chain id than the toke
     // on the right chain the transfer goes on to the RPC, which this test endpoint then fails
     sepolia.methods.length = 0;
     await assert.rejects(
-      sendTransfer({ rpcUrl: sepolia.url, privateKey, token: { chainId: 11155111, type: 'native' }, to, amountOrTokenId: 1n }),
+      signTransfer({ rpcUrl: sepolia.url, privateKey, token: { chainId: 11155111, type: 'native' }, to, amountOrTokenId: 1n, parentBinding, nonce: 0 }),
       (error) => !/reports chain id/.test(error.message),
     );
     assert.ok(sepolia.methods.length > 1);
@@ -652,4 +665,146 @@ test('the two transactions are judged together once both are waited for', () => 
   assert.deepEqual(getTipSettleOutcome(reverted, ok), { type: 'tip-failed', error: reverted.error });
   assert.deepEqual(getTipSettleOutcome(reverted, reverted), { type: 'tip-failed', error: reverted.error });
   assert.deepEqual(getTipSettleOutcome(reverted), { type: 'tip-failed', error: reverted.error });
+});
+
+// an RPC that serves what signing a transfer reads, and keeps the raw transactions it is sent
+const startChain = async ({ known = [], sendError } = {}) => {
+  const sent = [];
+  const handlers = {
+    eth_chainId: () => '0xaa36a7',
+    eth_getBlockByNumber: () => ({
+      number: '0x10',
+      hash: `0x${'11'.repeat(32)}`,
+      parentHash: `0x${'22'.repeat(32)}`,
+      timestamp: '0x1',
+      baseFeePerGas: '0x3b9aca00',
+      gasLimit: '0x1c9c380',
+      gasUsed: '0x0',
+      transactions: [],
+      uncles: [],
+      difficulty: '0x0',
+      nonce: '0x0000000000000000',
+      miner: `0x${'00'.repeat(20)}`,
+    }),
+    eth_maxPriorityFeePerGas: () => '0x3b9aca00',
+    eth_gasPrice: () => '0x77359400',
+    eth_estimateGas: () => '0x6000',
+    eth_getTransactionCount: () => '0x0',
+    eth_getTransactionByHash: ({ params }) => (known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null),
+    eth_sendRawTransaction: ({ params }) => {
+      sent.push(params[0]);
+      if (sendError) {
+        throw sendError;
+      }
+      return `0x${'ab'.repeat(32)}`;
+    },
+  };
+  const server = createServer((request, response) => {
+    let body = '';
+    request.on('data', (chunk) => (body += chunk));
+    request.on('end', () => {
+      const call = JSON.parse(body);
+      let result;
+      try {
+        result = handlers[call.method]
+          ? { result: handlers[call.method](call) }
+          : { error: { code: -32601, message: `the method ${call.method} does not exist/is not available` } };
+      } catch (error) {
+        result = { error: { code: -32000, message: error.message } };
+      }
+      response.setHeader('content-type', 'application/json');
+      response.end(JSON.stringify({ jsonrpc: '2.0', id: call.id, ...result }));
+    });
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  return { url: `http://127.0.0.1:${server.address().port}`, sent, close: () => new Promise((resolve) => server.close(resolve)) };
+};
+
+test('a transfer is signed with a known hash, before anything is broadcast, and with the fees it is priced at', async () => {
+  const chain = await startChain();
+  try {
+    const privateKey = `0x${'02'.repeat(32)}`;
+    const to = '0x5555555555555555555555555555555555555555';
+    const parentBinding = getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG');
+    const options = { rpcUrl: chain.url, privateKey, token: { chainId: 11155111, type: 'native' }, to, amountOrTokenId: 5n, parentBinding };
+    const fee = await signTransfer({ ...options, nonce: 7 });
+    const tip = await signTransfer({ ...options, nonce: 8 });
+    // signing sends nothing: the hash is the record of what may be in the mempool
+    assert.deepEqual(chain.sent, []);
+    assert.equal(fee.hash, keccak256(fee.raw));
+    assert.notEqual(fee.hash, tip.hash);
+    const parsed = parseTransaction(fee.raw);
+    assert.equal(parsed.nonce, 7);
+    assert.equal(parsed.chainId, 11155111);
+    assert.equal(parsed.to.toLowerCase(), to);
+    assert.equal(parsed.value, 5n);
+    assert.equal(parsed.data, parentBinding);
+    // the send is priced as the simulation counted it, which is the fee cap and not the gas price
+    const { gas, gasPrice } = await simulateTransfer(options);
+    assert.equal(gas, 0x6000n);
+    assert.equal(parsed.maxFeePerGas, gasPrice);
+    assert.equal(parseTransaction(tip.raw).nonce, 8);
+  } finally {
+    await chain.close();
+  }
+});
+
+test('a saved transfer is broadcast again only when the RPC does not know it', async () => {
+  const hash = `0x${'cd'.repeat(32)}`;
+  const raw = '0x02';
+  // not known: sent
+  const fresh = await startChain();
+  try {
+    await ensureBroadcast(fresh.url, { hash, raw });
+    assert.deepEqual(fresh.sent, [raw]);
+  } finally {
+    await fresh.close();
+  }
+  // known, pending or mined: nothing is sent, so a resume never signs or sends a second one
+  const known = await startChain({ known: [hash] });
+  try {
+    await ensureBroadcast(known.url, { hash, raw });
+    assert.deepEqual(known.sent, []);
+  } finally {
+    await known.close();
+  }
+  // another node of the RPC already has it: that is not a failure
+  const raced = await startChain({ sendError: Error('already known') });
+  try {
+    await ensureBroadcast(raced.url, { hash, raw });
+    assert.equal(raced.sent.length, 1);
+  } finally {
+    await raced.close();
+  }
+  // the node answers with an error: it did not take the transaction, which is told apart from a lost response
+  const refused = await startChain({ sendError: Error('nonce too low') });
+  try {
+    await assert.rejects(ensureBroadcast(refused.url, { hash, raw }), (error) => error instanceof BroadcastRejectedError && /nonce too low/.test(error.message));
+  } finally {
+    await refused.close();
+  }
+  // no answer at all: the transaction may be in the mempool, so this is not a refusal and the saved transfer stays
+  const gone = await startChain();
+  const goneUrl = gone.url;
+  await gone.close();
+  await assert.rejects(ensureBroadcast(goneUrl, { hash, raw }), (error) => !(error instanceof BroadcastRejectedError));
+});
+
+test('the nonce of a saved transaction is read back from it', async () => {
+  const chain = await startChain();
+  try {
+    const options = {
+      rpcUrl: chain.url,
+      privateKey: `0x${'02'.repeat(32)}`,
+      token: { chainId: 11155111, type: 'native' },
+      to: '0x5555555555555555555555555555555555555555',
+      amountOrTokenId: 1n,
+      parentBinding: getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG'),
+    };
+    for (const nonce of [0, 1, 30, 31]) {
+      assert.equal(getSignedNonce((await signTransfer({ ...options, nonce })).raw), nonce);
+    }
+  } finally {
+    await chain.close();
+  }
 });
