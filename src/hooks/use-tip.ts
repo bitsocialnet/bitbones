@@ -2,9 +2,17 @@ import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, ChallengeVerification, Comment, PublishCommentOptions } from '@bitsocial/bitsocial-react-hooks';
 import { useEffect, useMemo } from 'react';
 import { create } from 'zustand';
-import { buildTipClaim, formatTokenAmount, getRequiredFee, getTipAmountError, getTipClaimPublishOptions, getTipRecipientAddress } from '../lib/tipping';
-import type { TipToken, TippingConfig } from '../lib/tipping';
-import { ensureRpcChainId, getBalance, getTokenInfo, sendTransfer, waitForTransaction } from '../lib/tipping-chain';
+import {
+  buildTipClaim,
+  formatTokenAmount,
+  getParentBindingSuffix,
+  getRequiredFee,
+  getTipAmountError,
+  getTipClaimPublishOptions,
+  getTipRecipientAddress,
+} from '../lib/tipping';
+import type { TipToken, TipTokenType, TippingConfig } from '../lib/tipping';
+import { ensureRpcChainId, getBalance, getTokenInfo, sendTransfer, simulateTransfer, waitForTransaction } from '../lib/tipping-chain';
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { ensureInAppWallet, getInAppWallet } from './use-in-app-wallet';
 import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
@@ -12,15 +20,25 @@ import { getTippingRpcUrl } from './use-tipping-settings';
 
 const STORAGE_KEY = 'bitbonesPendingTips';
 
-// A tip whose transfer was broadcast and whose reply is not accepted yet. It is saved the moment
-// the transfer has a hash, because from then on the money is gone and only the claim can be lost.
+// The tip transfer itself, kept so a tip can still be sent after a reload once its fee is paid.
+interface PendingTransfer {
+  token: { chainId: number; type: TipTokenType; address?: string };
+  to: string;
+  // base units for native and erc20, the token id for erc721
+  amountOrTokenId: string;
+}
+
+// A tip in progress, from its fee being sent to its reply being accepted. It is saved the moment
+// a transfer has a hash, because from then on the money is gone and only the claim can be lost.
 interface PendingTip {
   communityAddress: string;
   parentCid: string;
   postCid: string;
   content: string;
   chainId: number;
-  txHash: string;
+  transfer: PendingTransfer;
+  // undefined until the tip is sent, which happens only after the fee is mined
+  txHash?: string;
   // the fee owed, kept so it can still be paid after a reload; amount in base units
   fee?: { token?: string; amount: string; to: string };
   feeTxHash?: string;
@@ -29,8 +47,11 @@ interface PendingTip {
 const readStoredPendingTips = (): Record<string, PendingTip> => {
   try {
     const stored: Record<string, PendingTip> = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-    // a record saved without a chain id names no chain, so its claim can't be built
-    return Object.fromEntries(Object.entries(stored && typeof stored === 'object' ? stored : {}).filter(([, pendingTip]) => typeof pendingTip?.chainId === 'number'));
+    // a record saved without a chain id names no chain, and one without its transfer is from before
+    // transactions carried the parent binding: its claim can't be built or its tip sent
+    return Object.fromEntries(
+      Object.entries(stored && typeof stored === 'object' ? stored : {}).filter(([, pendingTip]) => typeof pendingTip?.chainId === 'number' && pendingTip.transfer),
+    );
   } catch {
     return {};
   }
@@ -81,11 +102,12 @@ const run = async (parentCid: string, step: () => Promise<void>): Promise<void> 
   }
 };
 
-// Waits for the tip, pays the fee if one is owed and not paid yet, and waits for that too. Safe to
-// run again after a reload: it only sends the fee when no fee transfer was recorded.
+// Pays the fee if one is owed and not paid yet, waits for it, then sends the tip and waits for that.
+// The fee goes first: if it fails the tip has not been sent, and a failed fee can be sent again.
+// Safe to run again after a reload: each transfer is sent only when none was recorded for it.
 const settle = async (account: Account | undefined, parentCid: string): Promise<void> => {
-  const { pendingTips, setPendingTip } = useTipStore.getState();
-  let pendingTip = pendingTips[parentCid];
+  const { setPendingTip } = useTipStore.getState();
+  let pendingTip = useTipStore.getState().pendingTips[parentCid];
   if (!pendingTip) {
     return;
   }
@@ -93,15 +115,13 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
   if (!rpcUrl) {
     throw Error(`no RPC url for chain id ${pendingTip.chainId}, set one in settings`);
   }
-  // the RPC may have been changed since the tip was sent
+  // the RPC may have been changed since the tip was started
   await ensureRpcChainId(rpcUrl, pendingTip.chainId);
-  setStatus(parentCid, 'waiting for the tip to be mined...');
-  await waitForTransaction(rpcUrl, pendingTip.txHash);
+  const inAppWallet = getInAppWallet(account);
+  if (!inAppWallet) {
+    throw Error('this account has no in-app wallet to pay from');
+  }
   if (pendingTip.fee && !pendingTip.feeTxHash) {
-    const inAppWallet = getInAppWallet(account);
-    if (!inAppWallet) {
-      throw Error('this account has no in-app wallet to pay the fee from');
-    }
     setStatus(parentCid, 'sending the community fee...');
     const feeTxHash = await sendTransfer({
       rpcUrl,
@@ -109,14 +129,40 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
       token: { chainId: pendingTip.chainId, type: pendingTip.fee.token ? 'erc20' : 'native', address: pendingTip.fee.token },
       to: pendingTip.fee.to,
       amountOrTokenId: BigInt(pendingTip.fee.amount),
+      parentBinding: getParentBindingSuffix(parentCid),
     });
     pendingTip = { ...pendingTip, feeTxHash };
     setPendingTip(parentCid, pendingTip);
   }
-  if (pendingTip.feeTxHash) {
+  if (pendingTip.fee && pendingTip.feeTxHash) {
     setStatus(parentCid, 'waiting for the fee to be mined...');
-    await waitForTransaction(rpcUrl, pendingTip.feeTxHash);
+    await waitForTransaction(
+      rpcUrl,
+      pendingTip.feeTxHash,
+      pendingTip.fee.token ? { token: pendingTip.fee.token, to: pendingTip.fee.to, amount: BigInt(pendingTip.fee.amount) } : undefined,
+    );
   }
+  let txHash = pendingTip.txHash;
+  if (!txHash) {
+    setStatus(parentCid, 'sending the tip...');
+    const { token, to, amountOrTokenId } = pendingTip.transfer;
+    txHash = await sendTransfer({
+      rpcUrl,
+      privateKey: inAppWallet.privateKey,
+      token,
+      to,
+      amountOrTokenId: BigInt(amountOrTokenId),
+      parentBinding: getParentBindingSuffix(parentCid),
+    });
+    // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
+    // publish this tip's reply at once, before its transaction is mined, and the community would
+    // answer "not mined yet".
+    useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: false } }));
+    pendingTip = { ...pendingTip, txHash };
+    setPendingTip(parentCid, pendingTip);
+  }
+  setStatus(parentCid, 'waiting for the tip to be mined...');
+  await waitForTransaction(rpcUrl, txHash);
   useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: true } }));
 };
 
@@ -189,6 +235,29 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   const tipText = token.type === 'erc721' ? `${tokenInfo.symbol} #${amountOrTokenId}` : formatAmount(amountOrTokenId, tokenInfo.decimals, tokenInfo.symbol);
   const feeText =
     fee && feeTokenInfo ? `\nplus a community fee of ${formatAmount(fee.amount, feeTokenInfo.decimals, feeTokenInfo.symbol)} to ${config.feeRecipient}` : '';
+  // Both transactions are simulated before either is sent, with the parent binding in place: a
+  // receiver with code, or a token contract that rejects trailing calldata, makes one revert, and
+  // this shows it before any money moves. Each simulation runs against the balance as it is now, so
+  // the native coin needed for both, with their gas, is checked together below.
+  setStatus(parentCid, 'simulating the transactions...');
+  const parentBinding = getParentBindingSuffix(parentCid);
+  const tipTransfer = { rpcUrl, privateKey: inAppWallet.privateKey, token, to, amountOrTokenId, parentBinding };
+  const feeTransfer =
+    fee && feeToken && config.feeRecipient
+      ? { rpcUrl, privateKey: inAppWallet.privateKey, token: feeToken, to: config.feeRecipient, amountOrTokenId: fee.amount, parentBinding }
+      : undefined;
+  const [tipSimulation, feeSimulation] = await Promise.all([simulateTransfer(tipTransfer), feeTransfer ? simulateTransfer(feeTransfer) : undefined]);
+  const nativeToken = { chainId, type: 'native' as const };
+  const nativeBalance = token.type === 'native' ? balance : await getBalance(rpcUrl, nativeToken, inAppWallet.address);
+  const gasCost = tipSimulation.gas * tipSimulation.gasPrice + (feeSimulation ? feeSimulation.gas * feeSimulation.gasPrice : 0n);
+  const nativeNeeded = gasCost + (token.type === 'native' ? amountOrTokenId : 0n) + (fee && !fee.token ? fee.amount : 0n);
+  if (nativeBalance < nativeNeeded) {
+    const nativeInfo = await getTokenInfo(rpcUrl, nativeToken);
+    throw Error(
+      `the in-app wallet holds ${formatAmount(nativeBalance, nativeInfo.decimals, nativeInfo.symbol)}, the transfers and the gas of both need about ${formatAmount(nativeNeeded, nativeInfo.decimals, nativeInfo.symbol)}`,
+    );
+  }
+
   const confirmed = window.confirm(
     `send ${tipText} to ${to}${feeText}\n\non chain id ${chainId} (${rpcUrl})\nfrom the in-app wallet ${inAppWallet.address}\n\nthis moves real funds and can't be undone.`,
   );
@@ -200,19 +269,13 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   setStatus(parentCid, 'linking the in-app wallet...');
   await ensureInAppWallet(account);
 
-  setStatus(parentCid, 'sending the tip...');
-  const txHash = await sendTransfer({ rpcUrl, privateKey: inAppWallet.privateKey, token, to, amountOrTokenId });
-  // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
-  // publish this tip's reply at once, before its transaction is mined, and the community would
-  // answer "not mined yet".
-  useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: false } }));
   useTipStore.getState().setPendingTip(parentCid, {
     communityAddress: comment.communityAddress,
     parentCid,
     postCid: comment.postCid || parentCid,
     content: content.trim() || 'tip',
     chainId,
-    txHash,
+    transfer: { token: { chainId, type: token.type, address: token.address }, to, amountOrTokenId: String(amountOrTokenId) },
     fee: fee && config.feeRecipient ? { token: fee.token, amount: String(fee.amount), to: config.feeRecipient } : undefined,
   });
   await settle(account, parentCid);
@@ -246,7 +309,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   const publishCommentOptions = useMemo((): PublishCommentOptions | undefined => {
     // the challenge index comes from the community's current challenges, so a tip resumed after a
     // reload waits for the community to load instead of guessing the key
-    if (!pendingTip || !mined || !config) {
+    if (!pendingTip?.txHash || !mined || !config) {
       return undefined;
     }
     const { parentCid, txHash } = pendingTip;

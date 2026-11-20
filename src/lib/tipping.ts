@@ -1,18 +1,19 @@
 // Pure logic for the tipping/v1 contract and the author wallet proof. No React, no network, and no
 // relative imports, so scripts/__tests__/tipping.node-test.mjs can import this file directly.
-import { formatUnits, isAddress, isHash, parseUnits, recoverMessageAddress } from 'viem';
+import { concatHex, formatUnits, isAddress, isHash, keccak256, parseUnits, recoverMessageAddress, stringToHex } from 'viem';
 import type { Address, Hash, Hex } from 'viem';
 
 // ---------------------------------------------------------------------------------------------
 // author wallet proof
 // ---------------------------------------------------------------------------------------------
 
-// The exact string a wallet signs to link itself to an author. Built by hand because the field
-// order and the absence of whitespace are part of the format. authorPublicKey is the key address
-// of the author's signing key (12D3KooW...), never the runtime author.address, which is the
-// author's name when they have one and follows the name when it is repointed.
-export const getWalletMessageToSign = (authorPublicKey: string, timestamp: number): string =>
-  `{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"${authorPublicKey}","timestamp":${timestamp}}`;
+// The exact string a wallet signs to link itself to an author (BSIP-22). Built by hand because the
+// field order and the absence of whitespace are part of the format. authorPublicKey is the key
+// address of the author's signing key (12D3KooW...), never the runtime author.address, which is the
+// author's name when they have one and follows the name when it is repointed. The wallet signs its
+// own address, in lowercase, so nobody can make up 65 bytes and claim whatever address they recover to.
+export const getWalletMessageToSign = (authorPublicKey: string, walletAddress: string, timestamp: number): string =>
+  `{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"${authorPublicKey}","walletAddress":"${walletAddress.toLowerCase()}","timestamp":${timestamp}}`;
 
 export const walletSignatureType = 'eip191';
 
@@ -112,48 +113,104 @@ export const normalizeWalletSignature = (signature: string): Hex | undefined => 
   return `0x${r}${s.toString(16).padStart(64, '0')}${v.toString(16)}`;
 };
 
-// undefined when the proof is valid, otherwise why it is not. Offline: one hash and one public key
-// recovery. The v and s rules are checked here because viem's recovery accepts both forms of each,
+export type WalletProofOutcome = 'valid' | 'invalid' | 'unknown';
+
+export interface WalletProofResult {
+  outcome: WalletProofOutcome;
+  // why the entry is not valid; undefined when it is
+  reason?: string;
+}
+
+// The three outcomes of BSIP-22, offline: one hash and one public key recovery. valid is the only
+// outcome that makes an entry a wallet to show as the author's, count, or send funds to. invalid is
+// a malformed or failing eip191 entry. unknown is another signature type: unproven, not wrong.
+// The v and s rules are checked before recovery because viem's recovery accepts both forms of each,
 // and verifiers that follow their libraries would disagree about the same entry.
-export const getWalletProofError = async (wallet: unknown, authorPublicKey: string | undefined, nowSeconds: number = Date.now() / 1000): Promise<string | undefined> => {
+export const verifyWalletProof = async (wallet: unknown, authorPublicKey: string | undefined, nowSeconds: number = Date.now() / 1000): Promise<WalletProofResult> => {
+  const invalid = (reason: string): WalletProofResult => ({ outcome: 'invalid', reason });
   const proof = wallet as Partial<WalletProof> | undefined;
   if (!authorPublicKey) {
-    return 'the author has no public key';
+    return invalid('the author has no public key');
   }
   if (!proof || typeof proof !== 'object') {
-    return 'no wallet';
+    return invalid('no wallet');
+  }
+  // the shape comes first, whatever the type
+  if (typeof proof.address !== 'string') {
+    return invalid('the wallet address is not a 0x address');
+  }
+  if (typeof proof.timestamp !== 'number' || !Number.isInteger(proof.timestamp)) {
+    return invalid('the wallet timestamp is not an integer');
+  }
+  const type: unknown = proof.signature?.type;
+  if (typeof proof.signature?.signature !== 'string' || typeof type !== 'string') {
+    return invalid('the wallet signature is missing its signature or its type');
+  }
+  if (type !== walletSignatureType) {
+    return { outcome: 'unknown', reason: `the wallet signature type is not ${walletSignatureType}` };
   }
   // a literal address only: a name here would need an RPC and changes meaning when repointed
-  if (typeof proof.address !== 'string' || !walletAddressPattern.test(proof.address)) {
-    return 'the wallet address is not a 0x address';
+  if (!walletAddressPattern.test(proof.address)) {
+    return invalid('the wallet address is not a 0x address');
   }
-  if (proof.signature?.type !== walletSignatureType) {
-    return `the wallet signature type is not ${walletSignatureType}`;
-  }
-  if (typeof proof.timestamp !== 'number' || !Number.isSafeInteger(proof.timestamp) || proof.timestamp < 0) {
-    return 'the wallet timestamp is not an integer';
+  if (proof.timestamp < 0) {
+    return invalid('the wallet timestamp is negative');
   }
   if (proof.timestamp > nowSeconds + walletTimestampAllowanceSeconds) {
-    return 'the wallet timestamp is in the future';
+    return invalid('the wallet timestamp is in the future');
   }
   const signature = proof.signature.signature;
-  if (typeof signature !== 'string' || !walletSignaturePattern.test(signature)) {
-    return 'the wallet signature is not 65 bytes of hex';
+  if (!walletSignaturePattern.test(signature)) {
+    return invalid('the wallet signature is not 65 bytes of hex');
   }
   const v = Number.parseInt(signature.substring(130), 16);
   if (v !== 27 && v !== 28) {
-    return 'the wallet signature v is not 27 or 28';
+    return invalid('the wallet signature v is not 27 or 28');
   }
   if (BigInt(`0x${signature.substring(66, 130)}`) > secp256k1HalfOrder) {
-    return 'the wallet signature s is in the upper half of the curve order';
+    return invalid('the wallet signature s is in the upper half of the curve order');
   }
   try {
-    const recovered = await recoverMessageAddress({ message: getWalletMessageToSign(authorPublicKey, proof.timestamp), signature: signature as Hex });
-    return recovered.toLowerCase() === proof.address.toLowerCase() ? undefined : 'the wallet did not sign for this author';
+    const recovered = await recoverMessageAddress({ message: getWalletMessageToSign(authorPublicKey, proof.address, proof.timestamp), signature: signature as Hex });
+    return recovered.toLowerCase() === proof.address.toLowerCase() ? { outcome: 'valid' } : invalid('the wallet did not sign for this author');
   } catch {
-    return 'the wallet signature is malformed';
+    return invalid('the wallet signature is malformed');
   }
 };
+
+const walletProofResults = new Map<string, Promise<WalletProofResult>>();
+
+// verifyWalletProof, once per entry and author key, for views that show an entry's outcome
+export const getWalletProofResult = (wallet: unknown, authorPublicKey: string | undefined): Promise<WalletProofResult> => {
+  const key = JSON.stringify([wallet, authorPublicKey]);
+  let result = walletProofResults.get(key);
+  if (!result) {
+    result = verifyWalletProof(wallet, authorPublicKey);
+    walletProofResults.set(key, result);
+  }
+  return result;
+};
+
+// undefined when the entry is a valid proof, otherwise why it is not (invalid and unknown alike)
+export const getWalletProofError = async (wallet: unknown, authorPublicKey: string | undefined, nowSeconds?: number): Promise<string | undefined> => {
+  const { outcome, reason } = await verifyWalletProof(wallet, authorPublicKey, nowSeconds);
+  return outcome === 'valid' ? undefined : (reason ?? 'not a valid wallet proof');
+};
+
+// ---------------------------------------------------------------------------------------------
+// parent binding
+// ---------------------------------------------------------------------------------------------
+
+export const parentBindingSuffixBytes = 65;
+
+// The 65 bytes every transaction a tip claim names must end with: an ERC-8021 schema 2 suffix whose
+// one metadata entry m["bso-tip"] holds keccak256 of the parent comment's cid, as written in the
+// reply's parentCid. A plain transfer names no comment, so this is what ties a payment to one.
+export const getParentBindingSuffix = (parentCid: string): Hex =>
+  concatHex(['0xa1616da167', stringToHex('bso-tip'), '0x5820', keccak256(stringToHex(parentCid)), '0x002e02', `0x${'8021'.repeat(8)}`]);
+
+// whether a transaction's input ends with the binding of that parent, with nothing after it
+export const hasParentBinding = (input: string, parentCid: string): boolean => input.toLowerCase().endsWith(getParentBindingSuffix(parentCid).substring(2));
 
 // ---------------------------------------------------------------------------------------------
 // tipping/v1 public options
@@ -192,7 +249,9 @@ export interface TippingConfig {
 
 const parseBaseUnits = (value: unknown): bigint | undefined => (typeof value === 'string' && /^\d+$/.test(value) ? BigInt(value) : undefined);
 
-const percentPattern = /^\d+(\.\d+)?$/;
+// at most 4 decimal places, greater than 0 and at most 100, as the contract says
+const percentPattern = /^\d+(\.\d{1,4})?$/;
+const isPercent = (percent: string): boolean => percentPattern.test(percent) && Number(percent) > 0 && Number(percent) <= 100;
 
 const parseFee = (fee: unknown, type: TipTokenType): TipFee | undefined | 'invalid' => {
   if (fee === undefined) {
@@ -208,7 +267,7 @@ const parseFee = (fee: unknown, type: TipTokenType): TipFee | undefined | 'inval
   }
   if (percent !== undefined) {
     // an NFT can't be split
-    if (type === 'erc721' || token !== undefined || typeof percent !== 'string' || !percentPattern.test(percent)) {
+    if (type === 'erc721' || token !== undefined || typeof percent !== 'string' || !isPercent(percent)) {
       return 'invalid';
     }
     return { percent };
@@ -306,8 +365,8 @@ export interface RequiredFee {
   amount: bigint;
 }
 
-// The fee a tip owes, paid on top of the tip. A percentage is rounded up, so the amount sent never
-// falls below what the community computes whichever way it rounds.
+// The fee a tip owes, paid on top of the tip: the least the community accepts. A percentage is
+// rounded down, as the contract does, and paying more is allowed.
 export const getRequiredFee = (config: TippingConfig, token: TipToken, amount: bigint): RequiredFee | undefined => {
   if (!config.feeRecipient || !token.fee) {
     return undefined;
@@ -317,7 +376,7 @@ export const getRequiredFee = (config: TippingConfig, token: TipToken, amount: b
     const [whole, fraction = ''] = token.fee.percent.split('.');
     const numerator = BigInt(whole + fraction);
     const denominator = 100n * 10n ** BigInt(fraction.length);
-    feeAmount = (amount * numerator + denominator - 1n) / denominator;
+    feeAmount = (amount * numerator) / denominator;
   } else {
     feeAmount = token.fee.amount;
   }
@@ -411,6 +470,10 @@ export interface Tip {
   fee?: TipFeePaid;
 }
 
+// the contract, with its version, whose rules a tip was verified under. A tip carrying another one
+// can't be checked by this client.
+export const tippingContract = 'tipping/v1';
+
 export interface TipFeePaid {
   txHash: string;
   to: string;
@@ -442,7 +505,11 @@ export const getTip = (comment: CommentLike | undefined): Tip | undefined => {
   if (!tip || typeof tip !== 'object') {
     return undefined;
   }
-  const { chainId, txHash, type, token, from, to, amount, tokenId, fee } = tip as Record<string, unknown>;
+  const { contract, chainId, txHash, type, token, from, to, amount, tokenId, fee } = tip as Record<string, unknown>;
+  // a tip from before the contract field existed is read as the first version
+  if (contract !== undefined && contract !== tippingContract) {
+    return undefined;
+  }
   if (!isChainId(chainId) || typeof txHash !== 'string' || typeof from !== 'string' || typeof to !== 'string') {
     return undefined;
   }

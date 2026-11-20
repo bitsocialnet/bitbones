@@ -1,5 +1,6 @@
 // Node strips the types from src/lib/tipping.ts on import, which is why that file has no relative imports.
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { test } from 'node:test';
 import { recoverMessageAddress } from 'viem';
@@ -24,7 +25,10 @@ import {
   getTipCheckError,
   getVerifiedTip,
   getVerifiedTipTotals,
+  getParentBindingSuffix,
   getWalletMessageToSign,
+  hasParentBinding,
+  verifyWalletProof,
   getWalletProofError,
   normalizeWalletSignature,
   parseTokenAmount,
@@ -56,8 +60,8 @@ const exampleCommunity = communityWith({ [tokensOptionName]: JSON.stringify(exam
 
 test('the wallet message is the exact agreed string', () => {
   assert.equal(
-    getWalletMessageToSign('12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J', 1770000000),
-    '{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J","timestamp":1770000000}',
+    getWalletMessageToSign('12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J', '0x5050A4F4b3f9338C3472dcC01A87C76A144b3c9c', 1770000000),
+    '{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J","walletAddress":"0x5050a4f4b3f9338c3472dcc01a87c76a144b3c9c","timestamp":1770000000}',
   );
 });
 
@@ -84,26 +88,20 @@ const toHighS = (signature) => {
 // the same signature with v written as 0 or 1
 const toV01 = (signature) => `${signature.substring(0, 130)}${signature.substring(130) === '1b' ? '00' : '01'}`;
 
-// the test vector of the author wallet proofs BSIP
+// the test vectors of BSIP-22, copied unchanged from the BSIPs repository
+const vectors = JSON.parse(readFileSync(new URL('./fixtures/bsip-22-wallet-proof-vectors.json', import.meta.url), 'utf8'));
 const vector = {
-  publicKey: 'iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w',
-  keyAddress: '12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5',
-  walletPrivateKey: `0x${'02'.repeat(32)}`,
-  message: '{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"12D3KooWK99VoVxNE7XzyBwXEzW7xhK7Gpv85r9F3V3fyKSUKPH5","timestamp":1790000000}',
-  entry: {
-    address: '0x5050A4F4b3f9338C3472dcC01A87C76A144b3c9c',
-    timestamp: 1790000000,
-    signature: {
-      signature: '0x689cdb0da488b458f4deb758ea77c3d205b6d17d690e9ffab497bc44eb9536a25fbc48ce7c3e6cab651efe176f94d856ebbe8fcad920dfece8cb5f0cb355d8ac1c',
-      type: 'eip191',
-    },
-  },
+  publicKey: vectors.authorKey.publicKeyBase64Unpadded,
+  keyAddress: vectors.authorKey.address,
+  walletPrivateKey: `0x${vectors.walletPrivateKeyHex}`,
+  message: vectors.proofMessage,
+  entry: vectors.cases[0].entry,
 };
 const withSignature = (signature) => ({ ...vector.entry, signature: { ...vector.entry.signature, signature } });
 
 test('the BSIP test vector is a valid proof, and this client produces the same one', async () => {
   assert.equal(getKeyAddressFromPublicKey(vector.publicKey), vector.keyAddress);
-  assert.equal(getWalletMessageToSign(vector.keyAddress, vector.entry.timestamp), vector.message);
+  assert.equal(getWalletMessageToSign(vector.keyAddress, vector.entry.address, vector.entry.timestamp), vector.message);
   assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1790000000), undefined);
   // the address is compared without regard to letter case
   assert.equal(await getWalletProofError({ ...vector.entry, address: vector.entry.address.toLowerCase() }, vector.keyAddress, 1790000000), undefined);
@@ -119,9 +117,10 @@ test('a proof may be dated at most 300 seconds ahead of the verifier', async () 
   assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999700), undefined);
   assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999699), 'the wallet timestamp is in the future');
   assert.equal(await getWalletProofError({ ...vector.entry, timestamp: 1790000301 }, vector.keyAddress, 1790000000), 'the wallet timestamp is in the future');
-  for (const timestamp of [1790000000.5, -1, '1790000000', undefined]) {
+  for (const timestamp of [1790000000.5, '1790000000', undefined]) {
     assert.equal(await getWalletProofError({ ...vector.entry, timestamp }, vector.keyAddress, 1790000000), 'the wallet timestamp is not an integer');
   }
+  assert.equal(await getWalletProofError({ ...vector.entry, timestamp: -1 }, vector.keyAddress, 1790000000), 'the wallet timestamp is negative');
 });
 
 test('a proof has one accepted signature encoding: v of 27 or 28 and a low s', async () => {
@@ -139,9 +138,10 @@ test('a proof has one accepted signature encoding: v of 27 or 28 and a low s', a
   assert.equal((await recoverMessageAddress({ message: vector.message, signature: highS })).toLowerCase(), vector.entry.address.toLowerCase());
   assert.equal(await getWalletProofError(withSignature(highS), vector.keyAddress, now), 'the wallet signature s is in the upper half of the curve order');
 
-  for (const malformed of ['0x1234', signature.substring(0, 130), `${signature}00`, signature.substring(2), `0x${'zz'.repeat(65)}`, undefined]) {
+  for (const malformed of ['0x1234', signature.substring(0, 130), `${signature}00`, signature.substring(2), `0x${'zz'.repeat(65)}`]) {
     assert.equal(await getWalletProofError(withSignature(malformed), vector.keyAddress, now), 'the wallet signature is not 65 bytes of hex');
   }
+  assert.equal(await getWalletProofError(withSignature(undefined), vector.keyAddress, now), 'the wallet signature is missing its signature or its type');
 });
 
 test('a signature is normalised to the accepted encoding before it is stored', async () => {
@@ -158,7 +158,7 @@ test('a signature is normalised to the accepted encoding before it is stored', a
   // every proof this client signs verifies
   for (let index = 0; index < 8; index++) {
     const account = privateKeyToAccount(generatePrivateKey());
-    const normalized = normalizeWalletSignature(await account.signMessage({ message: vector.message }));
+    const normalized = normalizeWalletSignature(await account.signMessage({ message: getWalletMessageToSign(vector.keyAddress, account.address, 1790000000) }));
     assert.equal(await getWalletProofError({ ...withSignature(normalized), address: account.address }, vector.keyAddress, 1790000000), undefined);
   }
 });
@@ -180,12 +180,12 @@ test('a wallet proof is valid only for the author key it names', async () => {
   for (const address of ['example.eth', vector.entry.address.substring(2), `${vector.entry.address}00`, undefined]) {
     assert.equal(await getWalletProofError({ ...vector.entry, address }, vector.keyAddress, now), 'the wallet address is not a 0x address');
   }
-  for (const type of ['sol', 'eip712', undefined]) {
-    assert.equal(
-      await getWalletProofError({ ...vector.entry, signature: { ...vector.entry.signature, type } }, vector.keyAddress, now),
-      'the wallet signature type is not eip191',
-    );
+  // another signature type is unproven, not wrong
+  for (const type of ['sol', 'eip712']) {
+    const entry = { ...vector.entry, signature: { ...vector.entry.signature, type } };
+    assert.deepEqual(await verifyWalletProof(entry, vector.keyAddress, now), { outcome: 'unknown', reason: 'the wallet signature type is not eip191' });
   }
+  assert.equal((await verifyWalletProof({ ...vector.entry, signature: { ...vector.entry.signature, type: undefined } }, vector.keyAddress, now)).outcome, 'invalid');
   assert.equal(await getWalletProofError(undefined, vector.keyAddress, now), 'no wallet');
   assert.equal(await getWalletProofError(vector.entry, undefined, now), 'the author has no public key');
 });
@@ -268,9 +268,9 @@ test('computes the fee owed on top of a tip', () => {
   assert.deepEqual(getRequiredFee(config, native, 10n ** 18n), { token: undefined, amount: 2n * 10n ** 16n });
   // 2.5% of 10 USDC, paid in USDC
   assert.deepEqual(getRequiredFee(config, usdcToken, 10000000n), { token: usdc, amount: 250000n });
-  // rounds up: 2.5% of 1 base unit is 1
-  assert.deepEqual(getRequiredFee(config, usdcToken, 1n), { token: usdc, amount: 1n });
-  assert.deepEqual(getRequiredFee(config, usdcToken, 41n), { token: usdc, amount: 2n });
+  // rounds down, as the contract does: 2.5% of 1 base unit is 0 and owes nothing, of 41 it is 1
+  assert.equal(getRequiredFee(config, usdcToken, 1n), undefined);
+  assert.deepEqual(getRequiredFee(config, usdcToken, 41n), { token: usdc, amount: 1n });
   // flat, whatever the tip
   assert.deepEqual(getRequiredFee(config, daiToken, 1n), { token: dai, amount: 500000000000000000n });
   // an NFT's flat fee is paid in the ERC-20 the entry names
@@ -357,7 +357,7 @@ test('reads the tip a community wrote, and sums tips per token', () => {
 // an author with a signing key and a wallet proven for it
 const createWallet = async (publicKey, timestamp = 1700000000) => {
   const account = privateKeyToAccount(generatePrivateKey());
-  const message = getWalletMessageToSign(getKeyAddressFromPublicKey(publicKey), timestamp);
+  const message = getWalletMessageToSign(getKeyAddressFromPublicKey(publicKey), account.address, timestamp);
   return { address: account.address, timestamp, signature: { signature: normalizeWalletSignature(await account.signMessage({ message })), type: 'eip191' } };
 };
 const createAuthor = async (publicKey, timestamp) => {
@@ -586,4 +586,40 @@ test('reads the fee a tip carries, and checks it against the community config', 
     undefined,
   );
   assert.equal(getTipFeeConfigError(config, getTip({ tip: { ...base, token: '0x6666666666666666666666666666666666666666' } })), 'the community does not list this token');
+});
+
+test('every case of the BSIP-22 test vectors comes out as the BSIP says', async () => {
+  assert.equal(vectors.cases.length, 26);
+  for (const vectorCase of vectors.cases) {
+    const key = vectorCase.authorKey === 'other' ? vectors.otherKey.address : vectors.authorKey.address;
+    const { outcome } = await verifyWalletProof(vectorCase.entry, key, vectorCase.verifierTime);
+    assert.equal(outcome, vectorCase.outcome, vectorCase.name);
+  }
+});
+
+test('the parent binding is the 65 byte suffix of the contract', () => {
+  const parentCid = 'QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG';
+  const suffix = '0xa1616da16762736f2d74697058209e70d347eb27e5edfa2b03409b020ecdaba0997a7a4806a5c441694ea6bf9b5d002e0280218021802180218021802180218021';
+  assert.equal(getParentBindingSuffix(parentCid), suffix);
+  assert.equal((suffix.length - 2) / 2, 65);
+  // hashed as written
+  assert.notEqual(getParentBindingSuffix(parentCid.toLowerCase()), suffix);
+  assert.equal(hasParentBinding(suffix, parentCid), true);
+  assert.equal(hasParentBinding(`0xa9059cbb${suffix.substring(2)}`, parentCid), true);
+  // nothing may follow it, and it names one parent
+  assert.equal(hasParentBinding(`${suffix}00`, parentCid), false);
+  assert.equal(hasParentBinding('0x', parentCid), false);
+  assert.equal(hasParentBinding(suffix, 'QmbWqxBEKC3P8tqsKc98xmWNzrzDtRLMiMPL8wBuTGsMnR'), false);
+});
+
+test('a tip verified under another contract is not read, and fees are limited to four decimals', () => {
+  const tip = { chainId: 1, txHash, type: 'native', from: feeRecipient, to: feeRecipient, amount: '1' };
+  assert.equal(getTip({ tip: { ...tip, contract: 'tipping/v1' } }).chainId, 1);
+  assert.equal(getTip({ tip }).chainId, 1);
+  assert.equal(getTip({ tip: { ...tip, contract: 'tipping/v2' } }), undefined);
+  const tokens = (fee) => getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'native', fee }]) }));
+  assert.equal(tokens({ percent: '2.5001' }).tokens.length, 1);
+  for (const percent of ['2.50001', '0', '101', '-1']) {
+    assert.equal(tokens({ percent }), undefined);
+  }
 });

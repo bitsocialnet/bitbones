@@ -51,7 +51,7 @@ const signInAppWallet = async (account: Account, inAppWallet: InAppWallet): Prom
   }
   const timestamp = Math.floor(Date.now() / 1000);
   // stored in the one encoding a proof may have, whatever the signer returned
-  const signature = normalizeWalletSignature(await signWalletMessage(inAppWallet.privateKey, getWalletMessageToSign(keyAddress, timestamp)));
+  const signature = normalizeWalletSignature(await signWalletMessage(inAppWallet.privateKey, getWalletMessageToSign(keyAddress, inAppWallet.address, timestamp)));
   if (!signature) {
     throw Error('the wallet returned a signature that is not 65 bytes');
   }

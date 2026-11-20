@@ -3,6 +3,8 @@ import { useComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import {
   formatTokenAmount,
+  getParentBindingSuffix,
+  getProvenWalletAddresses,
   getRequiredFee,
   getTip,
   getTipAmountError,
@@ -150,25 +152,28 @@ const TipCheckDetails = ({ comment, reply }: Omit<TipRowProps, 'tip'>) => {
 
 type OnChainState = { status: 'idle' } | { status: 'checking' } | { status: 'done'; result: OnChainTipResult } | { status: 'error'; message: string };
 
-const getOnChainError = (result: OnChainTipCheck, commentTimestamp: unknown, what: string): string | undefined => {
+const getOnChainError = (result: OnChainTipCheck, what: string): string | undefined => {
   if (!result.mined) {
     return `the ${what} transaction was not found on this chain`;
   }
   if (!result.succeeded) {
     return `the ${what} transaction failed`;
   }
-  if (!result.matchesTip) {
-    return `the ${what} transaction is not a transfer of this token between these wallets of this amount`;
+  if (!result.sentByTipper) {
+    return `the ${what} transaction was not sent by a wallet the tipper proved`;
   }
-  if (typeof commentTimestamp === 'number' && result.blockTimestamp <= commentTimestamp) {
-    return `the ${what} transaction is older than the tipped comment`;
+  if (!result.hasBinding) {
+    return `the ${what} transaction does not end with the parent binding of the tipped comment`;
+  }
+  if (!result.matchesTip) {
+    return `the ${what} transaction is not a transfer of this token to this wallet of this amount`;
   }
   return undefined;
 };
 
 // Looks the transaction up through the RPC set for its chain. Only on a click: every check is an
 // RPC call, and a thread can carry many tips.
-const OnChainCheck = ({ comment, tip, config }: Pick<TipRowProps, 'comment' | 'tip' | 'config'>) => {
+const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'comment' | 'reply' | 'tip' | 'config'>) => {
   const rpcUrl = useTippingRpcUrl(tip.chainId);
   const [state, setState] = useState<OnChainState>({ status: 'idle' });
   const verify = () => {
@@ -176,15 +181,18 @@ const OnChainCheck = ({ comment, tip, config }: Pick<TipRowProps, 'comment' | 't
       return;
     }
     setState({ status: 'checking' });
-    checkTipOnChain(rpcUrl, tip).then(
-      (result) => setState({ status: 'done', result }),
-      (error: unknown) => setState({ status: 'error', message: error instanceof Error ? error.message : String(error) }),
-    );
+    // the transaction has to be sent by one of the tipper's proven wallets, and end with the binding of the tipped comment
+    getProvenWalletAddresses(reply)
+      .then((senders) => checkTipOnChain(rpcUrl, tip, senders, getParentBindingSuffix(String(comment.cid))))
+      .then(
+        (result) => setState({ status: 'done', result }),
+        (error: unknown) => setState({ status: 'error', message: error instanceof Error ? error.message : String(error) }),
+      );
   };
   const error =
     state.status === 'done'
-      ? (getOnChainError(state.result.tip, comment.timestamp, 'tip') ??
-        (state.result.fee ? getOnChainError(state.result.fee, comment.timestamp, 'fee') : undefined) ??
+      ? (getOnChainError(state.result.tip, 'tip') ??
+        (state.result.fee ? getOnChainError(state.result.fee, 'fee') : undefined) ??
         (config ? getTipFeeConfigError(config, tip) : undefined))
       : undefined;
   return (
@@ -206,7 +214,8 @@ const OnChainCheck = ({ comment, tip, config }: Pick<TipRowProps, 'comment' | 't
             <span className={styles.error}>not verified: {error}</span>
           ) : (
             <span className={styles.dim}>
-              verified on chain: the tip{tip.fee && ' and its fee'} mined, succeeded, and match{tip.fee ? '' : 'es'} what the community wrote
+              verified on chain: the tip{tip.fee && ' and its fee'} {tip.fee ? 'were' : 'was'} mined, sent by the tipper, bound to this comment, and{' '}
+              {tip.fee ? 'match' : 'matches'} what the community wrote
               {config ? ', and the fee follows the community config' : ''}
             </span>
           ))}
@@ -267,7 +276,7 @@ const TipRow = ({ config, comment, reply, tip }: TipRowProps) => (
             </dd>
           </>
         )}
-        <OnChainCheck comment={comment} tip={tip} config={config} />
+        <OnChainCheck comment={comment} reply={reply} tip={tip} config={config} />
         <dt>reply</dt>
         <dd>{reply.cid}</dd>
       </dl>
@@ -445,7 +454,7 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
       {pendingTip ? (
         <>
           <span className={styles.dim} title={pendingTip.feeTxHash ? `fee ${pendingTip.feeTxHash}` : undefined}>
-            tip sent in {pendingTip.txHash}
+            {pendingTip.txHash ? `tip sent in ${pendingTip.txHash}` : 'tip not sent yet'}
           </span>
           {!status && (
             <>
