@@ -32,7 +32,7 @@ function Subscriptions() {
   const communities = useCommunityIdentifiers(communityAddresses);
   const feedResult = useFeed({ communities, sortType, postsPerPage: 10, newerThan: timeFilterSeconds, accountComments });
   const { feed, updatedFeed, hasMore, loadMore } = feedResult;
-  const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
+  const { stateString, failed } = useFeedStateString(communityAddresses, feedResult.state);
 
   let Footer;
   if (feed?.length === 0) {
@@ -42,7 +42,7 @@ function Subscriptions() {
     Footer = NoSubscriptions;
   }
   if (hasMore || !account) {
-    Footer = () => <FeedFooter>{loadingStateString}</FeedFooter>;
+    Footer = () => <FeedFooter failed={failed}>{stateString}</FeedFooter>;
   }
 
   // save last virtuoso state on each scroll
@@ -71,12 +71,12 @@ function Subscriptions() {
       inspector={
         <Inspector
           fallback={
-            <FeedDetails feedResult={feedResult} communityCount={communities.length} sortType={sortType} newerThan={timeFilterSeconds} stateString={loadingStateString} />
+            <FeedDetails feedResult={feedResult} communityCount={communities.length} sortType={sortType} newerThan={timeFilterSeconds} stateString={stateString} />
           }
         />
       }
     >
-      <FeedHeader feedResult={feedResult} sortType={sortType} timeFilterName={timeFilterName} stateString={loadingStateString} />
+      <FeedHeader feedResult={feedResult} sortType={sortType} timeFilterName={timeFilterName} stateString={stateString} failed={failed} />
       <Virtuoso
         increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={feed?.length || 0}

@@ -25,15 +25,15 @@ function Home() {
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'hot';
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, updatedFeed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments });
-  const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
+  const { feed, updatedFeed, hasMore, loadMore, state: feedState } = useFeed({ communities, sortType, accountComments });
+  const { stateString } = useFeedStateString(communityAddresses, feedState);
 
   let Footer: Components['Footer'];
   if (feed?.length === 0) {
     Footer = NoPosts;
   }
   if (hasMore || communityAddresses.length === 0) {
-    Footer = () => loadingStateString;
+    Footer = () => stateString;
   }
 
   // save last virtuoso state on each scroll

@@ -175,6 +175,7 @@ export const FeedDetails = ({ feedResult, communityCount, sortType, newerThan, s
           { name: 'feed', value: `${feed?.length || 0} posts` },
           { name: 'bufferedFeed', value: `${bufferedFeed?.length || 0} posts` },
           { name: 'hasMore', value: String(hasMore) },
+          { name: 'state', value: feedResult.state },
           { name: 'communityKeysWithMore', value: communityKeysWithMore?.length || undefined },
           { name: 'communityKeysWithNewerPosts', value: communityKeysWithNewerPosts?.length || undefined },
           { name: 'communityKeysWithUnavailableSort', value: communityKeysWithUnavailableSort?.length ? communityKeysWithUnavailableSort.join(', ') : undefined },
