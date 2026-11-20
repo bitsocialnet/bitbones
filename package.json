@@ -51,6 +51,7 @@
     "release:manifest": "node scripts/generate-release-manifest.mjs",
     "release:manifest:keygen": "node scripts/generate-release-manifest-keypair.mjs",
     "release:manifest:test": "node --test scripts/__tests__/release-manifest.node-test.mjs",
+    "submit:test": "node --experimental-strip-types --test scripts/__tests__/validate-submit.node-test.mjs",
     "doctor:scan": "react-doctor scan",
     "perf:check": "node scripts/react-perf/runner.mjs check",
     "perf:record": "node scripts/react-perf/runner.mjs record",
