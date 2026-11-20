@@ -1,3 +1,27 @@
+# [0.2.0](https://github.com/bitsocialnet/bitbones/compare/v0.1.0...v0.2.0) (2026-11-20)
+
+
+### Bug Fixes
+
+* **challenge modal:** read keyed challenges and answer by challenge index ([#34](https://github.com/bitsocialnet/bitbones/issues/34)) ([d6f124a](https://github.com/bitsocialnet/bitbones/commit/d6f124ac7c7d7db6b5e9f1c90ebc434938253771))
+* **deploy:** serve the verified signed release in production ([10ee993](https://github.com/bitsocialnet/bitbones/commit/10ee9932f644a795a38d39777d119549971c8bd5))
+* **release:** expose Windows native rebuild progress ([71ff9d9](https://github.com/bitsocialnet/bitbones/commit/71ff9d99f4780c330ba413417661b1e9774b7893))
+* **release:** prevent Windows native rebuild from hanging ([25783b5](https://github.com/bitsocialnet/bitbones/commit/25783b5fc6401c280d945f2cca60120b14b05a13))
+* **release:** publish existing tags without a historical target ([cf0335b](https://github.com/bitsocialnet/bitbones/commit/cf0335bae7899eb580c46b28bbbc1ec15e74fdbe))
+* **release:** retry pinned tags on a supported macOS runner ([9181091](https://github.com/bitsocialnet/bitbones/commit/91810914675ac6a52ac66073cf0f1975a02d69a1))
+
+
+### Performance Improvements
+
+* **ci:** cache packages and parallelize verification ([50c5e02](https://github.com/bitsocialnet/bitbones/commit/50c5e0225c0e0a1fdd578370f56a75cf0b54a717))
+
+
+### BREAKING CHANGES
+
+* **challenge modal:** challenge answers now use the keyed format that upgraded Bitsocial nodes require. Communities whose nodes have not upgraded reject challenge answers from this version until their operators upgrade.
+
+
+
 # 0.1.0 (2026-11-16)
 
 
