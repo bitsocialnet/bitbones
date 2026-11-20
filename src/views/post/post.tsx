@@ -18,6 +18,7 @@ import useDownvote from '../../hooks/use-downvote';
 import useRepliesSortType from '../../hooks/use-replies-sort-type';
 import useCommentLabels from '../../hooks/use-comment-labels';
 import useStateString from '../../hooks/use-state-string';
+import { formatLoadError, getCommentLoadError } from '../../lib/load-errors';
 import useVerbose from '../../hooks/use-verbose';
 import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
 import useInspectorAvailable from '../../hooks/use-inspector-available';
@@ -185,6 +186,8 @@ function Post() {
 
   // useComment always returns an object (state, refresh, errors...), so a loaded field tells a fetched post apart
   const loaded = Boolean(post?.timestamp);
+  // the post, or its CommentUpdate, failed to load and nothing loaded since; shown instead of the loading state
+  const loadError = getCommentLoadError(post);
   const score = (post?.upvoteCount || 0) - (post?.downvoteCount || 0);
   const host = post?.link ? utils.getHost(post.link) : '';
 
@@ -192,7 +195,7 @@ function Post() {
     <Panes
       aside={<CommunityInfo communityAddress={communityAddress} />}
       asideTitle={communityAddress}
-      inspector={<Inspector defaultComment={loaded ? post : undefined} fallback={<p>loading the post...</p>} />}
+      inspector={<Inspector defaultComment={loaded ? post : undefined} fallback={<p>{loadError ? 'the post failed to load' : 'loading the post...'}</p>} />}
     >
       <article className={[styles.post, hidden ? styles.hidden : undefined].join(' ')}>
         <div className={styles.postHeader}>
@@ -216,7 +219,7 @@ function Post() {
             </button>
           </div>
           <div className={styles.headerBody}>
-            <h1 className={styles.title}>{post?.title?.trim?.() || (loaded ? '-' : 'loading...')}</h1>
+            <h1 className={styles.title}>{post?.title?.trim?.() || (loaded ? '-' : loadError ? 'failed to load' : 'loading...')}</h1>
             <div className={styles.meta}>
               {labels.map((label) => (
                 <span key={label} className={styles.label}>
@@ -257,7 +260,11 @@ function Post() {
               <span className={styles.linkButton}>reply</span>
             </PostReplyTools>
           </div>
-          {stateString && <div className={styles.stateString}>{stateString}</div>}
+          {loadError ? (
+            <div className={[styles.stateString, styles.negative].join(' ')}>{formatLoadError(loadError)}</div>
+          ) : (
+            stateString && <div className={styles.stateString}>{stateString}</div>
+          )}
         </div>
       </article>
       <div className={styles.replies}>
