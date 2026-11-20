@@ -124,12 +124,19 @@ export const simulateTransfer = async (options: TransferOptions & { privateKey: 
 // One plain transfer from the in-app wallet, returned as soon as it is broadcast. A plain transfer
 // is what tipping/v1 verifies: the Transfer event, or for the native coin the transaction itself.
 // Refuses to send unless the RPC reports the token's chain id.
-export const sendTransfer = async (options: TransferOptions & { privateKey: Hex }): Promise<Hash> => {
+// A tip and its fee are sent back to back, before either is mined. `nonce` pins the transaction's
+// place in the sender's queue: left to the RPC, the second send could read a pending count that
+// does not include the first yet and take the same nonce.
+export const sendTransfer = async (options: TransferOptions & { privateKey: Hex; nonce?: number }): Promise<Hash> => {
   await ensureRpcChainId(options.rpcUrl, options.token.chainId);
   const account = privateKeyToAccount(options.privateKey);
   const client = createWalletClient({ account, transport: http(options.rpcUrl) });
-  return client.sendTransaction({ chain: null, ...buildTransfer(options, account.address) });
+  return client.sendTransaction({ chain: null, ...buildTransfer(options, account.address), nonce: options.nonce });
 };
+
+// the nonce the next transaction of this address takes, counting those still waiting to be mined
+export const getPendingNonce = (rpcUrl: string, address: string): Promise<number> =>
+  getPublicClient(rpcUrl).getTransactionCount({ address: address as Address, blockTag: 'pending' });
 
 const transferTopic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
 

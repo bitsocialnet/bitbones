@@ -760,3 +760,45 @@ export const getVerifiedTipTotals = (parent: TipParty | undefined, replies: (Tip
     )
   );
 };
+
+// ---------------------------------------------------------------------------------------------
+// sending a tip: what is left to send, and how its two transactions ended
+// ---------------------------------------------------------------------------------------------
+
+// the part of a pending tip that says how far sending got
+interface TipSendProgress {
+  // set when a fee is owed
+  fee?: object;
+  feeTxHash?: string;
+  txHash?: string;
+}
+
+// What a pending tip still has to broadcast. A transfer is sent only when none was recorded for it,
+// which is what makes a resume after a reload safe. The fee goes first so it gets the lower nonce.
+export const getTipSendPlan = ({ fee, feeTxHash, txHash }: TipSendProgress): { sendFee: boolean; sendTip: boolean } => ({
+  sendFee: Boolean(fee && !feeTxHash),
+  sendTip: !txHash,
+});
+
+// how waiting for one transaction ended
+export type TransferWait = { ok: true } | { ok: false; error: string };
+
+export type TipSettleOutcome =
+  // both are mined and succeeded: the claim can be published
+  | { type: 'mined' }
+  // the tip is out and worth nothing without its fee: a new fee can be sent, and the claim published after it
+  | { type: 'fee-failed'; error: string }
+  // nothing is claimable, whatever happened to the fee
+  | { type: 'tip-failed'; error: string };
+
+// The tip and its fee are sent back to back and waited for together, so the tip can be out before the
+// fee is known to have succeeded. A failed tip comes first: no fee makes it claimable.
+export const getTipSettleOutcome = (tip: TransferWait, fee?: TransferWait): TipSettleOutcome => {
+  if (!tip.ok) {
+    return { type: 'tip-failed', error: tip.error };
+  }
+  if (fee && !fee.ok) {
+    return { type: 'fee-failed', error: fee.error };
+  }
+  return { type: 'mined' };
+};

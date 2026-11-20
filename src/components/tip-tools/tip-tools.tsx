@@ -442,7 +442,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
 // The form, and the state of a tip already under way. A tip that was sent but whose reply is not
 // accepted yet is listed with a way to continue, since its transfer can't be taken back.
 const TipForm = ({ comment, config, tokens }: TipFormProps) => {
-  const { pendingTip, status, error, mined, sendTip, resumeTip, discardTip } = useTip(comment, config);
+  const { pendingTip, status, error, mined, feeFailed, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
   const discard = () => {
     if (window.confirm('forget this tip? its transfer was already sent and stays sent, only the reply that claims it is dropped.')) {
       discardTip();
@@ -458,9 +458,15 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
           </span>
           {!status && (
             <>
-              <button type='button' onClick={resumeTip}>
-                {mined ? 'publish the tip reply again' : 'continue'}
-              </button>
+              {feeFailed ? (
+                <button type='button' onClick={resendFee}>
+                  resend fee
+                </button>
+              ) : (
+                <button type='button' onClick={resumeTip}>
+                  {mined ? 'publish the tip reply again' : 'continue'}
+                </button>
+              )}
               <button type='button' onClick={discard}>
                 forget
               </button>

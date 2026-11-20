@@ -18,6 +18,8 @@ import {
   getTippingConfig,
   getTipFeeConfigError,
   getTipRecipientAddress,
+  getTipSendPlan,
+  getTipSettleOutcome,
   getTokenKey,
   getProvenWalletAddresses,
   getTipReplies,
@@ -622,4 +624,32 @@ test('a tip verified under another contract is not read, and fees are limited to
   for (const percent of ['2.50001', '0', '101', '-1']) {
     assert.equal(tokens({ percent }), undefined);
   }
+});
+
+test('a pending tip sends the fee first and the tip right behind it, and only what was not sent', () => {
+  const fee = { amount: '20000000000000', to: feeRecipient };
+  const hash = (digit) => `0x${digit.repeat(64)}`;
+  // fresh: both go out back to back
+  assert.deepEqual(getTipSendPlan({ fee }), { sendFee: true, sendTip: true });
+  // no fee owed: only the tip
+  assert.deepEqual(getTipSendPlan({}), { sendFee: false, sendTip: true });
+  // resumed after a reload with only the fee sent: the tip goes now, the fee is not paid twice
+  assert.deepEqual(getTipSendPlan({ fee, feeTxHash: hash('a') }), { sendFee: false, sendTip: true });
+  // both sent but not mined: nothing is sent, the resume only waits
+  assert.deepEqual(getTipSendPlan({ fee, feeTxHash: hash('a'), txHash: hash('b') }), { sendFee: false, sendTip: false });
+  // the tip sent but its fee not (the fee send failed after the tip, or was replaced): the fee is sent
+  assert.deepEqual(getTipSendPlan({ fee, txHash: hash('b') }), { sendFee: true, sendTip: false });
+});
+
+test('the two transactions are judged together once both are waited for', () => {
+  const ok = { ok: true };
+  const reverted = { ok: false, error: 'transaction 0xaa reverted' };
+  assert.deepEqual(getTipSettleOutcome(ok, ok), { type: 'mined' });
+  assert.deepEqual(getTipSettleOutcome(ok), { type: 'mined' });
+  // the fee failed after the tip went out: the tip stands and the fee can be sent again
+  assert.deepEqual(getTipSettleOutcome(ok, reverted), { type: 'fee-failed', error: reverted.error });
+  // a failed tip leaves nothing to claim, whatever happened to the fee
+  assert.deepEqual(getTipSettleOutcome(reverted, ok), { type: 'tip-failed', error: reverted.error });
+  assert.deepEqual(getTipSettleOutcome(reverted, reverted), { type: 'tip-failed', error: reverted.error });
+  assert.deepEqual(getTipSettleOutcome(reverted), { type: 'tip-failed', error: reverted.error });
 });
