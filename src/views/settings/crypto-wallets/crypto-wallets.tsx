@@ -43,7 +43,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   };
 
   const walletsInputs = walletsArray.map((wallet, index) => {
-    const blockExplorerUrl = wallet.chainTicker === 'sol' ? 'https://solscan.io/verifiedsignatures' : 'https://etherscan.io/verifiedSignatures';
+    const blockExplorerUrl = 'https://etherscan.io/verifiedSignatures';
     return (
       <div>
         <input onChange={(e) => setWalletsArrayProperty(index, 'chainTicker', e.target.value)} value={wallet.chainTicker} placeholder='chain ticker e.g. eth, matic...' />
@@ -97,13 +97,12 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       if (!wallet.timestamp) {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
-      const type = wallet.chainTicker === 'sol' ? 'sol' : 'eip191';
       wallets[wallet.chainTicker] = {
         address: wallet.address,
         timestamp: wallet.timestamp,
         signature: {
           signature: wallet.signature,
-          type,
+          type: 'eip191',
         },
       };
     }
