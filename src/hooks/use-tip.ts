@@ -14,7 +14,16 @@ import {
   getTipSettleOutcome,
 } from '../lib/tipping';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
-import { ensureRpcChainId, getBalance, getPendingNonce, getTokenInfo, sendTransfer, simulateTransfer, waitForTransaction } from '../lib/tipping-chain';
+import {
+  ensureRpcChainId,
+  getBalance,
+  getPendingNonce,
+  getTokenInfo,
+  sendTransfer,
+  simulateTransfer,
+  TransferFailedError,
+  waitForTransaction,
+} from '../lib/tipping-chain';
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { ensureInAppWallet, getInAppWallet } from './use-in-app-wallet';
 import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
@@ -33,6 +42,8 @@ interface PendingTransfer {
 // A tip in progress, from its fee being sent to its reply being accepted. It is saved the moment
 // a transfer has a hash, because from then on the money is gone and only the claim can be lost.
 interface PendingTip {
+  // the account that started the tip: its in-app wallet sent the transfers and its author publishes the claim
+  accountId?: string;
   communityAddress: string;
   parentCid: string;
   postCid: string;
@@ -109,6 +120,10 @@ const run = async (parentCid: string, step: () => Promise<void>): Promise<void> 
 
 // where a pending tip is sent from: the RPC it names, on the chain it names, and the in-app wallet
 const getSender = async (account: Account | undefined, pendingTip: PendingTip) => {
+  // another account would send the rest from its own wallet, and its fee and tip would not match
+  if (pendingTip.accountId && pendingTip.accountId !== account?.id) {
+    throw Error('this tip was started by another account, switch back to it to continue');
+  }
   const rpcUrl = getTippingRpcUrl(pendingTip.chainId, account?.chainProviders);
   if (!rpcUrl) {
     throw Error(`no RPC url for chain id ${pendingTip.chainId}, set one in settings`);
@@ -128,15 +143,35 @@ const getFeeTransfer = (pendingTip: PendingTip, fee: NonNullable<PendingTip['fee
   amountOrTokenId: BigInt(fee.amount),
 });
 
+// an ERC-20 that returns false instead of reverting would leave a successful receipt and no tokens moved
+const getExpectedTipTransfer = ({ transfer }: PendingTip) =>
+  transfer.token.type === 'erc20' && transfer.token.address ? { token: transfer.token.address, to: transfer.to, amount: BigInt(transfer.amountOrTokenId) } : undefined;
+
 const setMined = (parentCid: string, mined: boolean) => useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: mined } }));
 const setFeeFailed = (parentCid: string, feeFailed: boolean) => useTipStore.setState((state) => ({ feeFailed: { ...state.feeFailed, [parentCid]: feeFailed } }));
 
-// the end of a wait as a value, so the fee's and the tip's can be told apart when both are waited for
+// The end of a wait as a value, so the fee's and the tip's can be told apart when both are waited for.
+// Only a transaction that was mined and failed is a failure: a timeout or an RPC error rejects, so the
+// tip stays resumable and no second fee is offered while the first may still be mined.
 const toTransferWait = (wait: Promise<void>): Promise<TransferWait> =>
   wait.then<TransferWait, TransferWait>(
     () => ({ ok: true }),
-    (error: unknown) => ({ ok: false, error: getErrorMessage(error) }),
+    (error: unknown): TransferWait => {
+      if (error instanceof TransferFailedError) {
+        return { ok: false, error: error.message };
+      }
+      throw error;
+    },
   );
+
+// One send at a time: two tips on different comments would read the same pending nonce and replace
+// each other. Held only while transactions are broadcast, never while waiting for them to be mined.
+let sendQueue: Promise<unknown> = Promise.resolve();
+const withSendLock = <T>(task: () => Promise<T>): Promise<T> => {
+  const result = sendQueue.then(task, task);
+  sendQueue = result.catch(() => undefined);
+  return result;
+};
 
 // Sends what is not sent yet, the fee first and the tip right behind it, then waits once for both.
 // The tip is not held back until the fee is mined: the fee has the lower nonce, so it is mined first
@@ -144,10 +179,12 @@ const toTransferWait = (wait: Promise<void>): Promise<TransferWait> =>
 // Safe to run again after a reload: each transfer is sent only when none was recorded for it.
 const settle = async (account: Account | undefined, parentCid: string): Promise<void> => {
   const { setPendingTip } = useTipStore.getState();
-  let pendingTip = useTipStore.getState().pendingTips[parentCid];
-  if (!pendingTip) {
+  const storedPendingTip = useTipStore.getState().pendingTips[parentCid];
+  if (!storedPendingTip) {
     return;
   }
+  // updated as the transfers get their hashes, which a closure can't narrow
+  let pendingTip: PendingTip = storedPendingTip;
   const { rpcUrl, privateKey, address } = await getSender(account, pendingTip);
   const parentBinding = getParentBindingSuffix(parentCid);
   setFeeFailed(parentCid, false);
@@ -155,24 +192,26 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
   const { sendFee, sendTip } = getTipSendPlan(pendingTip);
   if (sendFee || sendTip) {
     setStatus(parentCid, sendFee && sendTip ? 'sending the fee and the tip...' : sendFee ? 'sending the community fee...' : 'sending the tip...');
-    // read once and counted up by hand: the RPC's pending count can lag behind the transaction just sent
-    let nonce = await getPendingNonce(rpcUrl, address);
-    if (sendFee && pendingTip.fee) {
-      const feeTxHash = await sendTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, pendingTip.fee), parentBinding, nonce });
-      nonce += 1;
-      pendingTip = { ...pendingTip, feeTxHash };
-      setPendingTip(parentCid, pendingTip);
-    }
-    if (sendTip) {
-      const { token, to, amountOrTokenId } = pendingTip.transfer;
-      const txHash = await sendTransfer({ rpcUrl, privateKey, token, to, amountOrTokenId: BigInt(amountOrTokenId), parentBinding, nonce });
-      // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
-      // publish this tip's reply at once, before its transaction is mined, and the community would
-      // answer "not mined yet".
-      setMined(parentCid, false);
-      pendingTip = { ...pendingTip, txHash };
-      setPendingTip(parentCid, pendingTip);
-    }
+    await withSendLock(async () => {
+      // read once and counted up by hand: the RPC's pending count can lag behind the transaction just sent
+      let nonce = await getPendingNonce(rpcUrl, address);
+      if (sendFee && pendingTip.fee) {
+        const feeTxHash = await sendTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, pendingTip.fee), parentBinding, nonce });
+        nonce += 1;
+        pendingTip = { ...pendingTip, feeTxHash };
+        setPendingTip(parentCid, pendingTip);
+      }
+      if (sendTip) {
+        const { token, to, amountOrTokenId } = pendingTip.transfer;
+        const txHash = await sendTransfer({ rpcUrl, privateKey, token, to, amountOrTokenId: BigInt(amountOrTokenId), parentBinding, nonce });
+        // `mined` belongs to the tip being sent. Left true from an earlier tip on this comment, it would
+        // publish this tip's reply at once, before its transaction is mined, and the community would
+        // answer "not mined yet".
+        setMined(parentCid, false);
+        pendingTip = { ...pendingTip, txHash };
+        setPendingTip(parentCid, pendingTip);
+      }
+    });
   }
 
   const { fee, feeTxHash, txHash } = pendingTip;
@@ -181,7 +220,7 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
   }
   setStatus(parentCid, feeTxHash ? 'waiting for the fee and the tip to be mined...' : 'waiting for the tip to be mined...');
   const [tipWait, feeWait] = await Promise.all([
-    toTransferWait(waitForTransaction(rpcUrl, txHash)),
+    toTransferWait(waitForTransaction(rpcUrl, txHash, getExpectedTipTransfer(pendingTip))),
     fee && feeTxHash
       ? toTransferWait(waitForTransaction(rpcUrl, feeTxHash, fee.token ? { token: fee.token, to: fee.to, amount: BigInt(fee.amount) } : undefined))
       : undefined,
@@ -206,7 +245,8 @@ const resendFee = async (account: Account | undefined, parentCid: string): Promi
   }
   const { rpcUrl, privateKey } = await getSender(account, pendingTip);
   setStatus(parentCid, 'sending the fee again...');
-  const feeTxHash = await sendTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, pendingTip.fee), parentBinding: getParentBindingSuffix(parentCid) });
+  const { fee } = pendingTip;
+  const feeTxHash = await withSendLock(() => sendTransfer({ rpcUrl, privateKey, ...getFeeTransfer(pendingTip, fee), parentBinding: getParentBindingSuffix(parentCid) }));
   setMined(parentCid, false);
   useTipStore.getState().setPendingTip(parentCid, { ...pendingTip, feeTxHash });
   await settle(account, parentCid);
@@ -316,6 +356,7 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   await ensureInAppWallet(account);
 
   useTipStore.getState().setPendingTip(parentCid, {
+    accountId: account?.id,
     communityAddress: comment.communityAddress,
     parentCid,
     postCid: comment.postCid || parentCid,
@@ -359,7 +400,8 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   const publishCommentOptions = useMemo((): PublishCommentOptions | undefined => {
     // the challenge index comes from the community's current challenges, so a tip resumed after a
     // reload waits for the community to load instead of guessing the key
-    if (!pendingTip?.txHash || !mined || !config) {
+    // the claim is published by the account that sent the tip
+    if (!pendingTip?.txHash || !mined || !config || (pendingTip.accountId && pendingTip.accountId !== account?.id)) {
       return undefined;
     }
     const { parentCid, txHash } = pendingTip;
@@ -386,7 +428,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
         setError(parentCid, getErrorMessage(error));
       },
     };
-  }, [pendingTip, mined, config]);
+  }, [pendingTip, mined, config, account?.id]);
 
   const { publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment);
 

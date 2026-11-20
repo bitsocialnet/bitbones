@@ -149,13 +149,17 @@ interface ExpectedTransfer {
   amount: bigint;
 }
 
+// The transaction was mined and did not do what it should: it reverted, or moved nothing. Any other
+// rejection of waitForTransaction (a timeout, an RPC error) says nothing about the transaction.
+export class TransferFailedError extends Error {}
+
 // resolves once the transaction is mined, and rejects if it reverted. With `expectedTransfer` it
 // also rejects when the receipt holds no such Transfer: some tokens return false instead of
 // reverting, so the transaction succeeds and nothing moves.
 export const waitForTransaction = async (rpcUrl: string, hash: string, expectedTransfer?: ExpectedTransfer): Promise<void> => {
   const receipt = await getPublicClient(rpcUrl).waitForTransactionReceipt({ hash: hash as Hash });
   if (receipt.status !== 'success') {
-    throw Error(`transaction ${hash} reverted`);
+    throw new TransferFailedError(`transaction ${hash} reverted`);
   }
   if (
     expectedTransfer &&
@@ -167,7 +171,7 @@ export const waitForTransaction = async (rpcUrl: string, hash: string, expectedT
         BigInt(log.data) >= expectedTransfer.amount,
     )
   ) {
-    throw Error(`transaction ${hash} succeeded but moved nothing to ${expectedTransfer.to}`);
+    throw new TransferFailedError(`transaction ${hash} succeeded but moved nothing to ${expectedTransfer.to}`);
   }
 };
 
