@@ -5676,9 +5676,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.152":
-  version: 0.0.152
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.152"
+"@pkcprotocol/pkc-js@npm:0.0.153":
+  version: 0.0.153
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.153"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/bitswap": "npm:4.0.20"
@@ -5748,7 +5748,7 @@ __metadata:
     uuid: "npm:14.0.3"
     ws: "npm:8.22.0"
     zod: "npm:4.6.7"
-  checksum: 10c0/8eb94f148d8848cd08d8a374102ddec7ed0ae77fd0d25fd5b3c2716a7e0c2ba69654701ca805703bdfbc81d9f258fd946111bc44c96daf56d66b91e7ae482c30
+  checksum: 10c0/d4172cdbcebae1750fadbf42f1ec75633fdbdd818908a657de5a5aedf4cdc0691d169bf38cec892aa9455facfe05e7d84367f1ac7a083bf02bf6e828434b5758
   languageName: node
   linkType: hard
 
@@ -7337,7 +7337,7 @@ __metadata:
     "@electron-forge/maker-zip": "npm:7.8.0"
     "@electron/rebuild": "npm:3.7.2"
     "@floating-ui/react": "npm:0.27.20"
-    "@pkcprotocol/pkc-js": "npm:0.0.152"
+    "@pkcprotocol/pkc-js": "npm:0.0.153"
     "@playwright/cli": "npm:0.1.24"
     "@reforged/maker-appimage": "npm:5.1.1"
     "@types/memoizee": "npm:0.4.12"
