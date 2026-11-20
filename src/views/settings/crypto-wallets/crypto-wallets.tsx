@@ -60,6 +60,11 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
     defaultWalletsArray.push({});
   }
   const [walletsArray, setWalletsArray] = useState(defaultWalletsArray);
+  // The rows the form started with: the only entries a save may remove. An entry added elsewhere after
+  // the form mounted, such as the in-app wallet's, is not in the form and must survive a save.
+  const [initialChainTickers] = useState(() =>
+    defaultWalletsArray.map((wallet) => wallet.chainTicker).filter((chainTicker): chainTicker is string => Boolean(chainTicker)),
+  );
   const setWalletsArrayProperty = (index: number, property: keyof WalletInput, value: string | number) => {
     const newArray = [...walletsArray];
     newArray[index] = { ...newArray[index], [property]: value };
@@ -112,9 +117,27 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   });
 
   const save = async () => {
-    const wallets: Record<string, Wallet> = {};
+    // start from the entries the account stores now, and change only what the rows say
+    const savedWallets = account.author?.wallets || {};
+    const wallets: Record<string, Wallet> = { ...savedWallets };
+    const rowChainTickers = new Set(walletsArray.map((wallet) => wallet.chainTicker).filter(Boolean));
+    for (const chainTicker of initialChainTickers) {
+      if (!rowChainTickers.has(chainTicker)) {
+        delete wallets[chainTicker];
+      }
+    }
     for (const wallet of walletsArray) {
       if (!wallet.chainTicker) {
+        continue;
+      }
+      const savedWallet = savedWallets[wallet.chainTicker];
+      // a row left as it was keeps its entry, whatever its proof is: one that fails shows in its status and is not a reason to refuse the others
+      if (
+        savedWallet &&
+        savedWallet.address === wallet.address?.trim() &&
+        savedWallet.timestamp === wallet.timestamp &&
+        savedWallet.signature?.signature === wallet.signature?.trim()
+      ) {
         continue;
       }
       if (!wallet.address) {
@@ -125,6 +148,15 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       }
       if (!wallet.timestamp) {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
+      }
+      // a wallet linked with another signature type, such as a sol one, is not verified here: it keeps its type
+      if (savedWallet?.signature?.type && savedWallet.signature.type !== walletSignatureType) {
+        wallets[wallet.chainTicker] = {
+          address: wallet.address.trim(),
+          timestamp: wallet.timestamp,
+          signature: { signature: wallet.signature.trim(), type: savedWallet.signature.type },
+        };
+        continue;
       }
       // eip191 is the only proof a community accepts
       // a pasted signature may have v as 0 or 1, or a high s: store it in the one encoding a proof may have
