@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useClientsStates } from '@bitsocial/bitsocial-react-hooks';
+import { useAccountComment, useClientsStates } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment, Community, UseCommunityResult, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
 import styles from './protocol-details.module.css';
@@ -89,16 +89,23 @@ interface CommentLineProps {
 
 // one mono line under a feed row or reply when verbose is on, the inspector has the rest
 export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
+  // only the account's own comment has an index, and it has no cid until it is published. A feed or
+  // reply row holds a snapshot of it whose state is pkc-js's, so whether it is still pending or its
+  // publication failed comes from useAccountComment, the state the reply rows and pending post label.
+  const accountCommentIndex = comment && !comment.cid && typeof comment.index === 'number' ? comment.index : undefined;
+  const { state: accountCommentState } = useAccountComment(accountCommentIndex !== undefined ? { commentIndex: accountCommentIndex } : undefined);
   if (!comment) {
     return null;
   }
+  const publishingState = accountCommentIndex === undefined ? undefined : accountCommentState === 'failed' ? 'failed' : 'pending';
   const updated = updatedComment || comment;
   const parts: [string, ReactNode][] = [
-    // only the account's own comment has an index, a comment that failed to load before it had a cid is not pending
-    ['cid', comment.cid ? utils.getShortCid(comment.cid) : typeof comment.index === 'number' ? `pending #${comment.index}` : undefined],
+    // a comment that failed to load before it had a cid has no index, so it is neither pending nor failed
+    ['cid', comment.cid ? utils.getShortCid(comment.cid) : publishingState && `${publishingState} #${accountCommentIndex}`],
     ['v', comment.protocolVersion],
     ['sig', comment.signature?.type],
-    ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : 'none yet'],
+    // a failed publication never gets a CommentUpdate
+    ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : publishingState === 'failed' ? 'none' : 'none yet'],
     ['votes', typeof updated.upvoteCount === 'number' ? `+${updated.upvoteCount} -${updated.downvoteCount || 0}` : undefined],
     ['flags', utils.getCommentFlags(updated)],
   ];
