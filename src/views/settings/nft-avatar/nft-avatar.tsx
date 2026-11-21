@@ -82,11 +82,10 @@ const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
     address: tokenAddress || account?.author?.avatar?.address,
     id: tokenId || account?.author?.avatar?.id,
   };
-  const type = avatar.chainTicker === 'sol' ? 'sol' : 'eip191';
   // the state starts from the saved signature, so once it is dropped the preview must not fall back to it
   avatar.signature = {
     signature,
-    type,
+    type: 'eip191',
   };
 
   const save = () => {
