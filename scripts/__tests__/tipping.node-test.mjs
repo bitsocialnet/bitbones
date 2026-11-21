@@ -40,7 +40,7 @@ import {
   verifyTip,
   walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
-import { ensureBroadcast, ensureRpcChainId, getSignedNonce, isTransferDead, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
+import { ensureBroadcast, ensureRpcChainId, getTokenInfo, getSignedNonce, isTransferDead, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
 
 const usdc = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB48';
 const dai = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
@@ -681,7 +681,7 @@ test('the two transactions are judged together once both are waited for', () => 
 });
 
 // an RPC that serves what signing a transfer reads, and keeps the raw transactions it is sent
-const startChain = async ({ known = [], sendError, latestNonce = 0 } = {}) => {
+const startChain = async ({ known = [], sendError, latestNonce = 0, callError } = {}) => {
   const sent = [];
   const handlers = {
     eth_chainId: () => '0xaa36a7',
@@ -702,6 +702,13 @@ const startChain = async ({ known = [], sendError, latestNonce = 0 } = {}) => {
     eth_maxPriorityFeePerGas: () => '0x3b9aca00',
     eth_gasPrice: () => '0x77359400',
     eth_estimateGas: () => '0x6000',
+    // every contract read answers with the number 6, which is a valid decimals() and not a valid symbol()
+    eth_call: () => {
+      if (callError) {
+        throw callError;
+      }
+      return `0x${'0'.repeat(63)}6`;
+    },
     eth_getTransactionCount: ({ params }) => (params[1] === 'latest' ? `0x${latestNonce.toString(16)}` : '0x0'),
     eth_getTransactionByHash: ({ params }) => (known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null),
     eth_sendRawTransaction: ({ params }) => {
@@ -875,4 +882,23 @@ test('the nonce of a saved transaction is read back from it', async () => {
   } finally {
     await chain.close();
   }
+});
+
+test('token info: a failed read shows the address without decimals and is read again later, not cached as "no decimals"', async () => {
+  const token = { chainId: 11155111, type: 'erc20', address: usdc.toLowerCase() };
+  const down = await startChain({ callError: Error('execution reverted') });
+  const first = getTokenInfo(down.url, token);
+  // the same promise while it is remembered, so React's use() settles on it
+  assert.equal(getTokenInfo(down.url, token), first);
+  assert.equal((await first).decimals, undefined);
+  assert.equal(getTokenInfo(down.url, token), first);
+  await down.close();
+  // a working node on the right chain gives the decimals
+  const up = await startChain();
+  assert.equal((await getTokenInfo(up.url, token)).decimals, 6);
+  await up.close();
+  // decimals from a node on another chain are never read
+  const wrong = await startChain();
+  assert.equal((await getTokenInfo(wrong.url, { ...token, chainId: 1 })).decimals, undefined);
+  await wrong.close();
 });

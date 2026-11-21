@@ -71,7 +71,8 @@ const loadTokenInfo = async (rpcUrl: string, token: ChainToken): Promise<TokenIn
   if (token.type === 'erc721') {
     return { symbol, decimals: 0 };
   }
-  const decimals = await client.readContract({ address, abi: erc20Abi, functionName: 'decimals' }).catch(() => undefined);
+  // a failed read rejects, so getTokenInfo shows the fallback and reads again later; it is not cached as "no decimals"
+  const decimals = await client.readContract({ address, abi: erc20Abi, functionName: 'decimals' });
   return { symbol, decimals };
 };
 
@@ -84,10 +85,12 @@ export const getTokenInfo = (rpcUrl: string | undefined, token: ChainToken): Pro
   let tokenInfo = tokenInfos.get(key);
   if (!tokenInfo) {
     const fallback: TokenInfo = { symbol: token.type === 'native' ? getNativeSymbol(token.chainId) : shortAddress(token.address) };
-    // a failed read is shown as the fallback but not remembered, so a corrected RPC url is tried again
+    // A failed read is shown as the fallback, then forgotten a few seconds later so a corrected RPC url
+    // or a recovered node is tried again. It is kept until then because React's use() asks for the
+    // promise again after it settles, and a new promise each time would never render the fallback.
     tokenInfo = rpcUrl
       ? loadTokenInfo(rpcUrl, token).catch(() => {
-          tokenInfos.delete(key);
+          setTimeout(() => tokenInfos.delete(key), 5000);
           return fallback;
         })
       : Promise.resolve(token.type === 'native' ? { ...fallback, decimals: 18 } : fallback);
