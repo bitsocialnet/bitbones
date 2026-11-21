@@ -40,7 +40,7 @@ import {
   verifyTip,
   walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
-import { BroadcastRejectedError, ensureBroadcast, ensureRpcChainId, getSignedNonce, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
+import { ensureBroadcast, ensureRpcChainId, getSignedNonce, isTransferDead, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
 
 const usdc = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB48';
 const dai = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
@@ -256,7 +256,12 @@ test('drops the entries it cannot read and keeps the rest', () => {
     { chainId: 1, type: 'erc721', address: nft, fee: { percent: '2' } },
     { chainId: 1, type: 'erc721', address: nft, fee: { amount: '1' } },
   ];
-  const config = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([...invalid, exampleTokens[1], { ...exampleTokens[1], chainId: 11155111 }]) }));
+  const config = getTippingConfig(
+    communityWith({
+      [tokensOptionName]: JSON.stringify([...invalid, exampleTokens[1], { ...exampleTokens[1], chainId: 11155111 }]),
+      [feeRecipientOptionName]: feeRecipient,
+    }),
+  );
   assert.deepEqual(
     config.tokens.map(({ chainId, address }) => [chainId, address]),
     [
@@ -268,10 +273,14 @@ test('drops the entries it cannot read and keeps the rest', () => {
   assert.notEqual(getTokenKey(config.tokens[0]), getTokenKey(config.tokens[1]));
   // a list with no readable entry is no tipping at all
   assert.equal(getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainTicker: 'eth', type: 'native' }]) })), undefined);
-  // a fee recipient that is not an address means no fee recipient
-  assert.equal(
-    getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([exampleTokens[1]]), [feeRecipientOptionName]: 'community.eth' })).feeRecipient,
-    undefined,
+  // a fee recipient that is not an address means no fee recipient, and a token with a fee can't be paid without one
+  assert.equal(getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([exampleTokens[1]]), [feeRecipientOptionName]: 'community.eth' })), undefined);
+  const noFee = { chainId: 1, type: 'native' };
+  const withoutRecipient = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([exampleTokens[1], noFee]), [feeRecipientOptionName]: 'community.eth' }));
+  assert.equal(withoutRecipient.feeRecipient, undefined);
+  assert.deepEqual(
+    withoutRecipient.tokens.map((token) => token.type),
+    ['native'],
   );
 });
 
@@ -515,6 +524,9 @@ test('a tip is sent to the eth entry if it verifies, otherwise to the first prov
   assert.equal(await getTipRecipientAddress(party({ eth: { ...eth, address: 'someone.eth' }, matic })), matic.address);
   // keys sort by code unit, so upper case comes before lower case
   assert.equal(await getTipRecipientAddress(party({ matic, Zeta: arb })), arb.address);
+  // an address the tipper has proven too is not a recipient: the eth entry is skipped, then the first other
+  assert.equal(await getTipRecipientAddress(party({ matic, eth, arb }), undefined, [eth.address.toLowerCase()]), arb.address);
+  assert.equal(await getTipRecipientAddress(party({ matic, eth }), undefined, [eth.address, matic.address]), undefined);
   for (const wallets of [undefined, {}, { eth: copied }, { eth: 'nope', matic: null }]) {
     assert.equal(await getTipRecipientAddress(party(wallets)), undefined);
   }
@@ -632,7 +644,8 @@ test('a tip verified under another contract is not read, and fees are limited to
   assert.equal(getTip({ tip: { ...tip, contract: 'tipping/v1' } }).chainId, 1);
   assert.equal(getTip({ tip }).chainId, 1);
   assert.equal(getTip({ tip: { ...tip, contract: 'tipping/v2' } }), undefined);
-  const tokens = (fee) => getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'native', fee }]) }));
+  const tokens = (fee) =>
+    getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'native', fee }]), [feeRecipientOptionName]: feeRecipient }));
   assert.equal(tokens({ percent: '2.5001' }).tokens.length, 1);
   for (const percent of ['2.50001', '0', '101', '-1']) {
     assert.equal(tokens({ percent }), undefined);
@@ -668,7 +681,7 @@ test('the two transactions are judged together once both are waited for', () => 
 });
 
 // an RPC that serves what signing a transfer reads, and keeps the raw transactions it is sent
-const startChain = async ({ known = [], sendError } = {}) => {
+const startChain = async ({ known = [], sendError, latestNonce = 0 } = {}) => {
   const sent = [];
   const handlers = {
     eth_chainId: () => '0xaa36a7',
@@ -689,7 +702,7 @@ const startChain = async ({ known = [], sendError } = {}) => {
     eth_maxPriorityFeePerGas: () => '0x3b9aca00',
     eth_gasPrice: () => '0x77359400',
     eth_estimateGas: () => '0x6000',
-    eth_getTransactionCount: () => '0x0',
+    eth_getTransactionCount: ({ params }) => (params[1] === 'latest' ? `0x${latestNonce.toString(16)}` : '0x0'),
     eth_getTransactionByHash: ({ params }) => (known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null),
     eth_sendRawTransaction: ({ params }) => {
       sent.push(params[0]);
@@ -776,18 +789,73 @@ test('a saved transfer is broadcast again only when the RPC does not know it', a
   } finally {
     await raced.close();
   }
-  // the node answers with an error: it did not take the transaction, which is told apart from a lost response
+  // the RPC's error is passed on as it is: it does not say whether the transaction was taken
   const refused = await startChain({ sendError: Error('nonce too low') });
   try {
-    await assert.rejects(ensureBroadcast(refused.url, { hash, raw }), (error) => error instanceof BroadcastRejectedError && /nonce too low/.test(error.message));
+    await assert.rejects(ensureBroadcast(refused.url, { hash, raw }), /nonce too low/);
   } finally {
     await refused.close();
   }
-  // no answer at all: the transaction may be in the mempool, so this is not a refusal and the saved transfer stays
+  // no answer at all
   const gone = await startChain();
   const goneUrl = gone.url;
   await gone.close();
-  await assert.rejects(ensureBroadcast(goneUrl, { hash, raw }), (error) => !(error instanceof BroadcastRejectedError));
+  await assert.rejects(ensureBroadcast(goneUrl, { hash, raw }));
+});
+
+test('a signed transfer is dead only when another transaction used its nonce and it is not found', async () => {
+  const options = (rpcUrl) => ({
+    rpcUrl,
+    privateKey: `0x${'02'.repeat(32)}`,
+    token: { chainId: 11155111, type: 'native' },
+    to: '0x5555555555555555555555555555555555555555',
+    amountOrTokenId: 1n,
+    parentBinding: getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG'),
+  });
+  const from = privateKeyToAccount(`0x${'02'.repeat(32)}`).address;
+  const probe = await startChain();
+  const signed = await signTransfer({ ...options(probe.url), nonce: 5 });
+  await probe.close();
+  // the nonce is still free: the transaction may yet be sent, whatever the RPC said
+  const free = await startChain({ latestNonce: 5 });
+  try {
+    assert.equal(await isTransferDead(free.url, signed, from, 0), false);
+  } finally {
+    await free.close();
+  }
+  // the nonce is used and the transaction is not found, even after looking again: it can never be mined
+  const used = await startChain({ latestNonce: 6 });
+  try {
+    assert.equal(await isTransferDead(used.url, signed, from, 0), true);
+  } finally {
+    await used.close();
+  }
+  // the nonce is used by this very transaction, which the RPC knows: not dead
+  const mined = await startChain({ latestNonce: 6, known: [signed.hash] });
+  try {
+    assert.equal(await isTransferDead(mined.url, signed, from, 0), false);
+  } finally {
+    await mined.close();
+  }
+});
+
+test('a proven address in any letter case is paid, also when its checksum would be wrong', async () => {
+  const chain = await startChain();
+  try {
+    const mixedCase = '0x5050A4F4B3f9338C3472dcC01A87C76A144b3c9c';
+    const signed = await signTransfer({
+      rpcUrl: chain.url,
+      privateKey: `0x${'02'.repeat(32)}`,
+      token: { chainId: 11155111, type: 'erc20', address: usdc.toLowerCase() },
+      to: mixedCase,
+      amountOrTokenId: 1n,
+      parentBinding: getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG'),
+      nonce: 0,
+    });
+    assert.ok(parseTransaction(signed.raw).data.toLowerCase().includes(mixedCase.substring(2).toLowerCase()));
+  } finally {
+    await chain.close();
+  }
 });
 
 test('the nonce of a saved transaction is read back from it', async () => {

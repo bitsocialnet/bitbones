@@ -1,5 +1,5 @@
 import { Suspense, use, useState, type MouseEvent } from 'react';
-import { useComment } from '@bitsocial/bitsocial-react-hooks';
+import { useAccount, useComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import {
   formatTokenAmount,
@@ -19,8 +19,9 @@ import {
   walletSignatureType,
 } from '../../lib/tipping';
 import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
-import { checkTipOnChain, getTokenInfo } from '../../lib/tipping-chain';
+import { checkTipOnChain, getBalanceOnce, getTokenInfo } from '../../lib/tipping-chain';
 import type { OnChainTipCheck, OnChainTipResult } from '../../lib/tipping-chain';
+import { getInAppWallet } from '../../hooks/use-in-app-wallet';
 import useTip, { useHasPendingTip } from '../../hooks/use-tip';
 import { useTippingRpcUrl } from '../../hooks/use-tipping-settings';
 import styles from './tip-tools.module.css';
@@ -373,6 +374,40 @@ interface TipFormProps {
   tokens: TipToken[];
 }
 
+interface TokenBalanceProps {
+  token: TipToken;
+  // the in-app wallet that pays
+  owner: string;
+}
+
+// what the in-app wallet holds of the token, in whole tokens, or the number of NFTs held
+const LoadedTokenBalance = ({ token, owner }: TokenBalanceProps) => {
+  const rpcUrl = useTippingRpcUrl(token.chainId);
+  const { symbol, decimals } = use(getTokenInfo(rpcUrl, token));
+  const balance = use(getBalanceOnce(rpcUrl, token, owner));
+  if (balance === undefined) {
+    return <>balance unavailable</>;
+  }
+  if (token.type === 'erc721') {
+    return (
+      <>
+        you hold {String(balance)} {symbol}
+      </>
+    );
+  }
+  return (
+    <>
+      you have {decimals === undefined ? `${balance} base units of` : formatTokenAmount(balance, decimals)} {symbol}
+    </>
+  );
+};
+
+const TokenBalance = (props: TokenBalanceProps) => (
+  <Suspense fallback='checking balance...'>
+    <LoadedTokenBalance {...props} />
+  </Suspense>
+);
+
 interface TipInputsProps {
   config: TippingConfig;
   tokens: TipToken[];
@@ -388,6 +423,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
   const token = tokens.find((token) => getTokenKey(token) === tokenKey) ?? tokens[0];
   const rpcUrl = useTippingRpcUrl(token.chainId);
   const { decimals } = use(getTokenInfo(rpcUrl, token));
+  const inAppWalletAddress = getInAppWallet(useAccount())?.address;
 
   // an NFT is tipped by its token id; a fungible amount is typed in whole tokens when the decimals are known
   const amountOrTokenId =
@@ -404,6 +440,11 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
           </option>
         ))}
       </select>
+      {inAppWalletAddress && (
+        <span className={styles.dim}>
+          <TokenBalance token={token} owner={inAppWalletAddress} />
+        </span>
+      )}
       <input
         aria-label={token.type === 'erc721' ? 'Token id' : 'Tip amount'}
         className={styles.amount}
@@ -442,7 +483,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
 // The form, and the state of a tip already under way. A tip that was sent but whose reply is not
 // accepted yet is listed with a way to continue, since its transfer can't be taken back.
 const TipForm = ({ comment, config, tokens }: TipFormProps) => {
-  const { pendingTip, status, error, mined, feeFailed, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
+  const { pendingTip, status, error, mined, feeFailed, otherAccount, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
   const discard = () => {
     if (window.confirm('forget this tip? its transfer was already sent and stays sent, only the reply that claims it is dropped.')) {
       discardTip();
@@ -456,22 +497,28 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
           <span className={styles.dim} title={pendingTip.feeTxHash ? `fee ${pendingTip.feeTxHash}` : undefined}>
             {pendingTip.txHash ? `tip sent in ${pendingTip.txHash}` : 'tip not sent yet'}
           </span>
-          {!status && (
-            <>
-              {feeFailed ? (
-                <button type='button' onClick={resendFee}>
-                  resend fee
+          {!status &&
+            (otherAccount ? (
+              <span className={styles.dim}>started by another account: switch back to it to continue</span>
+            ) : (
+              <>
+                {feeFailed ? (
+                  <button type='button' onClick={resendFee}>
+                    resend fee
+                  </button>
+                ) : mined && !error ? (
+                  // its reply is being published or waits for the community, and publishing again now would send the claim twice
+                  <span className={styles.dim}>publishing the tip reply...</span>
+                ) : (
+                  <button type='button' onClick={resumeTip}>
+                    {mined ? 'publish the tip reply again' : 'continue'}
+                  </button>
+                )}
+                <button type='button' onClick={discard}>
+                  forget
                 </button>
-              ) : (
-                <button type='button' onClick={resumeTip}>
-                  {mined ? 'publish the tip reply again' : 'continue'}
-                </button>
-              )}
-              <button type='button' onClick={discard}>
-                forget
-              </button>
-            </>
-          )}
+              </>
+            ))}
         </>
       ) : tokens.length ? (
         <Suspense fallback={<span className={styles.dim}>reading the token...</span>}>

@@ -347,7 +347,13 @@ export const getTippingConfig = (community: CommunityLike | undefined): TippingC
     }
     const feeRecipientOption = (publicOptions as Record<string, unknown>)[feeRecipientOptionName];
     const feeRecipient = typeof feeRecipientOption === 'string' && isAddress(feeRecipientOption, { strict: false }) ? (feeRecipientOption as Address) : undefined;
-    return { tokens, feeRecipient, challengeIndex };
+    // tipping/v1 calls a fee without a readable recipient an invalid config. Such a token is dropped,
+    // since a tip without its fee would be sent and then rejected as unpaid, and its tipper would lose it.
+    const payableTokens = feeRecipient ? tokens : tokens.filter((token) => !token.fee);
+    if (!payableTokens.length) {
+      continue;
+    }
+    return { tokens: payableTokens, feeRecipient, challengeIndex };
   }
   return undefined;
 };
@@ -618,13 +624,16 @@ export const getProvenWalletAddresses = async (party: TipParty | undefined, nowS
 // Where a tip to this comment's author is sent: the author's `eth` entry if its proof verifies,
 // otherwise the first proven entry by key in ascending order. undefined when the author has proven
 // no wallet, and then the author can't be tipped.
-export const getTipRecipientAddress = async (party: TipParty | undefined, nowSeconds?: number): Promise<string | undefined> => {
+// `excluded` are addresses the tipper has proven too: tipping/v1 rejects a tip whose recipient is also
+// one of the tipper's wallets, so those are skipped.
+export const getTipRecipientAddress = async (party: TipParty | undefined, nowSeconds?: number, excluded: string[] = []): Promise<string | undefined> => {
+  const isExcluded = (address: string) => excluded.some((other) => other.toLowerCase() === address.toLowerCase());
   const wallets = party?.author?.wallets;
   const eth = wallets && typeof wallets === 'object' ? (wallets as Record<string, unknown>).eth : undefined;
-  if (eth && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
+  if (eth && !isExcluded(String((eth as WalletProof).address)) && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
     return (eth as WalletProof).address;
   }
-  return (await getProvenWalletAddresses(party, nowSeconds))[0];
+  return (await getProvenWalletAddresses(party, nowSeconds)).find((address) => !isExcluded(address));
 };
 
 const includesAddress = (addresses: string[], address: string): boolean => addresses.some((proven) => proven.toLowerCase() === address.toLowerCase());

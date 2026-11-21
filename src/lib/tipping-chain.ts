@@ -1,6 +1,17 @@
 // The chain side of tipping: reads and plain transfers through one RPC url. Every write here moves
 // real funds, and nothing in this file is covered by an automated test.
-import { concatHex, createPublicClient, createWalletClient, encodeFunctionData, erc20Abi, erc721Abi, http, keccak256, parseTransaction } from 'viem';
+import {
+  concatHex,
+  createPublicClient,
+  createWalletClient,
+  encodeFunctionData,
+  erc20Abi,
+  erc721Abi,
+  decodeFunctionResult,
+  http,
+  keccak256,
+  parseTransaction,
+} from 'viem';
 import type { Address, Hash, Hex, PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { Tip, TipTokenType } from './tipping';
@@ -51,6 +62,9 @@ const loadTokenInfo = async (rpcUrl: string, token: ChainToken): Promise<TokenIn
     // the chain's own coin, which has 18 decimals on every EVM chain
     return { symbol: getNativeSymbol(token.chainId), decimals: 18 };
   }
+  // decimals read from a node on another chain would be another token's, and a tip typed in whole
+  // tokens would then move the wrong amount
+  await ensureRpcChainId(rpcUrl, token.chainId);
   const client = getPublicClient(rpcUrl);
   const address = token.address as Address;
   const symbol = await client.readContract({ address, abi: erc20Abi, functionName: 'symbol' }).catch(() => shortAddress(address));
@@ -70,7 +84,13 @@ export const getTokenInfo = (rpcUrl: string | undefined, token: ChainToken): Pro
   let tokenInfo = tokenInfos.get(key);
   if (!tokenInfo) {
     const fallback: TokenInfo = { symbol: token.type === 'native' ? getNativeSymbol(token.chainId) : shortAddress(token.address) };
-    tokenInfo = rpcUrl ? loadTokenInfo(rpcUrl, token).catch(() => fallback) : Promise.resolve(token.type === 'native' ? { ...fallback, decimals: 18 } : fallback);
+    // a failed read is shown as the fallback but not remembered, so a corrected RPC url is tried again
+    tokenInfo = rpcUrl
+      ? loadTokenInfo(rpcUrl, token).catch(() => {
+          tokenInfos.delete(key);
+          return fallback;
+        })
+      : Promise.resolve(token.type === 'native' ? { ...fallback, decimals: 18 } : fallback);
     tokenInfos.set(key, tokenInfo);
   }
   return tokenInfo;
@@ -83,6 +103,30 @@ export const getBalance = (rpcUrl: string, token: ChainToken, owner: string): Pr
     return client.getBalance({ address: owner as Address });
   }
   return client.readContract({ address: token.address as Address, abi: erc20Abi, functionName: 'balanceOf', args: [owner as Address] });
+};
+
+const balanceReads = new Map<string, Promise<bigint | undefined>>();
+
+// The same promise for the same wallet and token for a few seconds, so a component can read it with
+// React's use() without a request per render. undefined when it can't be read, e.g. the RPC is on
+// another chain. A read that failed is not remembered.
+export const getBalanceOnce = (rpcUrl: string | undefined, token: ChainToken, owner: string): Promise<bigint | undefined> => {
+  if (!rpcUrl) {
+    return Promise.resolve(undefined);
+  }
+  const key = `${rpcUrl}\n${token.chainId}\n${token.type}\n${token.address?.toLowerCase()}\n${owner.toLowerCase()}`;
+  let read = balanceReads.get(key);
+  if (!read) {
+    read = ensureRpcChainId(rpcUrl, token.chainId)
+      .then(() => getBalance(rpcUrl, token, owner))
+      .catch(() => {
+        balanceReads.delete(key);
+        return undefined;
+      });
+    balanceReads.set(key, read);
+    setTimeout(() => balanceReads.delete(key), 10_000);
+  }
+  return read;
 };
 
 interface TransferOptions {
@@ -99,7 +143,9 @@ interface TransferOptions {
 // The transaction of one plain transfer from `from`, ending with the parent binding (tipping/v1):
 // the native coin is a direct send whose data is the suffix, a token transfer is the normal
 // calldata followed by the suffix, which the ABI decoder ignores.
-const buildTransfer = ({ token, to, amountOrTokenId, parentBinding: suffix }: TransferOptions, from: Address) => {
+const buildTransfer = ({ token, to: recipient, amountOrTokenId, parentBinding: suffix }: TransferOptions, from: Address) => {
+  // a proven address may have any letter case, and viem refuses a mixed case one whose checksum is wrong
+  const to = recipient.toLowerCase();
   if (token.type === 'native') {
     return { to: to as Address, value: amountOrTokenId, data: suffix };
   }
@@ -129,7 +175,15 @@ export const simulateTransfer = async (options: TransferOptions & { privateKey: 
   await ensureRpcChainId(options.rpcUrl, options.token.chainId);
   const account = privateKeyToAccount(options.privateKey);
   const client = getPublicClient(options.rpcUrl);
-  const [gas, fees] = await Promise.all([client.estimateGas({ account, ...buildTransfer(options, account.address) }), getFees(client)]);
+  const transaction = buildTransfer(options, account.address);
+  const [gas, fees] = await Promise.all([client.estimateGas({ account, ...transaction }), getFees(client)]);
+  if (options.token.type === 'erc20') {
+    // a token that returns false instead of reverting passes the gas estimate and moves nothing
+    const { data } = await client.call({ account, ...transaction });
+    if (data && data !== '0x' && decodeFunctionResult({ abi: erc20Abi, functionName: 'transfer', data }) === false) {
+      throw Error('the token returned false for this transfer, so it would move nothing');
+    }
+  }
   return { gas, gasPrice: 'gasPrice' in fees ? fees.gasPrice : fees.maxFeePerGas };
 };
 
@@ -160,14 +214,10 @@ const isKnown = (client: PublicClient, hash: Hash): Promise<boolean> =>
     () => false,
   );
 
-// The node answered a broadcast with an error: it did not take the transaction, which is not in its
-// mempool, and its nonce may be taken by another. Different from a lost response, after which it may be.
-export class BroadcastRejectedError extends Error {}
-
 // Makes sure the RPC has a signed transfer: nothing is done when it already knows it, pending or mined,
 // so this is safe to run again after a failure or a reload. A plain transfer is what tipping/v1
-// verifies: the Transfer event, or for the native coin the transaction itself. Rejects with
-// BroadcastRejectedError when the node refuses it, and with the transport's error when no answer came.
+// verifies: the Transfer event, or for the native coin the transaction itself. Rejects with the RPC's
+// error, which does not say whether the transaction was taken: see isTransferDead.
 export const ensureBroadcast = async (rpcUrl: string, { hash, raw }: SignedTransfer): Promise<void> => {
   const client = getPublicClient(rpcUrl);
   if (await isKnown(client, hash)) {
@@ -183,16 +233,36 @@ export const ensureBroadcast = async (rpcUrl: string, { hash, raw }: SignedTrans
     ) {
       return;
     }
-    // a JSON-RPC error carries a numeric code; an HTTP failure or a timeout does not
-    if (typeof (error as { code?: unknown })?.code === 'number') {
-      throw new BroadcastRejectedError(String((error as { details?: string }).details ?? (error as Error).message));
-    }
     throw error;
   }
 };
 
-// the nonce a signed transaction takes
+export const isTransactionKnown = (rpcUrl: string, hash: string): Promise<boolean> => isKnown(getPublicClient(rpcUrl), hash as Hash);
+
+// The nonce a signed transaction takes
 export const getSignedNonce = (raw: string): number => parseTransaction(raw as Hex).nonce ?? 0;
+
+const sleep = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+// Whether a signed transfer can never be mined: another transaction of its sender has used its nonce. An
+// error from the RPC does not prove this, since an RPC answering from several nodes can refuse a transaction
+// another node took or mined; only a used nonce does. And the node that counts nonces can be ahead of the one
+// that is asked for the transaction, so a transaction not found is looked for again before it is given up on.
+export const isTransferDead = async (rpcUrl: string, { hash, raw }: SignedTransfer, from: string, retryDelay = 5000): Promise<boolean> => {
+  const client = getPublicClient(rpcUrl);
+  if ((await client.getTransactionCount({ address: from as Address, blockTag: 'latest' })) <= getSignedNonce(raw)) {
+    return false;
+  }
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await isKnown(client, hash)) {
+      return false;
+    }
+    if (attempt < 3) {
+      await sleep(retryDelay);
+    }
+  }
+  return true;
+};
 
 // the nonce the next transaction of this address takes, counting those still waiting to be mined
 export const getPendingNonce = (rpcUrl: string, address: string): Promise<number> =>
@@ -218,6 +288,10 @@ export class TransferFailedError extends Error {}
 // reverting, so the transaction succeeds and nothing moves.
 export const waitForTransaction = async (rpcUrl: string, hash: string, expectedTransfer?: ExpectedTransfer): Promise<void> => {
   const receipt = await getPublicClient(rpcUrl).waitForTransactionReceipt({ hash: hash as Hash });
+  // a transaction of the same nonce that replaced it is a different transaction, mined or not
+  if (receipt.transactionHash.toLowerCase() !== hash.toLowerCase()) {
+    throw new TransferFailedError(`transaction ${hash} was replaced by ${receipt.transactionHash}`);
+  }
   if (receipt.status !== 'success') {
     throw new TransferFailedError(`transaction ${hash} reverted`);
   }

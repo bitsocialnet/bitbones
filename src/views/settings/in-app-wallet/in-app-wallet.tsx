@@ -90,7 +90,8 @@ const InAppWallet = () => {
   const rpcUrlOverrides = useTippingSettingsStore((state) => state.rpcUrls);
   const [addedChainIds, setAddedChainIds] = useState<number[]>([]);
   const [newChainId, setNewChainId] = useState('');
-  const [balances, setBalances] = useState<BalanceRow[]>();
+  // the wallet the rows were read for: another account's wallet must not show them
+  const [balanceRows, setBalanceRows] = useState<{ address: string; rows: BalanceRow[] }>();
   const [loading, setLoading] = useState(false);
 
   // every token a subscribed community accepts, once each, plus the coin of each of their chains for gas
@@ -136,7 +137,7 @@ const InAppWallet = () => {
           }
         }),
       );
-      setBalances(rows);
+      setBalanceRows({ address: inAppWallet.address, rows });
     } finally {
       setLoading(false);
     }
@@ -175,7 +176,7 @@ const InAppWallet = () => {
         </button>{' '}
         {!tokens.size && 'none of the subscribed communities publishes tipping options'}
       </div>
-      {balances?.map(({ key, text }) => (
+      {(balanceRows?.address === inAppWallet.address ? balanceRows.rows : undefined)?.map(({ key, text }) => (
         <div key={key}>{text}</div>
       ))}
     </div>

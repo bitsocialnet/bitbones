@@ -10,19 +10,21 @@ import {
   getRequiredFee,
   getTipAmountError,
   getTipClaimPublishOptions,
+  getProvenWalletAddresses,
   getTipRecipientAddress,
   getTipSendPlan,
   getTipSettleOutcome,
 } from '../lib/tipping';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
 import {
-  BroadcastRejectedError,
   ensureBroadcast,
   ensureRpcChainId,
   getBalance,
   getPendingNonce,
   getSignedNonce,
   getTokenInfo,
+  isTransactionKnown,
+  isTransferDead,
   signTransfer,
   simulateTransfer,
   TransferFailedError,
@@ -87,7 +89,8 @@ interface TipState {
   mined: Record<string, boolean | undefined>;
   // its tip is mined but its fee reverted, so the fee can be sent again
   feeFailed: Record<string, boolean | undefined>;
-  setPendingTip: (parentCid: string, pendingTip: PendingTip | undefined) => void;
+  // false when the browser would not save it, which a transfer must not be sent after
+  setPendingTip: (parentCid: string, pendingTip: PendingTip | undefined) => boolean;
 }
 
 const useTipStore = create<TipState>((setState) => ({
@@ -107,7 +110,10 @@ const useTipStore = create<TipState>((setState) => ({
     setState({ pendingTips });
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingTips));
-    } catch {}
+      return true;
+    } catch {
+      return false;
+    }
   },
 }));
 
@@ -115,7 +121,14 @@ const useTipStore = create<TipState>((setState) => ({
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === STORAGE_KEY) {
-      useTipStore.setState({ pendingTips: readStoredPendingTips() });
+      const pendingTips = readStoredPendingTips();
+      // "mined" belongs to one transaction: another tab that signed a new one has not mined it yet
+      useTipStore.setState((state) => ({
+        pendingTips,
+        mined: Object.fromEntries(
+          Object.entries(state.mined).map(([parentCid, mined]) => [parentCid, pendingTips[parentCid]?.txHash === state.pendingTips[parentCid]?.txHash && mined]),
+        ),
+      }));
     }
   });
 }
@@ -257,7 +270,9 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
         ...(feeSigned && { feeTxHash: feeSigned.hash, feeRaw: feeSigned.raw }),
         ...(tipSigned && { txHash: tipSigned.hash, txRaw: tipSigned.raw }),
       };
-      setPendingTip(parentCid, pendingTip);
+      if (!setPendingTip(parentCid, pendingTip)) {
+        throw Error("the tip could not be saved in this browser's storage, so nothing was sent");
+      }
     }
     // The fee first, so it is the one in front in the queue. This is also what a resume does for a
     // transaction that was saved but is not known to the RPC.
@@ -271,12 +286,18 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
         await ensureBroadcast(rpcUrl, { hash: pendingTip.txHash as Hash, raw: pendingTip.txRaw as Hex });
       }
     } catch (error) {
-      if (error instanceof BroadcastRejectedError) {
-        // The node refused it, so it was never sent and can't be mined: forget it, and what was signed behind
-        // it, and the next try signs again at a fresh nonce.
-        const { feeTxHash, feeRaw, txHash: _txHash, txRaw: _txRaw, ...rest } = pendingTip;
-        setPendingTip(parentCid, step === 'fee' ? rest : { ...rest, feeTxHash, feeRaw });
-        throw Error(`the ${step} transaction was refused (${error.message}), so nothing was sent for it. Continue to send it again.`);
+      // The RPC's error, or none, does not say the transaction was not taken: only a nonce another
+      // transaction used does. Otherwise what was signed stays, and the next try sends the same transaction.
+      const failed = step === 'fee' ? { hash: pendingTip.feeTxHash, raw: pendingTip.feeRaw } : { hash: pendingTip.txHash, raw: pendingTip.txRaw };
+      if (failed.hash && failed.raw && (await isTransferDead(rpcUrl, { hash: failed.hash as Hash, raw: failed.raw as Hex }, address))) {
+        // It can never be mined: forget it, and the tip signed behind a fee unless that went out, and the
+        // next try signs again at a fresh nonce.
+        const { feeTxHash, feeRaw, txHash, txRaw, ...rest } = pendingTip;
+        const tipSent = step === 'fee' && txHash && txRaw ? await isTransactionKnown(rpcUrl, txHash) : false;
+        const keepTip = step === 'fee' && tipSent ? { txHash, txRaw } : {};
+        const keepFee = step === 'tip' ? { feeTxHash, feeRaw } : {};
+        setPendingTip(parentCid, { ...rest, ...keepFee, ...keepTip });
+        throw Error(`the ${step} transaction can never be mined, another transaction took its nonce. It was dropped: continue to send it again.`);
       }
       throw error;
     }
@@ -323,7 +344,12 @@ const resendFee = async (account: Account | undefined, parentCid: string): Promi
       nonce: await getNextNonce(rpcUrl, address, pendingTip),
     });
     setMined(parentCid, false);
-    useTipStore.getState().setPendingTip(parentCid, { ...pendingTip, feeTxHash: signed.hash, feeRaw: signed.raw });
+    if (!useTipStore.getState().setPendingTip(parentCid, { ...pendingTip, feeTxHash: signed.hash, feeRaw: signed.raw })) {
+      throw Error("the fee could not be saved in this browser's storage, so nothing was sent");
+    }
+    // the failed fee is replaced: if the replacement's broadcast fails or its answer is lost, what is
+    // offered is to continue with it, not to pay a third fee
+    setFeeFailed(parentCid, false);
     await ensureBroadcast(rpcUrl, signed);
   });
   await settle(account, parentCid);
@@ -359,9 +385,11 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   // before paying an address, the proof that the author controls it is verified here. The author's
   // `eth` entry is paid if it verifies, otherwise their first proven entry by key.
   setStatus(parentCid, 'verifying the recipient wallet...');
-  const to = await getTipRecipientAddress(comment);
+  // not a wallet the tipper has proven as well: tipping/v1 rejects a tip a tipper sends to themselves
+  const tipperAddresses = await getProvenWalletAddresses({ author: account?.author, signature: { publicKey: account?.signer?.publicKey } });
+  const to = await getTipRecipientAddress(comment, undefined, tipperAddresses);
   if (!to) {
-    throw Error("can't tip this author: they have not published a wallet with a valid proof");
+    throw Error("can't tip this author: they have not published a wallet with a valid proof that is not also yours");
   }
 
   const inAppWallet = getInAppWallet(account);
@@ -432,7 +460,7 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   setStatus(parentCid, 'linking the in-app wallet...');
   await ensureInAppWallet(account);
 
-  useTipStore.getState().setPendingTip(parentCid, {
+  const saved = useTipStore.getState().setPendingTip(parentCid, {
     accountId: account?.id,
     communityAddress: comment.communityAddress,
     parentCid,
@@ -442,6 +470,9 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
     transfer: { token: { chainId, type: token.type, address: token.address }, to, amountOrTokenId: String(amountOrTokenId) },
     fee: fee && config.feeRecipient ? { token: fee.token, amount: String(fee.amount), to: config.feeRecipient } : undefined,
   });
+  if (!saved) {
+    throw Error("the tip could not be saved in this browser's storage, so nothing was sent");
+  }
   await settle(account, parentCid);
 };
 
@@ -474,6 +505,8 @@ interface UseTipResult {
   mined: boolean;
   // the tip is out but its fee failed: resendFee pays it again
   feeFailed: boolean;
+  // started by another account than the active one, which can neither continue nor forget it
+  otherAccount: boolean;
   resendFee: () => Promise<void>;
   sendTip: (options: SendTipOptions) => Promise<void>;
   // picks a tip up again after a reload or a failure: waits, pays an unpaid fee, publishes the reply
@@ -491,6 +524,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   const error = useTipStore((state) => (parentCid ? state.error[parentCid] : undefined));
   const mined = useTipStore((state) => Boolean(parentCid && state.mined[parentCid]));
   const feeFailed = useTipStore((state) => Boolean(parentCid && state.feeFailed[parentCid]));
+  const otherAccount = Boolean(pendingTip?.accountId && pendingTip.accountId !== account?.id);
 
   const publishCommentOptions = useMemo((): PublishCommentOptions | undefined => {
     // the challenge index comes from the community's current challenges, so a tip resumed after a
@@ -550,6 +584,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     error,
     mined,
     feeFailed,
+    otherAccount,
     resendFee: async () => {
       if (parentCid) {
         await run(parentCid, () => resendFee(account, parentCid));
@@ -572,7 +607,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
       }
     },
     discardTip: () => {
-      if (parentCid) {
+      if (parentCid && !otherAccount) {
         useTipStore.getState().setPendingTip(parentCid, undefined);
         useTipStore.setState((state) => ({
           mined: { ...state.mined, [parentCid]: false },

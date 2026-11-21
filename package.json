@@ -50,7 +50,7 @@
     "ai-workflow:test": "node --test scripts/__tests__/ai-workflow.node-test.mjs scripts/__tests__/agent-hooks.node-test.mjs",
     "release:manifest": "node scripts/generate-release-manifest.mjs",
     "release:manifest:keygen": "node scripts/generate-release-manifest-keypair.mjs",
-    "tipping:test": "node --test scripts/__tests__/tipping.node-test.mjs",
+    "tipping:test": "node --experimental-strip-types --test scripts/__tests__/tipping.node-test.mjs",
     "release:manifest:test": "node --test scripts/__tests__/release-manifest.node-test.mjs",
     "doctor:scan": "react-doctor scan",
     "perf:check": "node scripts/react-perf/runner.mjs check",
