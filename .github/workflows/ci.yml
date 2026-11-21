@@ -82,6 +82,8 @@ jobs:
         run: node --experimental-strip-types --test scripts/__tests__/challenge-modal-answers.node-test.mjs
       - name: Test load errors
         run: node --experimental-strip-types --test scripts/__tests__/load-errors.node-test.mjs
+      - name: Test the comment line
+        run: node --test scripts/__tests__/comment-line.node-test.mjs
       - name: Verify the release manifest covers the build
         run: |
           yarn release:manifest --build-dir build --out-dir "$RUNNER_TEMP/release-manifest"
