@@ -277,7 +277,7 @@ const parseFee = (fee: unknown, type: TipTokenType): TipFee | undefined | 'inval
     return 'invalid';
   }
   if (type === 'erc721') {
-    return typeof token === 'string' && isAddress(token, { strict: false }) ? { amount: flat, token: token as Address } : 'invalid';
+    return typeof token === 'string' && isAddress(token, { strict: false }) ? { amount: flat, token: token.toLowerCase() as Address } : 'invalid';
   }
   return token === undefined ? { amount: flat } : 'invalid';
 };
@@ -297,6 +297,8 @@ const parseToken = (entry: unknown): TipToken | undefined => {
   if (type === 'native' ? address !== undefined : typeof address !== 'string' || !isAddress(address, { strict: false })) {
     return undefined;
   }
+  // lower case, so a mixed-case address with a wrong checksum is still one the chain calls accept
+  const tokenAddress = typeof address === 'string' ? (address.toLowerCase() as Address) : undefined;
   const parsedMinAmount = minAmount === undefined ? undefined : parseBaseUnits(minAmount);
   // an NFT tip has no amount to compare
   if (minAmount !== undefined && (parsedMinAmount === undefined || type === 'erc721')) {
@@ -306,7 +308,7 @@ const parseToken = (entry: unknown): TipToken | undefined => {
   if (parsedFee === 'invalid') {
     return undefined;
   }
-  return { chainId, type, address: address as Address | undefined, minAmount: parsedMinAmount, fee: parsedFee };
+  return { chainId, type, address: tokenAddress, minAmount: parsedMinAmount, fee: parsedFee };
 };
 
 interface CommunityLike {
@@ -627,10 +629,10 @@ export const getProvenWalletAddresses = async (party: TipParty | undefined, nowS
 // `excluded` are addresses the tipper has proven too: tipping/v1 rejects a tip whose recipient is also
 // one of the tipper's wallets, so those are skipped.
 export const getTipRecipientAddress = async (party: TipParty | undefined, nowSeconds?: number, excluded: string[] = []): Promise<string | undefined> => {
-  const isExcluded = (address: string) => excluded.some((other) => other.toLowerCase() === address.toLowerCase());
+  const isExcluded = (address: unknown) => typeof address === 'string' && excluded.some((other) => other.toLowerCase() === address.toLowerCase());
   const wallets = party?.author?.wallets;
   const eth = wallets && typeof wallets === 'object' ? (wallets as Record<string, unknown>).eth : undefined;
-  if (eth && !isExcluded(String((eth as WalletProof).address)) && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
+  if (eth && !isExcluded((eth as WalletProof).address) && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
     return (eth as WalletProof).address;
   }
   return (await getProvenWalletAddresses(party, nowSeconds)).find((address) => !isExcluded(address));

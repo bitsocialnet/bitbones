@@ -559,7 +559,13 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     };
   }, [pendingTip, mined, config, account?.id]);
 
-  const { publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment);
+  // cancelling a further challenge removes the reply without an error or a verification, and the
+  // paid tip would wait for a reply that is never published again
+  const onAbandon = useMemo(
+    () => (parentCid ? () => setError(parentCid, 'the tip reply was cancelled. The transfer stays valid, so the reply can be published again.') : undefined),
+    [parentCid],
+  );
+  const { publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment, onAbandon);
 
   // Publishing is an effect and not the end of the click handler because the publish function only
   // exists for options from a previous render, and the claim in those options is known only once

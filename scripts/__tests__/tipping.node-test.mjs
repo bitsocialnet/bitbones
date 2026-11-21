@@ -212,7 +212,7 @@ test('reads the tipping/v1 options from whichever challenge publishes them', () 
   assert.equal(config.tokens.length, 5);
   assert.deepEqual(config.tokens[0], { chainId: 1, type: 'native', address: undefined, minAmount: 1000000000000000n, fee: { percent: '2' } });
   assert.deepEqual(config.tokens[2].fee, { amount: 500000000000000000n });
-  assert.deepEqual(config.tokens[3].fee, { amount: 1000000n, token: usdc });
+  assert.deepEqual(config.tokens[3].fee, { amount: 1000000n, token: usdc.toLowerCase() });
   assert.equal(config.tokens[4].fee, undefined);
 });
 
@@ -265,8 +265,8 @@ test('drops the entries it cannot read and keeps the rest', () => {
   assert.deepEqual(
     config.tokens.map(({ chainId, address }) => [chainId, address]),
     [
-      [1, usdc],
-      [11155111, usdc],
+      [1, usdc.toLowerCase()],
+      [11155111, usdc.toLowerCase()],
     ],
   );
   // the same token on two chains is two tokens
@@ -290,14 +290,14 @@ test('computes the fee owed on top of a tip', () => {
   // 2% of 1 ETH, paid in the native coin
   assert.deepEqual(getRequiredFee(config, native, 10n ** 18n), { token: undefined, amount: 2n * 10n ** 16n });
   // 2.5% of 10 USDC, paid in USDC
-  assert.deepEqual(getRequiredFee(config, usdcToken, 10000000n), { token: usdc, amount: 250000n });
+  assert.deepEqual(getRequiredFee(config, usdcToken, 10000000n), { token: usdc.toLowerCase(), amount: 250000n });
   // rounds down, as the contract does: 2.5% of 1 base unit is 0 and owes nothing, of 41 it is 1
   assert.equal(getRequiredFee(config, usdcToken, 1n), undefined);
-  assert.deepEqual(getRequiredFee(config, usdcToken, 41n), { token: usdc, amount: 1n });
+  assert.deepEqual(getRequiredFee(config, usdcToken, 41n), { token: usdc.toLowerCase(), amount: 1n });
   // flat, whatever the tip
-  assert.deepEqual(getRequiredFee(config, daiToken, 1n), { token: dai, amount: 500000000000000000n });
+  assert.deepEqual(getRequiredFee(config, daiToken, 1n), { token: dai.toLowerCase(), amount: 500000000000000000n });
   // an NFT's flat fee is paid in the ERC-20 the entry names
-  assert.deepEqual(getRequiredFee(config, nftWithFee, 0n), { token: usdc, amount: 1000000n });
+  assert.deepEqual(getRequiredFee(config, nftWithFee, 0n), { token: usdc.toLowerCase(), amount: 1000000n });
   assert.equal(getRequiredFee(config, nftFree, 0n), undefined);
   // no fee recipient, no fee
   assert.equal(getRequiredFee({ ...config, feeRecipient: undefined }, usdcToken, 10000000n), undefined);
@@ -681,7 +681,11 @@ test('the two transactions are judged together once both are waited for', () => 
 });
 
 // an RPC that serves what signing a transfer reads, and keeps the raw transactions it is sent
-const startChain = async ({ known = [], sendError, latestNonce = 0, callError } = {}) => {
+const fail = (error) => {
+  throw error;
+};
+
+const startChain = async ({ known = [], sendError, latestNonce = 0, callError, lookupError } = {}) => {
   const sent = [];
   const handlers = {
     eth_chainId: () => '0xaa36a7',
@@ -710,7 +714,7 @@ const startChain = async ({ known = [], sendError, latestNonce = 0, callError } 
       return `0x${'0'.repeat(63)}6`;
     },
     eth_getTransactionCount: ({ params }) => (params[1] === 'latest' ? `0x${latestNonce.toString(16)}` : '0x0'),
-    eth_getTransactionByHash: ({ params }) => (known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null),
+    eth_getTransactionByHash: ({ params }) => (lookupError ? fail(lookupError) : known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null),
     eth_sendRawTransaction: ({ params }) => {
       sent.push(params[0]);
       if (sendError) {
@@ -901,4 +905,28 @@ test('token info: a failed read shows the address without decimals and is read a
   const wrong = await startChain();
   assert.equal((await getTokenInfo(wrong.url, { ...token, chainId: 1 })).decimals, undefined);
   await wrong.close();
+});
+
+test('token addresses are read in lower case, so one with a wrong checksum still works in chain calls', () => {
+  const badChecksum = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB49'.replace(/E3606eB49$/, 'e3606EB48');
+  const config = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'erc20', address: badChecksum }]) }));
+  assert.equal(config.tokens[0].address, badChecksum.toLowerCase());
+});
+
+test('an RPC error on the lookup is not an answer that the transaction is unknown', async () => {
+  const chain = await startChain({ lookupError: Error('rate limited') });
+  const parentBinding = getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG');
+  const signed = await signTransfer({
+    rpcUrl: chain.url,
+    privateKey: `0x${'02'.repeat(32)}`,
+    token: { chainId: 11155111, type: 'native' },
+    to: '0x5555555555555555555555555555555555555555',
+    amountOrTokenId: 5n,
+    parentBinding,
+    nonce: 0,
+  });
+  await assert.rejects(ensureBroadcast(chain.url, signed), /rate limited|Unknown|HTTP|error/i);
+  // nothing was sent on a lookup that could not answer
+  assert.deepEqual(chain.sent, []);
+  await chain.close();
 });

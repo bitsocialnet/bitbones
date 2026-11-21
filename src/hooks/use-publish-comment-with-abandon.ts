@@ -132,7 +132,13 @@ const abandonPendingComment = async (position: PendingCommentPosition, publicati
 
 // usePublishComment that queues each challenge with a way to delete its pending comment, so
 // cancelling the challenge removes the comment instead of leaving it waiting for answers that never come
-const usePublishCommentWithAbandon = (publishCommentOptions: PublishCommentOptions | undefined, publicationTarget?: Comment): UsePublishCommentResult => {
+// onAbandon runs once a cancelled challenge's comment is removed: neither onError nor
+// onChallengeVerification is called then, so a caller waiting for the publish can learn of it here.
+const usePublishCommentWithAbandon = (
+  publishCommentOptions: PublishCommentOptions | undefined,
+  publicationTarget?: Comment,
+  onAbandon?: () => void,
+): UsePublishCommentResult => {
   // publish as the active account by name, so the comment is deleted from that account even if
   // another account is active by the time its challenge is cancelled
   const accountName: string | undefined = useAccount()?.name;
@@ -156,11 +162,22 @@ const usePublishCommentWithAbandon = (publishCommentOptions: PublishCommentOptio
             },
             onChallenge: (challenge: Challenge, publication?: Comment) => {
               const pendingPosition = pendingPositionRef.current;
-              addChallenge([challenge, publication, publicationTarget], pendingPosition ? () => abandonPendingComment(pendingPosition, publication) : undefined);
+              addChallenge(
+                [challenge, publication, publicationTarget],
+                pendingPosition
+                  ? async () => {
+                      try {
+                        await abandonPendingComment(pendingPosition, publication);
+                      } finally {
+                        onAbandon?.();
+                      }
+                    }
+                  : onAbandon && (async () => onAbandon()),
+              );
             },
           }
         : undefined,
-    [publishCommentOptions, publicationTarget, accountName],
+    [publishCommentOptions, publicationTarget, accountName, onAbandon],
   );
   const publishCommentResult = usePublishComment(options);
   const { index: reportedIndex, publishComment } = publishCommentResult;

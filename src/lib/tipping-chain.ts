@@ -11,6 +11,7 @@ import {
   http,
   keccak256,
   parseTransaction,
+  TransactionNotFoundError,
 } from 'viem';
 import type { Address, Hash, Hex, PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -112,7 +113,8 @@ const balanceReads = new Map<string, Promise<bigint | undefined>>();
 
 // The same promise for the same wallet and token for a few seconds, so a component can read it with
 // React's use() without a request per render. undefined when it can't be read, e.g. the RPC is on
-// another chain. A read that failed is not remembered.
+// another chain. A failed read is kept for the window too: React asks for the promise again after it
+// settles, and a new one each time would never show the result.
 export const getBalanceOnce = (rpcUrl: string | undefined, token: ChainToken, owner: string): Promise<bigint | undefined> => {
   if (!rpcUrl) {
     return Promise.resolve(undefined);
@@ -122,10 +124,7 @@ export const getBalanceOnce = (rpcUrl: string | undefined, token: ChainToken, ow
   if (!read) {
     read = ensureRpcChainId(rpcUrl, token.chainId)
       .then(() => getBalance(rpcUrl, token, owner))
-      .catch(() => {
-        balanceReads.delete(key);
-        return undefined;
-      });
+      .catch(() => undefined);
     balanceReads.set(key, read);
     setTimeout(() => balanceReads.delete(key), 10_000);
   }
@@ -211,10 +210,17 @@ export const signTransfer = async (options: TransferOptions & { privateKey: Hex;
   return { hash: keccak256(raw), raw };
 };
 
+// Only the RPC's "no such transaction" answer is no. A rate limit, a timeout or a backend error says
+// nothing about the transaction, and reading it as unknown could drop one that was sent.
 const isKnown = (client: PublicClient, hash: Hash): Promise<boolean> =>
   client.getTransaction({ hash }).then(
     () => true,
-    () => false,
+    (error: unknown) => {
+      if (error instanceof TransactionNotFoundError) {
+        return false;
+      }
+      throw error;
+    },
   );
 
 // Makes sure the RPC has a signed transfer: nothing is done when it already knows it, pending or mined,
@@ -232,7 +238,8 @@ export const ensureBroadcast = async (rpcUrl: string, { hash, raw }: SignedTrans
     // another node of the RPC already had it, or it was mined in between
     if (
       /already known|known transaction|already imported/i.test(String((error as { details?: string; message?: string })?.details ?? (error as Error)?.message)) ||
-      (await isKnown(client, hash))
+      // an unclear answer here must not hide the error that is being handled
+      (await isKnown(client, hash).catch(() => false))
     ) {
       return;
     }
