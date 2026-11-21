@@ -28,6 +28,27 @@ export const getChallengeEntries = (challenges: { [challengeIndex: string]: Chal
 export const getChallengeAnswers = (challengeEntries: [string, ChallengeItem][], answers: ChallengeAnswersByIndex): ChallengeAnswersByIndex =>
   Object.fromEntries(challengeEntries.map(([challengeIndex]) => [challengeIndex, answers[challengeIndex] || '']));
 
+// the answer-publishing method of the publication the library hands onChallenge
+export type AnswerablePublication = {
+  publishChallengeAnswers(challengeAnswers: ChallengeAnswersByIndex): Promise<void>;
+};
+
+// Since pkc-js 0.0.154 publishChallengeAnswers rejects with ERR_PUBLICATION_CHALLENGE_EXCHANGE_ENDED
+// once the publication's challenge exchange is over, for example when it failed or was stopped while
+// its challenge waited in the modal. The modal closes without waiting for the answers to be sent, so
+// hand the rejection to onError rather than leave it unhandled.
+export const publishChallengeAnswers = async (
+  publication: AnswerablePublication,
+  challengeAnswers: ChallengeAnswersByIndex,
+  onError: (error: Error) => void,
+): Promise<void> => {
+  try {
+    await publication.publishChallengeAnswers(challengeAnswers);
+  } catch (error) {
+    onError(error as Error);
+  }
+};
+
 type PublicationType = 'vote' | 'reply' | 'edit' | 'community edit' | 'post';
 
 export const getPublicationType = (publication: ChallengePublication | undefined): PublicationType | undefined => {
