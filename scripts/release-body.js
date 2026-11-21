@@ -65,10 +65,13 @@ const downloads = [
   .filter(Boolean)
   .join('\n\n');
 
-const introduction =
-  version === '0.1.0'
-    ? 'This release introduces bitbones as a developer client for inspecting Bitsocial feeds, communities, posts, and runtime logs across web, desktop, and Android.\n\n'
-    : '';
+const introductions = {
+  '0.1.0':
+    'This release introduces bitbones as a developer client for inspecting Bitsocial feeds, communities, posts, and runtime logs across web, desktop, and Android.',
+  '0.2.0':
+    'This release answers challenges in the keyed format that upgraded Bitsocial nodes require, so posts, replies, and votes keep working on communities whose nodes have upgraded.',
+};
+const introduction = introductions[version] ? `${introductions[version]}\n\n` : '';
 
 const releaseBody = `${introduction}Progressive web app:
 - https://bitbones.app

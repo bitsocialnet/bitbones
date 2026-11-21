@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import useStateString from './use-state-string';
 import { useCommunity, useCommunitiesStates } from '@bitsocial/bitsocial-react-hooks';
 import { useCommunityIdentifier, useCommunityIdentifiers } from './use-community-identifier';
+import { formatLoadError, getCommunityLoadError, getFeedLoadError } from '../lib/load-errors';
 
 const clientHosts: Record<string, string> = {};
 const getClientHost = (clientUrl: string): string => {
@@ -15,7 +16,15 @@ const getClientHost = (clientUrl: string): string => {
   return clientHosts[clientUrl];
 };
 
-const useFeedStateString = (communityAddresses?: (string | undefined)[]): string | undefined => {
+interface FeedStateString {
+  // what the feed waits on, e.g. 'ipfs.io: 2 fetching-ipns...', or why it failed to load
+  stateString: string;
+  // the line is an error, not a loading state
+  failed: boolean;
+}
+
+// feedState is useFeed().state
+const useFeedStateString = (communityAddresses: (string | undefined)[] | undefined, feedState: string | undefined): FeedStateString => {
   // single community feed state string
   const communityAddress = communityAddresses?.length === 1 ? communityAddresses[0] : undefined;
   const communityIdentifier = useCommunityIdentifier(communityAddress);
@@ -90,10 +99,18 @@ const useFeedStateString = (communityAddresses?: (string | undefined)[]): string
     return stateString === '' ? undefined : stateString;
   }, [states, communityAddress]);
 
-  if (singleCommunityFeedStateString) {
-    return singleCommunityFeedStateString;
+  // a one-community feed shows why its community failed, or the error behind its retries. It reads
+  // useCommunity because useFeed is only 'failed' while the feed is empty, and the account's own
+  // pending posts can fill it. The useFeed state covers feeds of several communities.
+  const loadError = (communityAddress ? getCommunityLoadError(community) : undefined) || getFeedLoadError(feedState);
+  if (loadError?.failed) {
+    return { stateString: formatLoadError(loadError), failed: true };
   }
-  return multipleCommunitiesFeedStateString;
+  const loadingStateString = singleCommunityFeedStateString || multipleCommunitiesFeedStateString || 'loading...';
+  if (loadError) {
+    return { stateString: `${loadingStateString} ${formatLoadError(loadError)}`, failed: false };
+  }
+  return { stateString: loadingStateString, failed: false };
 };
 
 export default useFeedStateString;
