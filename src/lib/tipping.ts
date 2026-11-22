@@ -277,7 +277,7 @@ const parseFee = (fee: unknown, type: TipTokenType): TipFee | undefined | 'inval
     return 'invalid';
   }
   if (type === 'erc721') {
-    return typeof token === 'string' && isAddress(token, { strict: false }) ? { amount: flat, token: token.toLowerCase() as Address } : 'invalid';
+    return typeof token === 'string' && isAddress(token) ? { amount: flat, token: token.toLowerCase() as Address } : 'invalid';
   }
   return token === undefined ? { amount: flat } : 'invalid';
 };
@@ -294,7 +294,7 @@ const parseToken = (entry: unknown): TipToken | undefined => {
   if (type !== 'native' && type !== 'erc20' && type !== 'erc721') {
     return undefined;
   }
-  if (type === 'native' ? address !== undefined : typeof address !== 'string' || !isAddress(address, { strict: false })) {
+  if (type === 'native' ? address !== undefined : typeof address !== 'string' || !isAddress(address)) {
     return undefined;
   }
   // lower case, so a mixed-case address with a wrong checksum is still one the chain calls accept
@@ -343,12 +343,18 @@ export const getTippingConfig = (community: CommunityLike | undefined): TippingC
     if (!Array.isArray(parsed)) {
       continue;
     }
-    const tokens = parsed.flatMap((entry) => parseToken(entry) ?? []);
+    const parsedTokens = parsed.flatMap((entry) => parseToken(entry) ?? []);
+    // two entries for one token would be two different fees for the same option, and tipping/v1 allows one
+    const keyCounts = new Map<string, number>();
+    for (const token of parsedTokens) {
+      keyCounts.set(getTokenKey(token), (keyCounts.get(getTokenKey(token)) ?? 0) + 1);
+    }
+    const tokens = parsedTokens.filter((token) => keyCounts.get(getTokenKey(token)) === 1);
     if (!tokens.length) {
       continue;
     }
     const feeRecipientOption = (publicOptions as Record<string, unknown>)[feeRecipientOptionName];
-    const feeRecipient = typeof feeRecipientOption === 'string' && isAddress(feeRecipientOption, { strict: false }) ? (feeRecipientOption as Address) : undefined;
+    const feeRecipient = typeof feeRecipientOption === 'string' && isAddress(feeRecipientOption) ? (feeRecipientOption as Address) : undefined;
     // tipping/v1 calls a fee without a readable recipient an invalid config. Such a token is dropped,
     // since a tip without its fee would be sent and then rejected as unpaid, and its tipper would lose it.
     const payableTokens = feeRecipient ? tokens : tokens.filter((token) => !token.fee);
@@ -600,7 +606,7 @@ interface TipParty {
   signature?: { publicKey?: unknown };
 }
 
-const getPartyKeyAddress = (party: TipParty | undefined): string | undefined =>
+export const getPartyKeyAddress = (party: TipParty | undefined): string | undefined =>
   typeof party?.signature?.publicKey === 'string' ? getKeyAddressFromPublicKey(party.signature.publicKey) : undefined;
 
 // The addresses a publication's author has proven, in ascending order of their author.wallets key.

@@ -1,5 +1,5 @@
 // The chain side of tipping: reads and plain transfers through one RPC url. Every write here moves
-// real funds, and nothing in this file is covered by an automated test.
+// real funds. The Node suite covers it against stub RPCs; nothing in it has moved funds on a live chain.
 import {
   concatHex,
   createPublicClient,
@@ -12,6 +12,7 @@ import {
   keccak256,
   parseTransaction,
   TransactionNotFoundError,
+  TransactionReceiptNotFoundError,
 } from 'viem';
 import type { Address, Hash, Hex, PublicClient } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -110,6 +111,8 @@ export const getBalance = (rpcUrl: string, token: ChainToken, owner: string): Pr
 };
 
 const balanceReads = new Map<string, Promise<bigint | undefined>>();
+// one promise for a chain without an RPC url, so React's use() settles on it
+const noBalance = Promise.resolve<bigint | undefined>(undefined);
 
 // The same promise for the same wallet and token for a few seconds, so a component can read it with
 // React's use() without a request per render. undefined when it can't be read, e.g. the RPC is on
@@ -117,7 +120,7 @@ const balanceReads = new Map<string, Promise<bigint | undefined>>();
 // settles, and a new one each time would never show the result.
 export const getBalanceOnce = (rpcUrl: string | undefined, token: ChainToken, owner: string): Promise<bigint | undefined> => {
   if (!rpcUrl) {
-    return Promise.resolve(undefined);
+    return noBalance;
   }
   const key = `${rpcUrl}\n${token.chainId}\n${token.type}\n${token.address?.toLowerCase()}\n${owner.toLowerCase()}`;
   let read = balanceReads.get(key);
@@ -205,8 +208,18 @@ export const signTransfer = async (options: TransferOptions & { privateKey: Hex;
   const account = privateKeyToAccount(options.privateKey);
   const walletClient = createWalletClient({ account, transport: http(options.rpcUrl) });
   const fees = await getFees(getPublicClient(options.rpcUrl));
-  const request = await walletClient.prepareTransactionRequest({ chain: null, ...buildTransfer(options, account.address), nonce: options.nonce, ...fees });
+  const request = await walletClient.prepareTransactionRequest({
+    chain: null,
+    ...buildTransfer(options, account.address),
+    nonce: options.nonce,
+    chainId: options.token.chainId,
+    ...fees,
+  });
   const raw = await walletClient.signTransaction(request);
+  // an RPC that answered another chain id while signing would have the transaction signed for that chain
+  if (parseTransaction(raw).chainId !== options.token.chainId) {
+    throw Error(`the transaction was not signed for chain id ${options.token.chainId}. Nothing was sent`);
+  }
   return { hash: keccak256(raw), raw };
 };
 
@@ -237,7 +250,7 @@ export const ensureBroadcast = async (rpcUrl: string, { hash, raw }: SignedTrans
   } catch (error) {
     // another node of the RPC already had it, or it was mined in between
     if (
-      /already known|known transaction|already imported/i.test(String((error as { details?: string; message?: string })?.details ?? (error as Error)?.message)) ||
+      /already known|(?<!un)known transaction|already imported/i.test(String((error as { details?: string; message?: string })?.details ?? (error as Error)?.message)) ||
       // an unclear answer here must not hide the error that is being handled
       (await isKnown(client, hash).catch(() => false))
     ) {
@@ -341,6 +354,8 @@ interface TransferToCheck {
   token?: string;
   // the tipper's proven wallets: the transaction must be sent by one, and a token moves out of one
   senders: string[];
+  // the wallet the tip says paid: the transfer must come from it, not from another wallet of the tipper's
+  from?: string;
   to: string;
   amount?: bigint;
   tokenId?: string;
@@ -350,16 +365,26 @@ interface TransferToCheck {
 // with the parent binding, and a transfer of that token to that wallet of at least that amount.
 const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCheck, parentBinding: Hex): Promise<OnChainTipCheck> => {
   const hash = transfer.txHash as Hash;
-  const receipt = await client.getTransactionReceipt({ hash }).catch(() => undefined);
+  // only "no receipt yet" means not mined: a rate limit or a timeout says nothing about the transaction
+  const receipt = await client.getTransactionReceipt({ hash }).catch((error: unknown) => {
+    if (error instanceof TransactionReceiptNotFoundError) {
+      return undefined;
+    }
+    throw error;
+  });
   if (!receipt) {
     return { mined: false, succeeded: false, sentByTipper: false, hasBinding: false, matchesTip: false };
   }
   const transaction = await client.getTransaction({ hash });
   const senders = transfer.senders.map((sender) => sender.toLowerCase());
   const to = transfer.to.toLowerCase();
+  const from = transfer.from?.toLowerCase();
   let matchesTip: boolean;
   if (transfer.type === 'native') {
-    matchesTip = transaction.to?.toLowerCase() === to && (transfer.amount === undefined || transaction.value >= transfer.amount);
+    matchesTip =
+      (from === undefined || transaction.from.toLowerCase() === from) &&
+      transaction.to?.toLowerCase() === to &&
+      (transfer.amount === undefined || transaction.value >= transfer.amount);
   } else {
     const token = transfer.token?.toLowerCase();
     // ERC-20 and ERC-721 emit the same Transfer event; only the last argument differs (value or token id)
@@ -367,7 +392,7 @@ const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCh
       if (log.address.toLowerCase() !== token || log.topics[0] !== transferTopic) {
         return false;
       }
-      if (!senders.includes(topicAddress(log.topics[1])) || topicAddress(log.topics[2]) !== to) {
+      if (!(from === undefined ? senders : [from]).includes(topicAddress(log.topics[1])) || topicAddress(log.topics[2]) !== to) {
         return false;
       }
       if (transfer.type === 'erc721') {

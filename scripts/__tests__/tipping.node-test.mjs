@@ -2,8 +2,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
-import { test } from 'node:test';
-import { keccak256, parseTransaction, recoverMessageAddress } from 'viem';
+import { after, test } from 'node:test';
+import { getAddress, keccak256, parseTransaction, recoverMessageAddress } from 'viem';
 import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts';
 import {
   buildTipClaim,
@@ -42,8 +42,8 @@ import {
 } from '../../src/lib/tipping.ts';
 import { ensureBroadcast, ensureRpcChainId, getTokenInfo, getSignedNonce, isTransferDead, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
 
-const usdc = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB48';
-const dai = '0x6B175474E89094C44Da98b954EedeAC495271d0F';
+const usdc = getAddress('0xa0b86991c6218b36c1d19d4a5e9eb0ce3606eb48');
+const dai = getAddress('0x6b175474e89094c44da98b954eedeac495271d0f');
 const nft = '0x2222222222222222222222222222222222222222';
 const feeRecipient = '0x1111111111111111111111111111111111111111';
 const txHash = `0x${'a'.repeat(64)}`;
@@ -165,15 +165,16 @@ test('a signature is normalised to the accepted encoding before it is stored', a
   }
 });
 
-// Deliberately the protocol's former domain string, which the first clients signed: it is the one case that
-// proves a proof over those old messages is refused. It is not a name used anywhere in the client.
-test('a proof signed over the former domain string is not valid', async () => {
+// Signatures of a proof over the messages the first clients signed, made once with the vector's wallet
+// key and kept as they are, so the old message text is not stored here: one per author field they used.
+const legacySignatures = [
+  '0x542104ce0ea9f7719c744716edc5734c9ba280e31a3b6d405ef4c753bcfee93405f919e1e157754e17fa36ad3f11910c72640bea3d93b96eb347254acb11ff421c',
+  '0xf1c560bf37cacbfa776ed6762ad6ebd3738a1d2c7dd8bec175c3ec80141b5745783156bc937322dd7033161d0b4912e70e829428995c7ce4b8e5e90103354df71c',
+];
+test('a proof signed over the messages of the first clients is not valid', async () => {
   const now = 1790000000;
-  const account = privateKeyToAccount(vector.walletPrivateKey);
-  for (const authorField of ['authorAddress', 'authorPublicKey']) {
-    const message = `{"domainSeparator":"plebbit-author-wallet","${authorField}":"${vector.keyAddress}","walletAddress":"${vector.entry.address.toLowerCase()}","timestamp":${vector.entry.timestamp}}`;
-    const old = withSignature(normalizeWalletSignature(await account.signMessage({ message })));
-    assert.equal(await getWalletProofError(old, vector.keyAddress, now), 'the wallet did not sign for this author');
+  for (const signature of legacySignatures) {
+    assert.equal(await getWalletProofError(withSignature(signature), vector.keyAddress, now), 'the wallet did not sign for this author');
   }
 });
 
@@ -681,6 +682,10 @@ test('the two transactions are judged together once both are waited for', () => 
 });
 
 // an RPC that serves what signing a transfer reads, and keeps the raw transactions it is sent
+// every stub RPC is closed when the suite ends, so a test that fails before its own close() cannot keep the run alive
+const openChains = [];
+after(() => Promise.all(openChains.map((chain) => chain.close())));
+
 const fail = (error) => {
   throw error;
 };
@@ -741,7 +746,9 @@ const startChain = async ({ known = [], sendError, latestNonce = 0, callError, l
     });
   });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  return { url: `http://127.0.0.1:${server.address().port}`, sent, close: () => new Promise((resolve) => server.close(resolve)) };
+  const chain = { url: `http://127.0.0.1:${server.address().port}`, sent, close: () => new Promise((resolve) => server.close(() => resolve())) };
+  openChains.push(chain);
+  return chain;
 };
 
 test('a transfer is signed with a known hash, before anything is broadcast, and with the fees it is priced at', async () => {
@@ -806,6 +813,13 @@ test('a saved transfer is broadcast again only when the RPC does not know it', a
     await assert.rejects(ensureBroadcast(refused.url, { hash, raw }), /nonce too low/);
   } finally {
     await refused.close();
+  }
+  // "unknown transaction" contains "known transaction" and is not "already known"
+  const unknown = await startChain({ sendError: Error('unknown transaction') });
+  try {
+    await assert.rejects(ensureBroadcast(unknown.url, { hash, raw }), /unknown transaction/);
+  } finally {
+    await unknown.close();
   }
   // no answer at all
   const gone = await startChain();
@@ -907,10 +921,31 @@ test('token info: a failed read shows the address without decimals and is read a
   await wrong.close();
 });
 
-test('token addresses are read in lower case, so one with a wrong checksum still works in chain calls', () => {
-  const badChecksum = '0xA0b86991c6218b36c1d19D4a5e9eB0cE3606eB49'.replace(/E3606eB49$/, 'e3606EB48');
-  const config = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'erc20', address: badChecksum }]) }));
-  assert.equal(config.tokens[0].address, badChecksum.toLowerCase());
+test('token addresses are read in lower case, and one with a wrong checksum is not offered', () => {
+  const badChecksum =
+    usdc.replace(/[a-f]/, (letter) => letter.toUpperCase()) === usdc
+      ? usdc.replace(/[A-F]/, (letter) => letter.toLowerCase())
+      : usdc.replace(/[a-f]/, (letter) => letter.toUpperCase());
+  assert.equal(getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'erc20', address: badChecksum }]) })), undefined);
+  const config = getTippingConfig(communityWith({ [tokensOptionName]: JSON.stringify([{ chainId: 1, type: 'erc20', address: usdc }]) }));
+  assert.equal(config.tokens[0].address, usdc.toLowerCase());
+});
+
+test('two entries for one token are both left out, since their fees would conflict', () => {
+  const config = getTippingConfig(
+    communityWith({
+      [tokensOptionName]: JSON.stringify([
+        { chainId: 1, type: 'native', fee: { percent: '1' } },
+        { chainId: 1, type: 'native', fee: { percent: '2' } },
+        { chainId: 1, type: 'erc20', address: usdc },
+      ]),
+      [feeRecipientOptionName]: feeRecipient,
+    }),
+  );
+  assert.deepEqual(
+    config.tokens.map((token) => token.type),
+    ['erc20'],
+  );
 });
 
 test('an RPC error on the lookup is not an answer that the transaction is unknown', async () => {

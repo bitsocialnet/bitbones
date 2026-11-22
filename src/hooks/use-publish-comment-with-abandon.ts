@@ -172,7 +172,15 @@ const usePublishCommentWithAbandon = (
                         onAbandon?.();
                       }
                     }
-                  : onAbandon && (async () => onAbandon()),
+                  : onAbandon &&
+                      (async () => {
+                        // no position was recorded to delete, so only the publication can be stopped
+                        try {
+                          await publication?.stop?.();
+                        } finally {
+                          onAbandon();
+                        }
+                      }),
               );
             },
           }

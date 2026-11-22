@@ -110,7 +110,7 @@ const Reply = ({ reply, updatedReply, tippingConfig }: ReplyProps) => {
           {state && <span className={styles.label}>{state}</span>}
           {publishingStateString && <span className={styles.dim}>{publishingStateString}</span>}
           {/* the tip this reply carries, and what its own replies tipped it */}
-          <TipLine comment={reply} updatedComment={updatedReply} />
+          <TipLine config={tippingConfig} comment={reply} updatedComment={updatedReply} />
           <TipTotals config={tippingConfig} comment={reply} replies={replies} updatedReplies={updatedReplies} />
           <ReplyTools reply={reply}>
             <span className={styles.linkButton}>reply</span>

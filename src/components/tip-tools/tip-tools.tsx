@@ -58,6 +58,8 @@ const withLatestTip = (comment: Comment | undefined, updatedComment: Comment | u
   comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip } : comment;
 
 interface TipLineProps {
+  // the community's tipping options: a tip is shown only where the community advertises tipping/v1
+  config?: TippingConfig;
   comment?: Comment;
   // the live version of the comment, where one has arrived
   updatedComment?: Comment;
@@ -86,10 +88,10 @@ const VerifiedTipLine = ({ comment }: VerifiedTipLineProps) => {
 
 // The tip a reply carries, as the community wrote it to the comment update. Shown only once the
 // tipper's and the tipped author's wallet proofs verify and are the tip's sender and receiver.
-export const TipLine = ({ comment, updatedComment }: TipLineProps) => {
+export const TipLine = ({ config, comment, updatedComment }: TipLineProps) => {
   const latest = withLatestTip(comment, updatedComment);
   // most replies carry no tip, and those mount nothing
-  if (!getTip(latest)) {
+  if (!config || !getTip(latest)) {
     return null;
   }
   return (
@@ -358,7 +360,7 @@ const VerifiedTipTotals = ({ config, comment, replies }: VerifiedTipTotalsProps)
 // not verify against its tipper's and this comment's author's wallets is left out.
 export const TipTotals = ({ config, comment, replies, updatedReplies }: TipTotalsProps) => {
   const latestReplies = replies?.map((reply, index) => withLatestTip(reply, updatedReplies?.[index])) ?? [];
-  if (!comment || !getTipReplies(comment, latestReplies).length) {
+  if (!config || !comment || !getTipReplies(comment, latestReplies).length) {
     return null;
   }
   return (

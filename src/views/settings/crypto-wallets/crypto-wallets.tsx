@@ -150,11 +150,12 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
       // a wallet linked with another signature type, such as a sol one, is not verified here: it keeps its type
-      // a new sol row has no saved entry, so its type comes from the ticker, as the solscan link does
+      // a new sol row has no saved entry, so its type comes from the ticker, as the solscan link does. A saved
+      // entry keeps its own type, even eip191 under a sol ticker.
       const otherType =
         savedWallet?.signature?.type && savedWallet.signature.type !== walletSignatureType
           ? savedWallet.signature.type
-          : wallet.chainTicker === 'sol'
+          : !savedWallet && wallet.chainTicker === 'sol'
             ? 'sol'
             : undefined;
       if (otherType) {

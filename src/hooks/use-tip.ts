@@ -10,6 +10,8 @@ import {
   getRequiredFee,
   getTipAmountError,
   getTipClaimPublishOptions,
+  getKeyAddressFromPublicKey,
+  getPartyKeyAddress,
   getProvenWalletAddresses,
   getTipRecipientAddress,
   getTipSendPlan,
@@ -107,13 +109,20 @@ const useTipStore = create<TipState>((setState) => ({
     if (!pendingTip) {
       delete pendingTips[parentCid];
     }
-    setState({ pendingTips });
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingTips));
-      return true;
     } catch {
+      // Not exposed to the store either: a signed transaction held only in memory would be
+      // broadcast by the next "continue", with no record left if the tab closes before the reply.
+      // Clearing a tip still clears it on screen.
+      if (pendingTip) {
+        return false;
+      }
+      setState({ pendingTips });
       return false;
     }
+    setState({ pendingTips });
+    return true;
   },
 }));
 
@@ -397,6 +406,11 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
     throw Error('this account has no in-app wallet');
   }
   if (to.toLowerCase() === inAppWallet.address.toLowerCase()) {
+    throw Error("can't tip yourself");
+  }
+  // the same signing key is the same author, whatever wallets either of its comments proved
+  const tipperKeyAddress = typeof account?.signer?.publicKey === 'string' ? getKeyAddressFromPublicKey(account.signer.publicKey) : undefined;
+  if (tipperKeyAddress && tipperKeyAddress === getPartyKeyAddress(comment)) {
     throw Error("can't tip yourself");
   }
 
