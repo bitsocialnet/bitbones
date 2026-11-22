@@ -60,11 +60,11 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
     defaultWalletsArray.push({});
   }
   const [walletsArray, setWalletsArray] = useState(defaultWalletsArray);
-  // The rows the form started with: the only entries a save may remove. An entry added elsewhere after
-  // the form mounted, such as the in-app wallet's, is not in the form and must survive a save.
-  const [initialChainTickers] = useState(() =>
-    defaultWalletsArray.map((wallet) => wallet.chainTicker).filter((chainTicker): chainTicker is string => Boolean(chainTicker)),
-  );
+  // The rows the form started with: the only entries a save may remove, and the values a row is compared
+  // with. An entry added or re-signed elsewhere after the form mounted, such as the in-app wallet's, is
+  // not in the form and must survive a save, and so must a row the user did not touch.
+  const [initialRows] = useState(defaultWalletsArray);
+  const initialChainTickers = initialRows.map((wallet) => wallet.chainTicker).filter((chainTicker): chainTicker is string => Boolean(chainTicker));
   const setWalletsArrayProperty = (index: number, property: keyof WalletInput, value: string | number) => {
     const newArray = [...walletsArray];
     newArray[index] = { ...newArray[index], [property]: value };
@@ -131,6 +131,11 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
         continue;
       }
       const savedWallet = savedWallets[wallet.chainTicker];
+      // a row left as the form loaded it keeps the account's current entry, which may have been re-signed since
+      const initialRow = initialRows.find((row) => row.chainTicker === wallet.chainTicker);
+      if (initialRow && initialRow.address === wallet.address && initialRow.timestamp === wallet.timestamp && initialRow.signature === wallet.signature && savedWallet) {
+        continue;
+      }
       // a row left as it was keeps its entry, whatever its proof is: one that fails shows in its status and is not a reason to refuse the others
       if (
         savedWallet &&

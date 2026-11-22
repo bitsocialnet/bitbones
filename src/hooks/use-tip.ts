@@ -194,15 +194,25 @@ const getExpectedTipTransfer = ({ transfer }: PendingTip) =>
   transfer.token.type === 'erc20' && transfer.token.address ? { token: transfer.token.address, to: transfer.to, amount: BigInt(transfer.amountOrTokenId) } : undefined;
 
 // Where the next transaction of a sender goes: after every transaction the RPC counts as pending, and
-// after those saved here and not accepted yet, which may be from another tab. The RPC's pending count can
+// after those saved here that the RPC has seen, which may be from another tab. The RPC's pending count can
 // lag behind a transaction broadcast seconds ago (a public RPC answers from several nodes), and a second
-// transaction at the same nonce is refused or replaces the first.
+// transaction at the same nonce is refused or replaces the first. A saved transaction the RPC has never
+// seen is not counted: nothing holds its nonce, and a later tip signed after it could not be mined until
+// it was sent. It is dropped as dead once another transaction takes its nonce. An answer that can't be read
+// counts it, which at worst leaves a gap that continuing the earlier tip fills.
 const getNextNonce = async (rpcUrl: string, address: string, pendingTip: PendingTip): Promise<number> => {
   const saved = Object.values(readStoredPendingTips()).flatMap((other) =>
-    pendingTip.accountId && other.accountId === pendingTip.accountId && other.chainId === pendingTip.chainId ? [other.feeRaw, other.txRaw] : [],
+    pendingTip.accountId && other.accountId === pendingTip.accountId && other.chainId === pendingTip.chainId
+      ? [
+          { hash: other.feeTxHash, raw: other.feeRaw },
+          { hash: other.txHash, raw: other.txRaw },
+        ]
+      : [],
   );
-  const savedNonces = saved.filter((raw): raw is string => Boolean(raw)).map((raw) => getSignedNonce(raw) + 1);
-  return Math.max(await getPendingNonce(rpcUrl, address), ...savedNonces);
+  const seen = await Promise.all(
+    saved.map(async ({ hash, raw }) => (hash && raw && (await isTransactionKnown(rpcUrl, hash).catch(() => true)) ? getSignedNonce(raw) + 1 : 0)),
+  );
+  return Math.max(await getPendingNonce(rpcUrl, address), ...seen);
 };
 
 const setMined = (parentCid: string, mined: boolean) => useTipStore.setState((state) => ({ mined: { ...state.mined, [parentCid]: mined } }));
@@ -628,11 +638,17 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     },
     discardTip: () => {
       if (parentCid && !otherAccount) {
-        useTipStore.getState().setPendingTip(parentCid, undefined);
+        const forgotten = useTipStore.getState().setPendingTip(parentCid, undefined);
         useTipStore.setState((state) => ({
           mined: { ...state.mined, [parentCid]: false },
           feeFailed: { ...state.feeFailed, [parentCid]: false },
-          error: { ...state.error, [parentCid]: undefined },
+          // a record the browser would not delete comes back on reload, and may be sent then
+          error: {
+            ...state.error,
+            [parentCid]: forgotten
+              ? undefined
+              : "the tip was cleared here but this browser's storage refused to delete its record, so it may return when the page reloads",
+          },
         }));
       }
     },

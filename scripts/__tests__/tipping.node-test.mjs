@@ -40,7 +40,16 @@ import {
   verifyTip,
   walletTimestampAllowanceSeconds,
 } from '../../src/lib/tipping.ts';
-import { ensureBroadcast, ensureRpcChainId, getTokenInfo, getSignedNonce, isTransferDead, signTransfer, simulateTransfer } from '../../src/lib/tipping-chain.ts';
+import {
+  checkTipOnChain,
+  ensureBroadcast,
+  ensureRpcChainId,
+  getTokenInfo,
+  getSignedNonce,
+  isTransferDead,
+  signTransfer,
+  simulateTransfer,
+} from '../../src/lib/tipping-chain.ts';
 
 const usdc = getAddress('0xa0b86991c6218b36c1d19d4a5e9eb0ce3606eb48');
 const dai = getAddress('0x6b175474e89094c44da98b954eedeac495271d0f');
@@ -690,7 +699,7 @@ const fail = (error) => {
   throw error;
 };
 
-const startChain = async ({ known = [], sendError, latestNonce = 0, callError, lookupError } = {}) => {
+const startChain = async ({ known = [], sendError, latestNonce = 0, callError, lookupError, receipt, receiptError, transaction } = {}) => {
   const sent = [];
   const handlers = {
     eth_chainId: () => '0xaa36a7',
@@ -719,7 +728,14 @@ const startChain = async ({ known = [], sendError, latestNonce = 0, callError, l
       return `0x${'0'.repeat(63)}6`;
     },
     eth_getTransactionCount: ({ params }) => (params[1] === 'latest' ? `0x${latestNonce.toString(16)}` : '0x0'),
-    eth_getTransactionByHash: ({ params }) => (lookupError ? fail(lookupError) : known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null),
+    eth_getTransactionReceipt: () => {
+      if (receiptError) {
+        throw receiptError;
+      }
+      return receipt ?? null;
+    },
+    eth_getTransactionByHash: ({ params }) =>
+      transaction ? transaction : lookupError ? fail(lookupError) : known.includes(params[0]) ? { hash: params[0], blockNumber: null } : null,
     eth_sendRawTransaction: ({ params }) => {
       sent.push(params[0]);
       if (sendError) {
@@ -964,4 +980,81 @@ test('an RPC error on the lookup is not an answer that the transaction is unknow
   // nothing was sent on a lookup that could not answer
   assert.deepEqual(chain.sent, []);
   await chain.close();
+});
+
+test('checking a tip on chain: an RPC error is not "not mined", a 721 log is skipped, and one transfer is not tip and fee', async () => {
+  const tipper = '0x1111111111111111111111111111111111111111';
+  const recipient = '0x2222222222222222222222222222222222222222';
+  const token = '0x3333333333333333333333333333333333333333';
+  const parentBinding = getParentBindingSuffix('QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG');
+  const pad = (address) => `0x${'0'.repeat(24)}${address.slice(2)}`;
+  const topic = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
+  const hash = `0x${'cd'.repeat(32)}`;
+  const base = {
+    blockHash: `0x${'11'.repeat(32)}`,
+    blockNumber: '0x10',
+    transactionHash: hash,
+    transactionIndex: '0x0',
+    status: '0x1',
+    from: tipper,
+    to: token,
+    cumulativeGasUsed: '0x1',
+    gasUsed: '0x1',
+    effectiveGasPrice: '0x1',
+    logsBloom: `0x${'00'.repeat(256)}`,
+    type: '0x2',
+    contractAddress: null,
+  };
+  const log = (topics, data) => ({
+    address: token,
+    topics,
+    data,
+    blockHash: base.blockHash,
+    blockNumber: '0x10',
+    transactionHash: hash,
+    transactionIndex: '0x0',
+    logIndex: '0x0',
+    removed: false,
+  });
+  const transaction = {
+    hash,
+    from: tipper,
+    to: token,
+    value: '0x0',
+    input: `0x${'00'.repeat(4)}${parentBinding.slice(2)}`,
+    nonce: '0x0',
+    blockHash: base.blockHash,
+    blockNumber: '0x10',
+    transactionIndex: '0x0',
+    gas: '0x1',
+    gasPrice: '0x1',
+    type: '0x2',
+    chainId: '0xaa36a7',
+    v: '0x0',
+    r: '0x1',
+    s: '0x1',
+    maxFeePerGas: '0x1',
+    maxPriorityFeePerGas: '0x1',
+    accessList: [],
+    yParity: '0x0',
+  };
+  const tip = { chainId: 11155111, txHash: hash, type: 'erc20', token, from: tipper, to: recipient, amount: 100n };
+  const value = `0x${(100).toString(16).padStart(64, '0')}`;
+
+  const failing = await startChain({ receiptError: Error('rate limited'), transaction });
+  await assert.rejects(checkTipOnChain(failing.url, tip, [tipper], parentBinding), /rate limited|HTTP|error/i);
+  await failing.close();
+
+  // an ERC-721 Transfer of the same contract comes first and has no value to read
+  const nftFirst = await startChain({
+    receipt: { ...base, logs: [log([topic, pad(tipper), pad(recipient), `0x${'01'.padStart(64, '0')}`], '0x'), log([topic, pad(tipper), pad(recipient)], value)] },
+    transaction,
+  });
+  const result = await checkTipOnChain(nftFirst.url, tip, [tipper], parentBinding);
+  assert.equal(result.tip.matchesTip, true);
+  // the fee named in the same transaction as the tip is not a second payment
+  const shared = await checkTipOnChain(nftFirst.url, { ...tip, fee: { txHash: hash, to: recipient, amount: 10n, token } }, [tipper], parentBinding);
+  assert.equal(shared.tip.matchesTip, true);
+  assert.equal(shared.fee.matchesTip, false);
+  await nftFirst.close();
 });

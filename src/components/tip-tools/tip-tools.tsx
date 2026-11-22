@@ -212,6 +212,14 @@ const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'commen
           ))}
         {state.status === 'checking' && <span className={styles.dim}>verifying with RPC...</span>}
         {state.status === 'error' && <span className={styles.error}>could not check: {state.message}</span>}
+        {(state.status === 'error' || (state.status === 'done' && error)) && rpcUrl && (
+          <>
+            {' '}
+            <button type='button' onClick={verify}>
+              verify again
+            </button>
+          </>
+        )}
         {state.status === 'done' &&
           (error ? (
             <span className={styles.error}>not verified: {error}</span>
@@ -487,7 +495,13 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
 const TipForm = ({ comment, config, tokens }: TipFormProps) => {
   const { pendingTip, status, error, mined, feeFailed, otherAccount, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
   const discard = () => {
-    if (window.confirm('forget this tip? its transfer was already sent and stays sent, only the reply that claims it is dropped.')) {
+    if (
+      window.confirm(
+        mined
+          ? 'forget this tip? its transfer was already sent and stays sent, only the reply that claims it is dropped.'
+          : 'forget this tip? its transfer was signed and may already have been sent, and stays sent if it was. Only the reply that claims it is dropped.',
+      )
+    ) {
       discardTip();
     }
   };
@@ -497,7 +511,7 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
       {pendingTip ? (
         <>
           <span className={styles.dim} title={pendingTip.feeTxHash ? `fee ${pendingTip.feeTxHash}` : undefined}>
-            {pendingTip.txHash ? `tip sent in ${pendingTip.txHash}` : 'tip not sent yet'}
+            {pendingTip.txHash ? `tip ${mined ? 'sent' : 'signed, not confirmed yet'} in ${pendingTip.txHash}` : 'tip not sent yet'}
           </span>
           {!status &&
             (otherAccount ? (
@@ -540,6 +554,37 @@ const hasWalletEntry = (comment: Comment | undefined): boolean => {
   return Boolean(wallets && typeof wallets === 'object' && Object.values(wallets).some((wallet) => wallet?.signature?.type === walletSignatureType));
 };
 
+interface TipRecoveryProps {
+  comment: Comment;
+}
+
+// A tip that was started and whose community no longer publishes tipping/v1 options: its reply can't
+// be published, but its transaction hash stays visible and the record can be forgotten.
+const TipRecovery = ({ comment }: TipRecoveryProps) => {
+  const { pendingTip, otherAccount, discardTip } = useTip(comment, undefined);
+  if (!pendingTip) {
+    return null;
+  }
+  return (
+    <div className={styles.form} onClick={stopPropagation}>
+      <span className={styles.dim}>
+        {pendingTip.txHash ? `tip signed in ${pendingTip.txHash}` : 'tip not sent yet'}. This community no longer publishes tipping options, so its reply can't be
+        published now.
+      </span>
+      {!otherAccount && (
+        <button
+          type='button'
+          onClick={() =>
+            window.confirm('forget this tip? its transfer may already have been sent and stays sent if it was. Only the reply that claims it is dropped.') && discardTip()
+          }
+        >
+          forget
+        </button>
+      )}
+    </div>
+  );
+};
+
 interface TipToolsProps {
   comment?: Comment;
   config?: TippingConfig;
@@ -554,6 +599,9 @@ function TipTools({ comment, config }: TipToolsProps) {
   const hasPendingTip = useHasPendingTip(comment?.cid);
   // any proven wallet of the author can be paid on any chain, so every whitelisted token is offered
   const tokens = config && hasWalletEntry(comment) ? config.tokens : [];
+  if (comment?.cid && !config && hasPendingTip) {
+    return <TipRecovery comment={comment} />;
+  }
   if (!comment?.cid || !config || (!tokens.length && !hasPendingTip)) {
     return null;
   }

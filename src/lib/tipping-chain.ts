@@ -392,6 +392,11 @@ const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCh
       if (log.address.toLowerCase() !== token || log.topics[0] !== transferTopic) {
         return false;
       }
+      // ERC-20 has two indexed arguments and the value in data, ERC-721 three and no data: the other
+      // standard's event on the same contract is not this transfer, and decoding it would throw
+      if (log.topics.length !== (transfer.type === 'erc721' ? 4 : 3) || (transfer.type !== 'erc721' && log.data === '0x')) {
+        return false;
+      }
       if (!(from === undefined ? senders : [from]).includes(topicAddress(log.topics[1])) || topicAddress(log.topics[2]) !== to) {
         return false;
       }
@@ -432,5 +437,7 @@ export const checkTipOnChain = async (rpcUrl: string, tip: Tip, senders: string[
         )
       : undefined,
   ]);
-  return { tip: tipCheck, fee: feeCheck };
+  // the fee is its own transaction: one transfer cannot pay both the tip and the fee
+  const sameTransaction = tip.fee && tip.fee.txHash.toLowerCase() === tip.txHash.toLowerCase();
+  return { tip: tipCheck, fee: feeCheck && sameTransaction ? { ...feeCheck, matchesTip: false } : feeCheck };
 };
