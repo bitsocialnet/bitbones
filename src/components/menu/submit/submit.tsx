@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import usePublishCommentWithAbandon from '../../../hooks/use-publish-comment-with-abandon';
 import { useNavigate, useParams } from 'react-router-dom';
 import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
+import { getSubmitError } from './validate-submit';
 import type { SubmitCommunity } from './utils';
 import { alertChallengeVerificationFailed } from '../../../lib/utils';
 
@@ -104,16 +105,9 @@ const Submit = ({ onSubmit }: SubmitProps) => {
     if (useSubmitStore.getState().publishing) {
       return;
     }
-    if (!title) {
-      alert(`missing title`);
-      return;
-    }
-    if (!content) {
-      alert(`missing link`);
-      return;
-    }
-    if (!selectedCommunityAddress) {
-      alert(`missing community`);
+    const error = getSubmitError({ title, communityAddress: selectedCommunityAddress });
+    if (error) {
+      alert(error);
       return;
     }
     setPublishing(true);
@@ -151,7 +145,7 @@ const Submit = ({ onSubmit }: SubmitProps) => {
           defaultValue={content}
           rows={6}
           className={styles.submitContent}
-          placeholder='link'
+          placeholder='link or text (optional)'
         />
       </div>
       <div className={styles.submitButtonWrapper}>

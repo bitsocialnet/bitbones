@@ -3,12 +3,24 @@ import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFo
 import type { ChallengeAnswersByIndex } from '@bitsocial/bitsocial-react-hooks';
 import styles from './challenge-modal.module.css';
 import useChallenges, { type PendingChallenge } from '../../hooks/use-challenges';
-import { getChallengeAnswers, getChallengeEntries, getPublicationType, getVotePreview, getPublicationPreview, type ChallengePublication } from './utils';
+import {
+  getChallengeAnswers,
+  getChallengeEntries,
+  getPublicationType,
+  getVotePreview,
+  getPublicationPreview,
+  publishChallengeAnswers,
+  type AnswerablePublication,
+  type ChallengePublication,
+} from './utils';
 
 // the library hands onChallenge an open record, so name the answer-publishing method the modal
 // calls on it alongside the preview fields the utils read
-type PublishingPublication = ChallengePublication & {
-  publishChallengeAnswers(challengeAnswers: ChallengeAnswersByIndex): Promise<void>;
+type PublishingPublication = ChallengePublication & AnswerablePublication;
+
+const onPublishChallengeAnswersError = (error: Error) => {
+  console.warn(error);
+  alert(`failed publishing challenge answers: ${error.message}`);
 };
 
 interface ChallengeProps {
@@ -34,7 +46,7 @@ const Challenge = ({ challenge, closeModal, abandonModal }: ChallengeProps) => {
     setAnswers((prevAnswers) => ({ ...prevAnswers, [challengeIndex]: e.target.value }));
   };
   const onSubmit = () => {
-    publication.publishChallengeAnswers(getChallengeAnswers(challengeEntries, answers));
+    publishChallengeAnswers(publication, getChallengeAnswers(challengeEntries, answers), onPublishChallengeAnswersError);
     setAnswers({});
     closeModal();
   };
