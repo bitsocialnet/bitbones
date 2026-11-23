@@ -508,7 +508,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
 // The form, and the state of a tip already under way. A tip that was sent but whose reply is not
 // accepted yet is listed with a way to continue, since its transfer can't be taken back.
 const TipForm = ({ comment, config, tokens }: TipFormProps) => {
-  const { pendingTip, status, error, mined, feeFailed, accepted, otherAccount, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
+  const { pendingTip, status, error, mined, feeFailed, accepted, claimPublished, otherAccount, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
   const discard = () => {
     if (
       window.confirm(
@@ -537,6 +537,14 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
                   <button type='button' onClick={resendFee}>
                     resend fee
                   </button>
+                ) : mined && claimPublished && !error ? (
+                  // it went out before this page loaded or is waiting for the community: publishing again is the user's call
+                  <>
+                    <span className={styles.dim}>the tip reply was published, waiting for the community</span>
+                    <button type='button' onClick={resumeTip}>
+                      publish the tip reply again
+                    </button>
+                  </>
                 ) : mined && !error ? (
                   // its reply is being published or waits for the community, and publishing again now would send the claim twice
                   <span className={styles.dim}>publishing the tip reply...</span>

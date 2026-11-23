@@ -19,6 +19,7 @@ import {
   getTipRecipientAddress,
   getTipSendPlan,
   getTipSettleOutcome,
+  shouldPublishClaim,
   writePendingTip,
 } from '../lib/tipping';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
@@ -42,6 +43,19 @@ import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
 import { getTippingRpcUrl } from './use-tipping-settings';
 
 const STORAGE_KEY = 'bitbonesPendingTips';
+// The transactions whose tip reply was published, kept apart from the pending tips so that marking one
+// does not change the tip a publish is running for. The community's verdict arrives over pubsub, and a
+// page reloaded before it would otherwise publish the same claim again.
+const CLAIMS_STORAGE_KEY = 'bitbonesPublishedClaims';
+
+const readPublishedClaims = (): string[] => {
+  try {
+    const stored: unknown = JSON.parse(localStorage.getItem(CLAIMS_STORAGE_KEY) || '[]');
+    return Array.isArray(stored) ? stored.filter((hash): hash is string => typeof hash === 'string') : [];
+  } catch {
+    return [];
+  }
+};
 
 // The tip transfer itself, kept so a tip can still be sent after a reload once its fee is paid.
 interface PendingTransfer {
@@ -97,6 +111,8 @@ interface TipState {
   feeFailed: Record<string, boolean | undefined>;
   // its reply was accepted but its record could not be deleted: publishing it again would send a second reply
   accepted: Record<string, boolean | undefined>;
+  // the transactions whose reply was published, here or before this page loaded
+  publishedClaims: string[];
   // false when the browser would not save it, which a transfer must not be sent after
   setPendingTip: (parentCid: string, pendingTip: PendingTip | undefined) => boolean;
 }
@@ -108,6 +124,7 @@ const useTipStore = create<TipState>((setState, getState) => ({
   mined: {},
   feeFailed: {},
   accepted: {},
+  publishedClaims: readPublishedClaims(),
   setPendingTip: (parentCid, pendingTip) => {
     // Merged into what is stored now and not written from this tab's map: another tab may have
     // saved or cleared a tip on another comment since this one loaded, and a recovery record lost
@@ -123,6 +140,9 @@ const useTipStore = create<TipState>((setState, getState) => ({
 // the tips another tab saved or cleared
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
+    if (event.key === CLAIMS_STORAGE_KEY) {
+      useTipStore.setState({ publishedClaims: readPublishedClaims() });
+    }
     if (event.key === STORAGE_KEY) {
       useTipStore.setState((state) => getFlowAfterStorageChange(state, readStoredPendingTips()));
     }
@@ -131,6 +151,21 @@ if (typeof window !== 'undefined') {
 
 const setStatus = (parentCid: string, status: string | undefined) => useTipStore.setState((state) => ({ status: { ...state.status, [parentCid]: status } }));
 const setError = (parentCid: string, error: string | undefined) => useTipStore.setState((state) => ({ error: { ...state.error, [parentCid]: error } }));
+
+// Marks a transaction's reply as published, or no longer published when it failed or was refused.
+// Merged into what is stored now, since another tab may have marked another one.
+const setClaimPublished = (txHash: string, published: boolean) => {
+  const claims = readPublishedClaims().filter((hash) => hash !== txHash);
+  if (published) {
+    claims.push(txHash);
+  }
+  try {
+    localStorage.setItem(CLAIMS_STORAGE_KEY, JSON.stringify(claims));
+  } catch {
+    // not remembered across a reload: the page's own record of it still guards this session
+  }
+  useTipStore.setState({ publishedClaims: claims });
+};
 
 const getErrorMessage = (error: unknown): string => (error as { shortMessage?: string })?.shortMessage || (error instanceof Error ? error.message : String(error));
 
@@ -505,8 +540,14 @@ const publishOnce = async (txHash: string, publish: () => Promise<unknown>): Pro
   publishing.add(txHash);
   // whoever starts it, the effect must not start it again: it runs after the click, whose call may already have returned
   publishedTxHashes.add(txHash);
+  // before it goes out: a page closed in the middle then offers to publish again and does not do it unasked
+  setClaimPublished(txHash, true);
   try {
     await publish();
+  } catch (error) {
+    // it did not go out, so a reload may publish it
+    setClaimPublished(txHash, false);
+    throw error;
   } finally {
     publishing.delete(txHash);
   }
@@ -522,6 +563,7 @@ interface UseTipResult {
   feeFailed: boolean;
   // the reply was accepted and only the record is left to forget
   accepted: boolean;
+  claimPublished: boolean;
   // started by another account than the active one, which can neither continue nor forget it
   otherAccount: boolean;
   resendFee: () => Promise<void>;
@@ -542,6 +584,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   const mined = useTipStore((state) => Boolean(parentCid && state.mined[parentCid]));
   const feeFailed = useTipStore((state) => Boolean(parentCid && state.feeFailed[parentCid]));
   const accepted = useTipStore((state) => Boolean(parentCid && state.accepted[parentCid]));
+  const publishedClaims = useTipStore((state) => state.publishedClaims);
   const otherAccount = Boolean(pendingTip?.accountId && pendingTip.accountId !== account?.id);
 
   const publishCommentOptions = useMemo((): PublishCommentOptions | undefined => {
@@ -562,7 +605,10 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
         if (challengeVerification?.challengeSuccess === true) {
           // accepted: the claim is published, nothing is left to lose. A newer tip on the same
           // comment keeps its own record.
-          if (useTipStore.getState().pendingTips[parentCid]?.txHash === txHash && !useTipStore.getState().setPendingTip(parentCid, undefined)) {
+          const cleared = useTipStore.getState().pendingTips[parentCid]?.txHash !== txHash || useTipStore.getState().setPendingTip(parentCid, undefined);
+          if (cleared) {
+            setClaimPublished(txHash, false);
+          } else {
             // the record stays, and a reload would publish its claim again: say it was accepted
             useTipStore.setState((state) => ({ accepted: { ...state.accepted, [parentCid]: true } }));
             setError(
@@ -571,12 +617,14 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
             );
           }
         } else {
+          setClaimPublished(txHash, false);
           setError(parentCid, 'the community did not accept the tip reply. The transfer stays valid, so the reply can be published again.');
         }
         alertChallengeVerificationFailed(challengeVerification, publication);
       },
       onError: (error: Error) => {
         console.warn(error);
+        setClaimPublished(txHash, false);
         setError(parentCid, getErrorMessage(error));
       },
     };
@@ -584,9 +632,18 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
 
   // cancelling a further challenge removes the reply without an error or a verification, and the
   // paid tip would wait for a reply that is never published again
+  const abandonedTxHash = pendingTip?.txHash;
   const onAbandon = useMemo(
-    () => (parentCid ? () => setError(parentCid, 'the tip reply was cancelled. The transfer stays valid, so the reply can be published again.') : undefined),
-    [parentCid],
+    () =>
+      parentCid
+        ? () => {
+            if (abandonedTxHash) {
+              setClaimPublished(abandonedTxHash, false);
+            }
+            setError(parentCid, 'the tip reply was cancelled. The transfer stays valid, so the reply can be published again.');
+          }
+        : undefined,
+    [parentCid, abandonedTxHash],
   );
   const { publishComment } = usePublishCommentWithAbandon(publishCommentOptions, comment, onAbandon);
 
@@ -596,7 +653,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   // publish when the comment is shown again.
   const txHash = publishCommentOptions ? pendingTip?.txHash : undefined;
   useEffect(() => {
-    if (!txHash || publishedTxHashes.has(txHash)) {
+    if (!txHash || !shouldPublishClaim(txHash, publishedTxHashes, publishedClaims)) {
       return;
     }
     publishOnce(txHash, publishComment).catch((error: unknown) => {
@@ -605,7 +662,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
         setError(parentCid, getErrorMessage(error));
       }
     });
-  }, [txHash, publishComment, parentCid]);
+  }, [txHash, publishComment, parentCid, publishedClaims]);
 
   return {
     pendingTip,
@@ -614,6 +671,8 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     mined,
     feeFailed,
     accepted,
+    // its reply went out before this page loaded and no verdict is known: it is not published again unasked. One this page is publishing is waited for.
+    claimPublished: Boolean(pendingTip?.txHash && publishedClaims.includes(pendingTip.txHash) && !publishedTxHashes.has(pendingTip.txHash)),
     otherAccount,
     resendFee: async () => {
       if (parentCid) {
@@ -638,7 +697,11 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     },
     discardTip: () => {
       if (parentCid && !otherAccount) {
+        const forgottenTxHash = pendingTip?.txHash;
         const forgotten = useTipStore.getState().setPendingTip(parentCid, undefined);
+        if (forgotten && forgottenTxHash) {
+          setClaimPublished(forgottenTxHash, false);
+        }
         // a record the browser would not delete stays, with what is known about it: an accepted tip is still accepted
         useTipStore.setState((state) =>
           forgotten

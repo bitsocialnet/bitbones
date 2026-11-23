@@ -42,6 +42,7 @@ import {
   getFlowAfterSettle,
   getFlowAfterStorageChange,
   isSameTip,
+  shouldPublishClaim,
   writePendingTip,
 } from '../../src/lib/tipping.ts';
 import {
@@ -1116,4 +1117,14 @@ test('a wait for receipts that ended after another tab replaced the fee changes 
   assert.equal(isSameTip(old, replaced), false);
   assert.equal(isSameTip(old, { ...old }), true);
   assert.equal(isSameTip(old, undefined), false);
+});
+
+test('a tip reply already published before a reload is not published again by itself', () => {
+  // a fresh page: it published nothing yet, but the browser remembers the reply of this transaction
+  assert.equal(shouldPublishClaim('0xaa', new Set(), ['0xaa']), false);
+  // a transaction whose reply was never published
+  assert.equal(shouldPublishClaim('0xbb', new Set(), ['0xaa']), true);
+  assert.equal(shouldPublishClaim('0xbb', new Set(), []), true);
+  // this page published it already
+  assert.equal(shouldPublishClaim('0xbb', new Set(['0xbb']), []), false);
 });

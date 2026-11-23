@@ -900,3 +900,8 @@ export const getFlowAfterSettle = <T extends { txHash?: string; feeTxHash?: stri
     feeFailed: outcome === 'fee-failed' ? { ...flow.feeFailed, [parentCid]: true } : flow.feeFailed,
   };
 };
+
+// Whether the tip reply of a transaction is published by itself now. `publishedThisSession` is what
+// this page published, and `storedPublished` what any page of this browser published before.
+export const shouldPublishClaim = (txHash: string, publishedThisSession: ReadonlySet<string>, storedPublished: readonly string[]): boolean =>
+  !publishedThisSession.has(txHash) && !storedPublished.includes(txHash);
