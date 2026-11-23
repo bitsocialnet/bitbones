@@ -363,7 +363,12 @@ interface TransferToCheck {
 
 // Looks one transaction up, as tipping/v1 verifies it: mined, succeeded, sent by the tipper, ending
 // with the parent binding, and a transfer of that token to that wallet of at least that amount.
-const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCheck, parentBinding: Hex): Promise<OnChainTipCheck> => {
+// `logIndexes` are the Transfer events that match, so two payments in one transaction can be told apart
+interface TransferCheck extends OnChainTipCheck {
+  logIndexes: number[];
+}
+
+const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCheck, parentBinding: Hex): Promise<TransferCheck> => {
   const hash = transfer.txHash as Hash;
   // only "no receipt yet" means not mined: a rate limit or a timeout says nothing about the transaction
   const receipt = await client.getTransactionReceipt({ hash }).catch((error: unknown) => {
@@ -373,13 +378,14 @@ const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCh
     throw error;
   });
   if (!receipt) {
-    return { mined: false, succeeded: false, sentByTipper: false, hasBinding: false, matchesTip: false };
+    return { mined: false, succeeded: false, sentByTipper: false, hasBinding: false, matchesTip: false, logIndexes: [] };
   }
   const transaction = await client.getTransaction({ hash });
   const senders = transfer.senders.map((sender) => sender.toLowerCase());
   const to = transfer.to.toLowerCase();
   const from = transfer.from?.toLowerCase();
   let matchesTip: boolean;
+  let logIndexes: number[] = [];
   if (transfer.type === 'native') {
     matchesTip =
       (from === undefined || transaction.from.toLowerCase() === from) &&
@@ -388,23 +394,24 @@ const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCh
   } else {
     const token = transfer.token?.toLowerCase();
     // ERC-20 and ERC-721 emit the same Transfer event; only the last argument differs (value or token id)
-    matchesTip = receipt.logs.some((log) => {
+    logIndexes = receipt.logs.flatMap((log, position) => {
       if (log.address.toLowerCase() !== token || log.topics[0] !== transferTopic) {
-        return false;
+        return [];
       }
       // ERC-20 has two indexed arguments and the value in data, ERC-721 three and no data: the other
       // standard's event on the same contract is not this transfer, and decoding it would throw
       if (log.topics.length !== (transfer.type === 'erc721' ? 4 : 3) || (transfer.type !== 'erc721' && log.data === '0x')) {
-        return false;
+        return [];
       }
       if (!(from === undefined ? senders : [from]).includes(topicAddress(log.topics[1])) || topicAddress(log.topics[2]) !== to) {
-        return false;
+        return [];
       }
       if (transfer.type === 'erc721') {
-        return log.topics[3] !== undefined && BigInt(log.topics[3]).toString() === transfer.tokenId;
+        return log.topics[3] !== undefined && BigInt(log.topics[3]).toString() === transfer.tokenId ? [position] : [];
       }
-      return transfer.amount === undefined || BigInt(log.data) >= transfer.amount;
+      return transfer.amount === undefined || BigInt(log.data) >= transfer.amount ? [position] : [];
     });
+    matchesTip = logIndexes.length > 0;
   }
   return {
     mined: true,
@@ -412,6 +419,7 @@ const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCh
     sentByTipper: senders.includes(transaction.from.toLowerCase()),
     hasBinding: transaction.input.toLowerCase().endsWith(parentBinding.substring(2).toLowerCase()),
     matchesTip,
+    logIndexes,
   };
 };
 
@@ -437,7 +445,14 @@ export const checkTipOnChain = async (rpcUrl: string, tip: Tip, senders: string[
         )
       : undefined,
   ]);
-  // the fee is its own transaction: one transfer cannot pay both the tip and the fee
+  // The fee can be in the tip's transaction only as a batch of two token transfers, which need two
+  // Transfer events: one event cannot pay both, and a native coin fee is always its own transaction.
   const sameTransaction = tip.fee && tip.fee.txHash.toLowerCase() === tip.txHash.toLowerCase();
-  return { tip: tipCheck, fee: feeCheck && sameTransaction ? { ...feeCheck, matchesTip: false } : feeCheck };
+  const distinctPayments =
+    tip.type !== 'native' &&
+    tip.fee?.token !== undefined &&
+    feeCheck !== undefined &&
+    tipCheck.logIndexes.some((tipLog) => feeCheck.logIndexes.some((feeLog) => feeLog !== tipLog));
+  const strip = ({ logIndexes: _logIndexes, ...check }: TransferCheck): OnChainTipCheck => check;
+  return { tip: strip(tipCheck), fee: feeCheck && (sameTransaction && !distinctPayments ? { ...strip(feeCheck), matchesTip: false } : strip(feeCheck)) };
 };

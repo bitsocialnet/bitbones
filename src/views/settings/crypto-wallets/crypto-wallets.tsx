@@ -63,7 +63,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   // The rows the form started with: the only entries a save may remove, and the values a row is compared
   // with. An entry added or re-signed elsewhere after the form mounted, such as the in-app wallet's, is
   // not in the form and must survive a save, and so must a row the user did not touch.
-  const [initialRows] = useState(defaultWalletsArray);
+  const [initialRows, setInitialRows] = useState(defaultWalletsArray);
   const initialChainTickers = initialRows.map((wallet) => wallet.chainTicker).filter((chainTicker): chainTicker is string => Boolean(chainTicker));
   const setWalletsArrayProperty = (index: number, property: keyof WalletInput, value: string | number) => {
     const newArray = [...walletsArray];
@@ -182,6 +182,8 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       wallets[wallet.chainTicker] = proof;
     }
     setAccount({ ...account, author: { ...account?.author, wallets } });
+    // what was just saved is the baseline for the next save: a row changed back is a change again
+    setInitialRows(walletsArray);
     alert(`saved`);
   };
 

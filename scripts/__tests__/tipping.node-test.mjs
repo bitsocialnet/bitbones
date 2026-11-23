@@ -1057,4 +1057,13 @@ test('checking a tip on chain: an RPC error is not "not mined", a 721 log is ski
   assert.equal(shared.tip.matchesTip, true);
   assert.equal(shared.fee.matchesTip, false);
   await nftFirst.close();
+  // a batch of two token transfers has two events, and each pays its own part
+  const batch = await startChain({
+    receipt: { ...base, logs: [log([topic, pad(tipper), pad(recipient)], value), log([topic, pad(tipper), pad(recipient)], `0x${(10).toString(16).padStart(64, '0')}`)] },
+    transaction,
+  });
+  const batched = await checkTipOnChain(batch.url, { ...tip, fee: { txHash: hash, to: recipient, amount: 10n, token } }, [tipper], parentBinding);
+  assert.equal(batched.tip.matchesTip, true);
+  assert.equal(batched.fee.matchesTip, true);
+  await batch.close();
 });

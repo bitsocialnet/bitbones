@@ -435,10 +435,25 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
   const { decimals } = use(getTokenInfo(rpcUrl, token));
   const inAppWalletAddress = getInAppWallet(useAccount())?.address;
 
-  // an NFT is tipped by its token id; a fungible amount is typed in whole tokens when the decimals are known
+  // An NFT is tipped by its token id; a fungible amount is typed in whole tokens. When a token's decimals
+  // could not be read no amount is parsed: reading it as base units and then as whole tokens once a later
+  // read succeeds would change what the same typed number means.
+  const decimalsUnknown = token.type === 'erc20' && decimals === undefined;
   const amountOrTokenId =
-    token.type === 'erc721' ? (/^\d+$/.test(amountText.trim()) ? BigInt(amountText.trim()) : undefined) : parseTokenAmount(amountText, decimals ?? 0);
-  const inputError = token.type === 'erc721' ? (amountOrTokenId === undefined ? 'invalid token id' : undefined) : getTipAmountError(token, amountOrTokenId);
+    token.type === 'erc721'
+      ? /^\d+$/.test(amountText.trim())
+        ? BigInt(amountText.trim())
+        : undefined
+      : decimalsUnknown
+        ? undefined
+        : parseTokenAmount(amountText, decimals ?? 0);
+  const inputError = decimalsUnknown
+    ? "the token's decimals could not be read, so an amount can't be typed yet: wait a few seconds and try again"
+    : token.type === 'erc721'
+      ? amountOrTokenId === undefined
+        ? 'invalid token id'
+        : undefined
+      : getTipAmountError(token, amountOrTokenId);
   const fee = amountOrTokenId !== undefined && !inputError ? getRequiredFee(config, token, token.type === 'erc721' ? 0n : amountOrTokenId) : undefined;
 
   return (
@@ -458,7 +473,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
       <input
         aria-label={token.type === 'erc721' ? 'Token id' : 'Tip amount'}
         className={styles.amount}
-        placeholder={token.type === 'erc721' ? 'token id' : decimals === undefined ? 'base units' : 'amount'}
+        placeholder={token.type === 'erc721' ? 'token id' : 'amount'}
         value={amountText}
         onChange={(event) => setAmountText(event.target.value)}
       />
@@ -568,8 +583,8 @@ const TipRecovery = ({ comment }: TipRecoveryProps) => {
   return (
     <div className={styles.form} onClick={stopPropagation}>
       <span className={styles.dim}>
-        {pendingTip.txHash ? `tip signed in ${pendingTip.txHash}` : 'tip not sent yet'}. This community no longer publishes tipping options, so its reply can't be
-        published now.
+        {pendingTip.txHash ? `tip signed in ${pendingTip.txHash}` : 'tip not sent yet'}. The community's tipping options are not loaded or no longer published, so its
+        reply can't be published now.
       </span>
       {!otherAccount && (
         <button

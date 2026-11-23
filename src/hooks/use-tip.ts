@@ -638,11 +638,15 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     },
     discardTip: () => {
       if (parentCid && !otherAccount) {
+        const previous = useTipStore.getState().pendingTips[parentCid];
         const forgotten = useTipStore.getState().setPendingTip(parentCid, undefined);
+        // a record the browser would not delete stays on screen, with the reason
+        if (!forgotten && previous) {
+          useTipStore.setState((state) => ({ pendingTips: { ...state.pendingTips, [parentCid]: previous } }));
+        }
         useTipStore.setState((state) => ({
           mined: { ...state.mined, [parentCid]: false },
           feeFailed: { ...state.feeFailed, [parentCid]: false },
-          // a record the browser would not delete comes back on reload, and may be sent then
           error: {
             ...state.error,
             [parentCid]: forgotten
