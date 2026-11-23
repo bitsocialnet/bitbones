@@ -18,6 +18,7 @@ import {
   getTippingConfig,
   getTipFeeConfigError,
   getTipRecipientAddress,
+  setCommentValidator,
   getTipSendPlan,
   getTipSettleOutcome,
   getTokenKey,
@@ -403,6 +404,8 @@ const createAuthor = async (publicKey, timestamp) => {
   const wallet = await createWallet(publicKey, timestamp);
   return { address: wallet.address, author: { wallets: { eth: wallet } }, signature: { publicKey } };
 };
+// the real validator needs the hooks and signed records: the tests stand in for it, and test it below
+setCommentValidator(async () => undefined);
 const tipperPublicKey = vector.publicKey;
 const recipientPublicKey = '+X1OBktHFm0E1cwKLWu81Va0cAlVhj/i4snOqMz9X2k';
 
@@ -1141,4 +1144,30 @@ test('the reason an ERC-20 amount can not be typed names a missing RPC url, not 
   assert.equal(getDecimalsInputIssue(token, 'https://rpc.example', 6), undefined);
   assert.equal(getDecimalsInputIssue({ type: 'native', chainId: 1 }, undefined, undefined), undefined);
   assert.equal(getDecimalsInputIssue({ type: 'erc721', chainId: 1 }, undefined, undefined), undefined);
+});
+
+test('wallets on a comment that does not validate are unproven, and a comment is unproven until a validator is registered', async () => {
+  const author = await createAuthor(recipientPublicKey);
+  const comment = { cid: 'carrier', author: author.author, signature: author.signature };
+  assert.deepEqual(await getProvenWalletAddresses(comment), [author.address]);
+  assert.equal(await getTipRecipientAddress(comment), author.address);
+
+  const validated = [];
+  setCommentValidator(async (party) => {
+    validated.push(party.cid);
+    return party.cid === 'forged' ? 'the comment signature is invalid' : undefined;
+  });
+  const forged = { ...comment, cid: 'forged' };
+  assert.deepEqual(await getProvenWalletAddresses(forged), []);
+  assert.equal(await getTipRecipientAddress(forged), undefined);
+  assert.deepEqual(await getProvenWalletAddresses({ ...comment, cid: 'genuine' }), [author.address]);
+  // the account's own party is no loaded comment: it has no cid and is not validated
+  validated.length = 0;
+  assert.deepEqual(await getProvenWalletAddresses({ author: author.author, signature: author.signature }), [author.address]);
+  assert.deepEqual(validated, []);
+
+  setCommentValidator(undefined);
+  assert.deepEqual(await getProvenWalletAddresses(comment), []);
+  assert.equal(await getTipRecipientAddress(comment), undefined);
+  setCommentValidator(async () => undefined);
 });

@@ -22,6 +22,7 @@ import {
   shouldPublishClaim,
   writePendingTip,
 } from '../lib/tipping';
+import '../lib/tipping-comment';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
 import {
   ensureBroadcast,

@@ -604,7 +604,49 @@ interface TipParty {
   tip?: unknown;
   author?: { wallets?: unknown };
   signature?: { publicKey?: unknown };
+  // the signed records of a loaded comment, which the comment validator checks
+  raw?: unknown;
 }
+
+// Why a loaded comment is not the signed record it claims to be, or undefined when it is. Wallet proofs
+// name the key that signed the comment carrying them, so they mean nothing on a comment whose own
+// signature is not checked: pkc-js checks one when it fetches it, but not when `validatePages` is off.
+// The check lives in src/lib/tipping-comment.ts, which registers itself here. A comment is unproven until
+// one is registered, and the account's own party, which is no loaded comment and has no cid, needs none.
+export type CommentValidator = (party: TipParty) => Promise<string | undefined>;
+let commentValidator: CommentValidator | undefined;
+export const setCommentValidator = (validator: CommentValidator | undefined) => {
+  commentValidator = validator;
+  commentValidations.clear();
+};
+
+const commentValidations = new Map<string, Promise<string | undefined>>();
+
+const getRawUpdateSignature = (party: TipParty): unknown => {
+  const raw = party.raw as { commentUpdate?: { signature?: { signature?: unknown } } } | undefined;
+  return raw?.commentUpdate?.signature?.signature;
+};
+
+// kept per comment and update, as validating hashes the record and verifies two signatures
+export const getPartyValidationError = (party: TipParty | undefined): Promise<string | undefined> => {
+  if (typeof party?.cid !== 'string') {
+    return Promise.resolve(undefined);
+  }
+  if (!commentValidator) {
+    return Promise.resolve('the comment is not validated');
+  }
+  const key = JSON.stringify([party.cid, getRawUpdateSignature(party), party.author?.wallets, party.signature?.publicKey]);
+  const known = commentValidations.get(key);
+  if (known) {
+    return known;
+  }
+  if (commentValidations.size >= 2000) {
+    commentValidations.clear();
+  }
+  const validation = commentValidator(party).catch((error: unknown) => (error instanceof Error ? error.message : 'the comment could not be validated'));
+  commentValidations.set(key, validation);
+  return validation;
+};
 
 export const getPartyKeyAddress = (party: TipParty | undefined): string | undefined =>
   typeof party?.signature?.publicKey === 'string' ? getKeyAddressFromPublicKey(party.signature.publicKey) : undefined;
@@ -615,7 +657,7 @@ export const getPartyKeyAddress = (party: TipParty | undefined): string | undefi
 export const getProvenWalletAddresses = async (party: TipParty | undefined, nowSeconds?: number): Promise<string[]> => {
   const wallets = party?.author?.wallets;
   const keyAddress = getPartyKeyAddress(party);
-  if (!wallets || typeof wallets !== 'object' || !keyAddress) {
+  if (!wallets || typeof wallets !== 'object' || !keyAddress || (await getPartyValidationError(party))) {
     return [];
   }
   // code unit order, so every client sorts the same way
@@ -636,6 +678,9 @@ export const getProvenWalletAddresses = async (party: TipParty | undefined, nowS
 // one of the tipper's wallets, so those are skipped.
 export const getTipRecipientAddress = async (party: TipParty | undefined, nowSeconds?: number, excluded: string[] = []): Promise<string | undefined> => {
   const isExcluded = (address: unknown) => typeof address === 'string' && excluded.some((other) => other.toLowerCase() === address.toLowerCase());
+  if (await getPartyValidationError(party)) {
+    return undefined;
+  }
   const wallets = party?.author?.wallets;
   const eth = wallets && typeof wallets === 'object' ? (wallets as Record<string, unknown>).eth : undefined;
   if (eth && !isExcluded((eth as WalletProof).address) && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
@@ -703,9 +748,11 @@ const getVerifiedTipKey = (reply: TipParty, parent: TipParty): string | undefine
       reply.tip,
       reply.author?.wallets,
       reply.signature?.publicKey,
+      getRawUpdateSignature(reply),
       parent.cid,
       parent.author?.wallets,
       parent.signature?.publicKey,
+      getRawUpdateSignature(parent),
     ]);
   } catch {
     return undefined;

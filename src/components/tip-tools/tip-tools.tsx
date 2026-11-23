@@ -20,6 +20,7 @@ import {
   walletSignatureType,
 } from '../../lib/tipping';
 import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
+import '../../lib/tipping-comment';
 import { checkTipOnChain, getBalanceOnce, getTokenInfo } from '../../lib/tipping-chain';
 import type { OnChainTipCheck, OnChainTipResult } from '../../lib/tipping-chain';
 import { getInAppWallet } from '../../hooks/use-in-app-wallet';
