@@ -22,6 +22,7 @@ import {
   shouldPublishClaim,
   writePendingTip,
 } from '../lib/tipping';
+import '../lib/tipping-comment';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
 import {
   ensureBroadcast,
@@ -432,7 +433,7 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   setStatus(parentCid, 'verifying the recipient wallet...');
   // not a wallet the tipper has proven as well: tipping/v1 rejects a tip a tipper sends to themselves
   const tipperAddresses = await getProvenWalletAddresses({ author: account?.author, signature: { publicKey: account?.signer?.publicKey } });
-  const to = await getTipRecipientAddress(comment, undefined, tipperAddresses);
+  const to = await getTipRecipientAddress(comment, undefined, tipperAddresses, config.community);
   if (!to) {
     throw Error("can't tip this author: they have not published a wallet with a valid proof that is not also yours");
   }

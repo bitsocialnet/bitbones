@@ -7,8 +7,13 @@ import { useCommunityIdentifier } from './use-community-identifier';
 // the tipping/v1 options a community publishes, or undefined when it has no tipping
 const useTippingConfig = (communityAddress: string | undefined): TippingConfig | undefined => {
   const communityIdentifier = useCommunityIdentifier(communityAddress);
-  const challenges: unknown = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined)?.challenges;
-  return useMemo(() => getTippingConfig({ challenges }), [challenges]);
+  const community = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined);
+  const challenges: unknown = community?.challenges;
+  // the community rides along: a comment's update is validated against its signature
+  return useMemo(() => {
+    const config = getTippingConfig({ challenges });
+    return config && { ...config, community };
+  }, [challenges, community]);
 };
 
 export default useTippingConfig;

@@ -1,6 +1,6 @@
 import { Suspense, use, useState, type MouseEvent } from 'react';
 import { useAccount, useComment } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, Community } from '@bitsocial/bitsocial-react-hooks';
 import {
   formatTokenAmount,
   getDecimalsInputIssue,
@@ -20,6 +20,7 @@ import {
   walletSignatureType,
 } from '../../lib/tipping';
 import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
+import '../../lib/tipping-comment';
 import { checkTipOnChain, getBalanceOnce, getTokenInfo } from '../../lib/tipping-chain';
 import type { OnChainTipCheck, OnChainTipResult } from '../../lib/tipping-chain';
 import { getInAppWallet } from '../../hooks/use-in-app-wallet';
@@ -54,9 +55,10 @@ const TokenAmount = (props: TokenAmountProps) => (
 );
 
 // The reply as its author signed it, with the tip from its live update when one has arrived. The
-// wallets and the key are read from the signed comment, and only the tip from the update.
+// wallets and the key are read from the signed comment, and only the tip from the update, together
+// with the update's signed record, which is what the tip is checked against.
 const withLatestTip = (comment: Comment | undefined, updatedComment: Comment | undefined): Comment | undefined =>
-  comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip } : comment;
+  comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip, raw: updatedComment.raw ?? comment.raw } : comment;
 
 interface TipLineProps {
   // the community's tipping options: a tip is shown only where the community advertises tipping/v1
@@ -67,15 +69,16 @@ interface TipLineProps {
 }
 
 interface VerifiedTipLineProps {
+  config?: TippingConfig;
   comment?: Comment;
 }
 
 // suspends while the two wallet proofs behind the tip are checked, and shows nothing if one fails
-const VerifiedTipLine = ({ comment }: VerifiedTipLineProps) => {
+const VerifiedTipLine = ({ config, comment }: VerifiedTipLineProps) => {
   // the tipped comment, whose author's wallet the tip must have been sent to. Not fetched: a tip
   // whose parent is not loaded can't be verified, so it is not shown.
   const parent: Comment = useComment({ commentCid: comment?.parentCid, onlyIfCached: true });
-  const tip = use(getVerifiedTip(comment, parent));
+  const tip = use(getVerifiedTip(comment, parent, config?.community));
   if (!tip) {
     return null;
   }
@@ -97,7 +100,7 @@ export const TipLine = ({ config, comment, updatedComment }: TipLineProps) => {
   }
   return (
     <Suspense fallback={null}>
-      <VerifiedTipLine comment={latest} />
+      <VerifiedTipLine config={config} comment={latest} />
     </Suspense>
   );
 };
@@ -124,20 +127,20 @@ interface TipRowProps {
 }
 
 // The offline check of one tip. Suspends while the wallet proofs are being checked.
-const useTipCheckResult = (comment: Comment, reply: Comment) => {
-  const check = use(getTipCheck(reply, comment));
+const useTipCheckResult = (comment: Comment, reply: Comment, community?: Community) => {
+  const check = use(getTipCheck(reply, comment, community));
   return { check, error: check ? getTipCheckError(check) : undefined };
 };
 
-const TipStatus = ({ comment, reply }: Omit<TipRowProps, 'tip'>) => {
-  const { error } = useTipCheckResult(comment, reply);
+const TipStatus = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) => {
+  const { error } = useTipCheckResult(comment, reply, config?.community);
   return error ? <span className={styles.error}>unverified</span> : <span className={styles.dim}>verified</span>;
 };
 
 const yesNo = (value: boolean): string => (value ? 'yes' : 'no');
 
-const TipCheckDetails = ({ comment, reply }: Omit<TipRowProps, 'tip'>) => {
-  const { check, error } = useTipCheckResult(comment, reply);
+const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) => {
+  const { check, error } = useTipCheckResult(comment, reply, config?.community);
   if (!check) {
     return null;
   }
@@ -186,7 +189,7 @@ const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'commen
     }
     setState({ status: 'checking' });
     // the transaction has to be sent by one of the tipper's proven wallets, and end with the binding of the tipped comment
-    getProvenWalletAddresses(reply)
+    getProvenWalletAddresses(reply, undefined, config?.community)
       .then((senders) => checkTipOnChain(rpcUrl, tip, senders, getParentBindingSuffix(String(comment.cid))))
       .then(
         (result) => setState({ status: 'done', result }),
@@ -327,7 +330,7 @@ const stopPropagation = (event: MouseEvent) => event.stopPropagation();
 
 const VerifiedTipTotals = ({ config, comment, replies }: VerifiedTipTotalsProps) => {
   const [isListOpen, setIsListOpen] = useState(false);
-  const totals = use(getVerifiedTipTotals(comment, replies));
+  const totals = use(getVerifiedTipTotals(comment, replies, config?.community));
   if (!totals.length) {
     return null;
   }
