@@ -39,7 +39,9 @@ import {
   checkTip,
   verifyTip,
   walletTimestampAllowanceSeconds,
+  getFlowAfterSettle,
   getFlowAfterStorageChange,
+  isSameTip,
   writePendingTip,
 } from '../../src/lib/tipping.ts';
 import {
@@ -1099,4 +1101,19 @@ test('a record the storage would not delete is not cleared from memory', () => {
   assert.deepEqual(cleared.pendingTips, { parent: record });
   // a tip that could not be saved is not held either
   assert.deepEqual(writePendingTip(storage, 'tips', {}, {}, 'parent', record).pendingTips, {});
+});
+
+test('a wait for receipts that ended after another tab replaced the fee changes nothing', () => {
+  const old = { txHash: 'tip', feeTxHash: 'fee1' };
+  const replaced = { txHash: 'tip', feeTxHash: 'fee2' };
+  // this tab's store holds the replacement, cleared of the failure the old fee had
+  const flow = { pendingTips: { parent: replaced }, mined: { parent: false }, feeFailed: { parent: false } };
+  // the old fee's wait ends: its failure is not the replacement's
+  assert.equal(getFlowAfterSettle(flow, 'parent', old, 'fee-failed').feeFailed.parent, false);
+  assert.equal(getFlowAfterSettle(flow, 'parent', old, 'mined').mined.parent, false);
+  // the same tip does take the result
+  assert.equal(getFlowAfterSettle({ ...flow, pendingTips: { parent: old } }, 'parent', old, 'fee-failed').feeFailed.parent, true);
+  assert.equal(isSameTip(old, replaced), false);
+  assert.equal(isSameTip(old, { ...old }), true);
+  assert.equal(isSameTip(old, undefined), false);
 });

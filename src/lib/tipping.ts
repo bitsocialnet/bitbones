@@ -876,3 +876,27 @@ export const writePendingTip = <T>(
   }
   return { pendingTips: merged, saved: true };
 };
+
+// The same tip: the same tip transaction and the same fee transaction. A wait for the receipts that
+// started on one tip must not act on another that replaced it in the meantime, such as a fee another
+// tab sent again.
+export const isSameTip = (a: { txHash?: string; feeTxHash?: string } | undefined, b: { txHash?: string; feeTxHash?: string } | undefined): boolean =>
+  a !== undefined && b !== undefined && a.txHash === b.txHash && a.feeTxHash === b.feeTxHash;
+
+// The flow after the wait for a tip's receipts ended: mined, or its fee failed. Unchanged when the tip
+// held for this comment is no longer the one that was waited for.
+export const getFlowAfterSettle = <T extends { txHash?: string; feeTxHash?: string }>(
+  flow: PendingTipFlow<T>,
+  parentCid: string,
+  settled: T,
+  outcome: 'mined' | 'fee-failed',
+): PendingTipFlow<T> => {
+  if (!isSameTip(flow.pendingTips[parentCid], settled)) {
+    return flow;
+  }
+  return {
+    ...flow,
+    mined: outcome === 'mined' ? { ...flow.mined, [parentCid]: true } : flow.mined,
+    feeFailed: outcome === 'fee-failed' ? { ...flow.feeFailed, [parentCid]: true } : flow.feeFailed,
+  };
+};

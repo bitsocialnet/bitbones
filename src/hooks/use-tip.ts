@@ -10,7 +10,9 @@ import {
   getRequiredFee,
   getTipAmountError,
   getTipClaimPublishOptions,
+  getFlowAfterSettle,
   getFlowAfterStorageChange,
+  isSameTip,
   getKeyAddressFromPublicKey,
   getPartyKeyAddress,
   getProvenWalletAddresses,
@@ -319,14 +321,18 @@ const settle = async (account: Account | undefined, parentCid: string): Promise<
       : undefined,
   ]);
   const outcome = getTipSettleOutcome(tipWait, feeWait);
+  // another tab may have sent the fee again while this one waited: its tip is not the one that was waited for
+  if (!isSameTip(useTipStore.getState().pendingTips[parentCid], pendingTip)) {
+    return;
+  }
   if (outcome.type === 'tip-failed') {
     throw Error(`the tip transaction failed (${outcome.error}), so there is nothing to claim. Forget this tip.`);
   }
   if (outcome.type === 'fee-failed') {
-    setFeeFailed(parentCid, true);
+    useTipStore.setState((state) => getFlowAfterSettle(state, parentCid, pendingTip, 'fee-failed'));
     throw Error(`the fee transaction failed (${outcome.error}). The tip was sent, send the fee again to claim it.`);
   }
-  setMined(parentCid, true);
+  useTipStore.setState((state) => getFlowAfterSettle(state, parentCid, pendingTip, 'mined'));
 };
 
 // A tip whose fee failed after the tip was sent: pays the same fee again, to the same recipient and
@@ -633,17 +639,17 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     discardTip: () => {
       if (parentCid && !otherAccount) {
         const forgotten = useTipStore.getState().setPendingTip(parentCid, undefined);
-        useTipStore.setState((state) => ({
-          mined: { ...state.mined, [parentCid]: false },
-          feeFailed: { ...state.feeFailed, [parentCid]: false },
-          accepted: { ...state.accepted, [parentCid]: false },
-          error: {
-            ...state.error,
-            [parentCid]: forgotten
-              ? undefined
-              : "the tip was cleared here but this browser's storage refused to delete its record, so it may return when the page reloads",
-          },
-        }));
+        // a record the browser would not delete stays, with what is known about it: an accepted tip is still accepted
+        useTipStore.setState((state) =>
+          forgotten
+            ? {
+                mined: { ...state.mined, [parentCid]: false },
+                feeFailed: { ...state.feeFailed, [parentCid]: false },
+                accepted: { ...state.accepted, [parentCid]: false },
+                error: { ...state.error, [parentCid]: undefined },
+              }
+            : { error: { ...state.error, [parentCid]: "this browser's storage refused to delete the tip's record, so it was kept" } },
+        );
       }
     },
   };
