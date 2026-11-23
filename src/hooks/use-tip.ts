@@ -10,12 +10,14 @@ import {
   getRequiredFee,
   getTipAmountError,
   getTipClaimPublishOptions,
+  getFlowAfterStorageChange,
   getKeyAddressFromPublicKey,
   getPartyKeyAddress,
   getProvenWalletAddresses,
   getTipRecipientAddress,
   getTipSendPlan,
   getTipSettleOutcome,
+  writePendingTip,
 } from '../lib/tipping';
 import type { TipToken, TipTokenType, TippingConfig, TransferWait } from '../lib/tipping';
 import {
@@ -91,38 +93,28 @@ interface TipState {
   mined: Record<string, boolean | undefined>;
   // its tip is mined but its fee reverted, so the fee can be sent again
   feeFailed: Record<string, boolean | undefined>;
+  // its reply was accepted but its record could not be deleted: publishing it again would send a second reply
+  accepted: Record<string, boolean | undefined>;
   // false when the browser would not save it, which a transfer must not be sent after
   setPendingTip: (parentCid: string, pendingTip: PendingTip | undefined) => boolean;
 }
 
-const useTipStore = create<TipState>((setState) => ({
+const useTipStore = create<TipState>((setState, getState) => ({
   pendingTips: readStoredPendingTips(),
   status: {},
   error: {},
   mined: {},
   feeFailed: {},
+  accepted: {},
   setPendingTip: (parentCid, pendingTip) => {
     // Merged into what is stored now and not written from this tab's map: another tab may have
     // saved or cleared a tip on another comment since this one loaded, and a recovery record lost
     // after the money has moved can't be rebuilt.
-    const pendingTips: Record<string, PendingTip | undefined> = { ...readStoredPendingTips(), [parentCid]: pendingTip };
-    if (!pendingTip) {
-      delete pendingTips[parentCid];
-    }
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingTips));
-    } catch {
-      // Not exposed to the store either: a signed transaction held only in memory would be
-      // broadcast by the next "continue", with no record left if the tab closes before the reply.
-      // Clearing a tip still clears it on screen.
-      if (pendingTip) {
-        return false;
-      }
+    const { pendingTips, saved } = writePendingTip(localStorage, STORAGE_KEY, getState().pendingTips, readStoredPendingTips(), parentCid, pendingTip);
+    if (saved) {
       setState({ pendingTips });
-      return false;
     }
-    setState({ pendingTips });
-    return true;
+    return saved;
   },
 }));
 
@@ -130,14 +122,7 @@ const useTipStore = create<TipState>((setState) => ({
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === STORAGE_KEY) {
-      const pendingTips = readStoredPendingTips();
-      // "mined" belongs to one transaction: another tab that signed a new one has not mined it yet
-      useTipStore.setState((state) => ({
-        pendingTips,
-        mined: Object.fromEntries(
-          Object.entries(state.mined).map(([parentCid, mined]) => [parentCid, pendingTips[parentCid]?.txHash === state.pendingTips[parentCid]?.txHash && mined]),
-        ),
-      }));
+      useTipStore.setState((state) => getFlowAfterStorageChange(state, readStoredPendingTips()));
     }
   });
 }
@@ -529,6 +514,8 @@ interface UseTipResult {
   mined: boolean;
   // the tip is out but its fee failed: resendFee pays it again
   feeFailed: boolean;
+  // the reply was accepted and only the record is left to forget
+  accepted: boolean;
   // started by another account than the active one, which can neither continue nor forget it
   otherAccount: boolean;
   resendFee: () => Promise<void>;
@@ -548,6 +535,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
   const error = useTipStore((state) => (parentCid ? state.error[parentCid] : undefined));
   const mined = useTipStore((state) => Boolean(parentCid && state.mined[parentCid]));
   const feeFailed = useTipStore((state) => Boolean(parentCid && state.feeFailed[parentCid]));
+  const accepted = useTipStore((state) => Boolean(parentCid && state.accepted[parentCid]));
   const otherAccount = Boolean(pendingTip?.accountId && pendingTip.accountId !== account?.id);
 
   const publishCommentOptions = useMemo((): PublishCommentOptions | undefined => {
@@ -568,8 +556,13 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
         if (challengeVerification?.challengeSuccess === true) {
           // accepted: the claim is published, nothing is left to lose. A newer tip on the same
           // comment keeps its own record.
-          if (useTipStore.getState().pendingTips[parentCid]?.txHash === txHash) {
-            useTipStore.getState().setPendingTip(parentCid, undefined);
+          if (useTipStore.getState().pendingTips[parentCid]?.txHash === txHash && !useTipStore.getState().setPendingTip(parentCid, undefined)) {
+            // the record stays, and a reload would publish its claim again: say it was accepted
+            useTipStore.setState((state) => ({ accepted: { ...state.accepted, [parentCid]: true } }));
+            setError(
+              parentCid,
+              "the community accepted the tip reply, but this browser's storage refused to delete the tip's record. Forget this tip: publishing it again would send a second reply.",
+            );
           }
         } else {
           setError(parentCid, 'the community did not accept the tip reply. The transfer stays valid, so the reply can be published again.');
@@ -614,6 +607,7 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     error,
     mined,
     feeFailed,
+    accepted,
     otherAccount,
     resendFee: async () => {
       if (parentCid) {
@@ -638,15 +632,11 @@ const useTip = (comment: Comment | undefined, config: TippingConfig | undefined)
     },
     discardTip: () => {
       if (parentCid && !otherAccount) {
-        const previous = useTipStore.getState().pendingTips[parentCid];
         const forgotten = useTipStore.getState().setPendingTip(parentCid, undefined);
-        // a record the browser would not delete stays on screen, with the reason
-        if (!forgotten && previous) {
-          useTipStore.setState((state) => ({ pendingTips: { ...state.pendingTips, [parentCid]: previous } }));
-        }
         useTipStore.setState((state) => ({
           mined: { ...state.mined, [parentCid]: false },
           feeFailed: { ...state.feeFailed, [parentCid]: false },
+          accepted: { ...state.accepted, [parentCid]: false },
           error: {
             ...state.error,
             [parentCid]: forgotten

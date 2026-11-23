@@ -39,6 +39,8 @@ import {
   checkTip,
   verifyTip,
   walletTimestampAllowanceSeconds,
+  getFlowAfterStorageChange,
+  writePendingTip,
 } from '../../src/lib/tipping.ts';
 import {
   checkTipOnChain,
@@ -1066,4 +1068,35 @@ test('checking a tip on chain: an RPC error is not "not mined", a 721 log is ski
   assert.equal(batched.tip.matchesTip, true);
   assert.equal(batched.fee.matchesTip, true);
   await batch.close();
+});
+
+test("another tab replacing a failed fee clears this tab's failed-fee state", () => {
+  const flow = {
+    pendingTips: { parent: { txHash: 'tip', feeTxHash: 'fee1' } },
+    mined: { parent: false },
+    feeFailed: { parent: true },
+  };
+  // the other tab sent a new fee, so "resend fee" here would pay a third one
+  const replaced = getFlowAfterStorageChange(flow, { parent: { txHash: 'tip', feeTxHash: 'fee2' } });
+  assert.equal(replaced.feeFailed.parent, false);
+  // the fee is the same one: the failure still stands
+  assert.equal(getFlowAfterStorageChange(flow, { parent: { txHash: 'tip', feeTxHash: 'fee1' } }).feeFailed.parent, true);
+  // the tip is gone from storage
+  assert.equal(getFlowAfterStorageChange(flow, {}).feeFailed.parent, false);
+});
+
+test('a record the storage would not delete is not cleared from memory', () => {
+  const record = { txHash: 'tip' };
+  const storage = {
+    stored: JSON.stringify({ parent: record }),
+    setItem() {
+      throw Error('QuotaExceededError');
+    },
+  };
+  const cleared = writePendingTip(storage, 'tips', { parent: record }, { parent: record }, 'parent', undefined);
+  assert.equal(cleared.saved, false);
+  // the stored record comes back on reload, so the screen must still show it
+  assert.deepEqual(cleared.pendingTips, { parent: record });
+  // a tip that could not be saved is not held either
+  assert.deepEqual(writePendingTip(storage, 'tips', {}, {}, 'parent', record).pendingTips, {});
 });

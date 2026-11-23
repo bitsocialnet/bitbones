@@ -819,3 +819,60 @@ export const getTipSettleOutcome = (tip: TransferWait, fee?: TransferWait): TipS
   }
   return { type: 'mined' };
 };
+
+// ---------------------------------------------------------------------------------------------
+// pending tips: what the hook keeps in memory and in the browser's storage, as pure steps
+// ---------------------------------------------------------------------------------------------
+
+// What the hook knows of each tip in progress, by the tipped comment's cid
+export interface PendingTipFlow<T extends { txHash?: string; feeTxHash?: string }> {
+  pendingTips: Record<string, T | undefined>;
+  // its transfers are mined
+  mined: Record<string, boolean | undefined>;
+  // its tip is mined but its fee reverted
+  feeFailed: Record<string, boolean | undefined>;
+}
+
+// The flow after another tab saved or cleared tips: the stored tips are now the tips, and what was
+// known about a transaction no longer applies to a tip whose transaction another tab changed. A failed
+// fee in particular: once another tab has replaced it, "resend fee" here would pay a third fee.
+export const getFlowAfterStorageChange = <T extends { txHash?: string; feeTxHash?: string }>(flow: PendingTipFlow<T>, stored: Record<string, T>): PendingTipFlow<T> => ({
+  pendingTips: stored,
+  mined: Object.fromEntries(
+    Object.entries(flow.mined).map(([parentCid, mined]) => [parentCid, stored[parentCid]?.txHash === flow.pendingTips[parentCid]?.txHash && mined]),
+  ),
+  feeFailed: Object.fromEntries(
+    Object.entries(flow.feeFailed).map(([parentCid, feeFailed]) => [
+      parentCid,
+      stored[parentCid] !== undefined && stored[parentCid]?.feeTxHash === flow.pendingTips[parentCid]?.feeTxHash && feeFailed,
+    ]),
+  ),
+});
+
+interface TipStorage {
+  setItem: (key: string, value: string) => void;
+}
+
+// Saves one comment's tip, or clears it with `undefined`, merged into the tips stored now. `pendingTips`
+// is what the hook should hold afterwards and `saved` whether the storage took it.
+export const writePendingTip = <T>(
+  storage: TipStorage,
+  key: string,
+  current: Record<string, T | undefined>,
+  stored: Record<string, T>,
+  parentCid: string,
+  pendingTip: T | undefined,
+): { pendingTips: Record<string, T | undefined>; saved: boolean } => {
+  const merged: Record<string, T | undefined> = { ...stored, [parentCid]: pendingTip };
+  if (!pendingTip) {
+    delete merged[parentCid];
+  }
+  try {
+    storage.setItem(key, JSON.stringify(merged));
+  } catch {
+    // Memory stays as it was: a tip that could not be saved is not exposed, and one that could not be
+    // cleared comes back from storage on reload, so it stays on screen with the reason.
+    return { pendingTips: current, saved: false };
+  }
+  return { pendingTips: merged, saved: true };
+};

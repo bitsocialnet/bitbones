@@ -508,7 +508,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
 // The form, and the state of a tip already under way. A tip that was sent but whose reply is not
 // accepted yet is listed with a way to continue, since its transfer can't be taken back.
 const TipForm = ({ comment, config, tokens }: TipFormProps) => {
-  const { pendingTip, status, error, mined, feeFailed, otherAccount, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
+  const { pendingTip, status, error, mined, feeFailed, accepted, otherAccount, sendTip, resumeTip, resendFee, discardTip } = useTip(comment, config);
   const discard = () => {
     if (
       window.confirm(
@@ -533,7 +533,7 @@ const TipForm = ({ comment, config, tokens }: TipFormProps) => {
               <span className={styles.dim}>started by another account: switch back to it to continue</span>
             ) : (
               <>
-                {feeFailed ? (
+                {accepted ? null : feeFailed ? (
                   <button type='button' onClick={resendFee}>
                     resend fee
                   </button>
