@@ -11,6 +11,7 @@ import Panes from '../../components/panes';
 import Inspector from '../../components/inspector';
 import CommunityInfo from '../../components/community-info';
 import CommentMedia from '../../components/comment-media';
+import TipTools, { TipLine, TipTotals } from '../../components/tip-tools';
 import { CommentLine } from '../../components/protocol-details';
 import useUnreadReplyCount from '../../hooks/use-unread-reply-count';
 import useUpvote from '../../hooks/use-upvote';
@@ -22,6 +23,8 @@ import { formatLoadError, getCommentLoadError } from '../../lib/load-errors';
 import useVerbose from '../../hooks/use-verbose';
 import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
 import useInspectorAvailable from '../../hooks/use-inspector-available';
+import useTippingConfig from '../../hooks/use-tipping-config';
+import type { TippingConfig } from '../../lib/tipping';
 import styles from './post.module.css';
 
 interface ReplyQuoteProps {
@@ -54,9 +57,11 @@ const ReplyQuote = ({ commentCid }: ReplyQuoteProps) => {
 interface ReplyProps {
   reply: Comment;
   updatedReply?: Comment;
+  // the community's tipping/v1 options, read once by the post and handed down the thread
+  tippingConfig?: TippingConfig;
 }
 
-const Reply = ({ reply, updatedReply }: ReplyProps) => {
+const Reply = ({ reply, updatedReply, tippingConfig }: ReplyProps) => {
   // handle pending mod or author edit
   const { state: editedReplyState, editedComment: editedReply } = useEditedComment({ comment: reply });
   if (editedReply) {
@@ -104,9 +109,13 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
           ))}
           {state && <span className={styles.label}>{state}</span>}
           {publishingStateString && <span className={styles.dim}>{publishingStateString}</span>}
+          {/* the tip this reply carries, and what its own replies tipped it */}
+          <TipLine config={tippingConfig} comment={reply} updatedComment={updatedReply} />
+          <TipTotals config={tippingConfig} comment={reply} replies={replies} updatedReplies={updatedReplies} />
           <ReplyTools reply={reply}>
             <span className={styles.linkButton}>reply</span>
           </ReplyTools>
+          <TipTools comment={reply} config={tippingConfig} />
           <button type='button' className={[styles.linkButton, styles.inspect].join(' ')} onClick={inspect}>
             inspect
           </button>
@@ -130,7 +139,7 @@ const Reply = ({ reply, updatedReply }: ReplyProps) => {
       {replies.length > 0 && (
         <div className={styles.children}>
           {replies.map((childReply, index) => (
-            <Reply key={childReply?.index || childReply?.cid} reply={childReply} updatedReply={updatedReplies[index]} />
+            <Reply key={childReply?.index || childReply?.cid} reply={childReply} updatedReply={updatedReplies[index]} tippingConfig={tippingConfig} />
           ))}
         </div>
       )}
@@ -158,6 +167,7 @@ function Post() {
   const labels = useCommentLabels(post, editedPostState);
   const stateString = useStateString(post);
   const [verbose] = useVerbose();
+  const tippingConfig = useTippingConfig(communityAddress);
 
   // keep track of unread reply counts
   const [, setRepliesToRead] = useUnreadReplyCount(post);
@@ -259,6 +269,8 @@ function Post() {
             <PostReplyTools reply={post}>
               <span className={styles.linkButton}>reply</span>
             </PostReplyTools>
+            <TipTotals config={tippingConfig} comment={post} replies={replies} updatedReplies={updatedReplies} />
+            <TipTools comment={post} config={tippingConfig} />
           </div>
           {loadError ? (
             <div className={[styles.stateString, styles.negative].join(' ')}>{formatLoadError(loadError)}</div>
@@ -269,7 +281,7 @@ function Post() {
       </article>
       <div className={styles.replies}>
         {replies.map((reply, index) => (
-          <Reply key={reply?.index || reply?.cid} reply={reply} updatedReply={updatedReplies[index]} />
+          <Reply key={reply?.index || reply?.cid} reply={reply} updatedReply={updatedReplies[index]} tippingConfig={tippingConfig} />
         ))}
       </div>
       {hasMore && bufferedReplies?.length !== 0 && (

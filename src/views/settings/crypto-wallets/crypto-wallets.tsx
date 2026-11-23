@@ -1,12 +1,8 @@
-import { useState } from 'react';
+import { Suspense, use, useState } from 'react';
 import { useAccount, setAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, Wallet } from '@bitsocial/bitsocial-react-hooks';
-
-const getWalletMessageToSign = (authorAddress: string, timestamp: number) => {
-  // use plain JSON so the user can read what he's signing
-  // property names must always be in this order for signature to match so don't use JSON.stringify
-  return `{"domainSeparator":"pkc-author-wallet","authorAddress":"${authorAddress}","timestamp":${timestamp}}`;
-};
+import { getAccountKeyAddress } from '../../../hooks/use-in-app-wallet';
+import { getWalletMessageToSign, getWalletProofError, getWalletProofResult, normalizeWalletSignature, walletSignatureType } from '../../../lib/tipping';
 
 // the form edits a flat row per chain, while the account stores the signature nested inside a Wallet
 interface WalletInput {
@@ -15,6 +11,33 @@ interface WalletInput {
   timestamp?: number;
   signature?: string;
 }
+
+interface SavedWalletStatusProps {
+  wallet: Wallet | undefined;
+  authorPublicKey: string | undefined;
+}
+
+// The outcome of an entry the account already stores, with the reason, so a proof signed the way
+// older clients did shows up as needing a new signature instead of failing silently elsewhere.
+const LoadedSavedWalletStatus = ({ wallet, authorPublicKey }: SavedWalletStatusProps) => {
+  const { outcome, reason } = use(getWalletProofResult(wallet, authorPublicKey));
+  if (outcome === 'valid') {
+    return <div>saved proof: valid</div>;
+  }
+  return (
+    <div>
+      saved proof: {outcome} ({reason}), unproven: not shown as your wallet and not used.
+      {outcome === 'invalid' && ' click "copy message to sign", sign it again and save.'}
+    </div>
+  );
+};
+
+const SavedWalletStatus = (props: SavedWalletStatusProps) =>
+  props.wallet ? (
+    <Suspense fallback={<div>saved proof: verifying...</div>}>
+      <LoadedSavedWalletStatus {...props} />
+    </Suspense>
+  ) : null;
 
 interface CryptoWalletsFormProps {
   account?: Account;
@@ -25,7 +48,8 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   if (!account) {
     throw Error('CryptoWalletsForm account prop must be defined');
   }
-  const authorAddress = account?.author?.address;
+  // a wallet proof names the account's signing key, never author.address, which may be a name
+  const authorPublicKey = getAccountKeyAddress(account);
   const defaultWalletsArray: WalletInput[] = Object.keys(account?.author?.wallets || {}).map((chainTicker) => ({
     chainTicker,
     address: account?.author?.wallets?.[chainTicker]?.address,
@@ -36,6 +60,11 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
     defaultWalletsArray.push({});
   }
   const [walletsArray, setWalletsArray] = useState(defaultWalletsArray);
+  // The rows the form started with: the only entries a save may remove, and the values a row is compared
+  // with. An entry added or re-signed elsewhere after the form mounted, such as the in-app wallet's, is
+  // not in the form and must survive a save, and so must a row the user did not touch.
+  const [initialRows, setInitialRows] = useState(defaultWalletsArray);
+  const initialChainTickers = initialRows.map((wallet) => wallet.chainTicker).filter((chainTicker): chainTicker is string => Boolean(chainTicker));
   const setWalletsArrayProperty = (index: number, property: keyof WalletInput, value: string | number) => {
     const newArray = [...walletsArray];
     newArray[index] = { ...newArray[index], [property]: value };
@@ -56,8 +85,12 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
             if (!wallet.address) {
               return alert('missing address');
             }
-            const timestamp = wallet.timestamp || Math.floor(Date.now() / 1000);
-            const messageToSign = getWalletMessageToSign(authorAddress, timestamp);
+            if (!authorPublicKey) {
+              return alert('account has no signing key');
+            }
+            // always a new timestamp: a saved one may belong to a proof signed over an older message
+            const timestamp = Math.floor(Date.now() / 1000);
+            const messageToSign = getWalletMessageToSign(authorPublicKey, wallet.address.trim(), timestamp);
 
             // if timestamp changed, update it so it gets saved properly
             if (timestamp !== wallet.timestamp) {
@@ -71,6 +104,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
           copy message to sign
         </button>
         <input onChange={(e) => setWalletsArrayProperty(index, 'signature', e.target.value)} value={wallet.signature} placeholder='signature e.g. 0x...' />
+        <SavedWalletStatus wallet={wallet.chainTicker ? account.author?.wallets?.[wallet.chainTicker] : undefined} authorPublicKey={authorPublicKey} />
         <div>
           go to{' '}
           <a href={blockExplorerUrl} target='_blank' rel='noreferrer'>
@@ -82,10 +116,33 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
     );
   });
 
-  const save = () => {
-    const wallets: Record<string, Wallet> = {};
+  const save = async () => {
+    // start from the entries the account stores now, and change only what the rows say
+    const savedWallets = account.author?.wallets || {};
+    const wallets: Record<string, Wallet> = { ...savedWallets };
+    const rowChainTickers = new Set(walletsArray.map((wallet) => wallet.chainTicker).filter(Boolean));
+    for (const chainTicker of initialChainTickers) {
+      if (!rowChainTickers.has(chainTicker)) {
+        delete wallets[chainTicker];
+      }
+    }
     for (const wallet of walletsArray) {
       if (!wallet.chainTicker) {
+        continue;
+      }
+      const savedWallet = savedWallets[wallet.chainTicker];
+      // a row left as the form loaded it keeps the account's current entry, which may have been re-signed since
+      const initialRow = initialRows.find((row) => row.chainTicker === wallet.chainTicker);
+      if (initialRow && initialRow.address === wallet.address && initialRow.timestamp === wallet.timestamp && initialRow.signature === wallet.signature && savedWallet) {
+        continue;
+      }
+      // a row left as it was keeps its entry, whatever its proof is: one that fails shows in its status and is not a reason to refuse the others
+      if (
+        savedWallet &&
+        savedWallet.address === wallet.address?.trim() &&
+        savedWallet.timestamp === wallet.timestamp &&
+        savedWallet.signature?.signature === wallet.signature?.trim()
+      ) {
         continue;
       }
       if (!wallet.address) {
@@ -97,17 +154,36 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       if (!wallet.timestamp) {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
-      const type = wallet.chainTicker === 'sol' ? 'sol' : 'eip191';
-      wallets[wallet.chainTicker] = {
-        address: wallet.address,
-        timestamp: wallet.timestamp,
-        signature: {
-          signature: wallet.signature,
-          type,
-        },
-      };
+      // a wallet linked with another signature type, such as a sol one, is not verified here: it keeps its type
+      // a new sol row has no saved entry, so its type comes from the ticker, as the solscan link does. A saved
+      // entry keeps its own type, even eip191 under a sol ticker.
+      const otherType =
+        savedWallet?.signature?.type && savedWallet.signature.type !== walletSignatureType
+          ? savedWallet.signature.type
+          : !savedWallet && wallet.chainTicker === 'sol'
+            ? 'sol'
+            : undefined;
+      if (otherType) {
+        wallets[wallet.chainTicker] = {
+          address: wallet.address.trim(),
+          timestamp: wallet.timestamp,
+          signature: { signature: wallet.signature.trim(), type: otherType },
+        };
+        continue;
+      }
+      // eip191 is the only proof a community accepts
+      // a pasted signature may have v as 0 or 1, or a high s: store it in the one encoding a proof may have
+      const signature = normalizeWalletSignature(wallet.signature.trim()) ?? wallet.signature.trim();
+      const proof: Wallet = { address: wallet.address.trim(), timestamp: wallet.timestamp, signature: { signature, type: walletSignatureType } };
+      const proofError = await getWalletProofError(proof, authorPublicKey);
+      if (proofError) {
+        return alert(`${wallet.chainTicker}: ${proofError}. click "copy message to sign", sign that message with the wallet, and paste the new signature`);
+      }
+      wallets[wallet.chainTicker] = proof;
     }
     setAccount({ ...account, author: { ...account?.author, wallets } });
+    // what was just saved is the baseline for the next save: a row changed back is a change again
+    setInitialRows(walletsArray);
     alert(`saved`);
   };
 

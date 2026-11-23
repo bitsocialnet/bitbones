@@ -23,6 +23,7 @@ import CommunitySettings from './views/community-settings';
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import styles from './app.module.css';
 import useTheme, { useCustomCss } from './hooks/use-theme';
+import { useWalletProofMigration } from './hooks/use-in-app-wallet';
 import { useEffect } from 'react';
 import Topbar from './components/topbar';
 import StatusBar from './components/status-bar';
@@ -58,6 +59,7 @@ const LegacyAuthorRedirect = () => {
 function App() {
   const [theme] = useTheme();
   const [customCss] = useCustomCss();
+  useWalletProofMigration();
 
   // add theme className to body so it can set the correct body background in index.css
   useEffect(() => {

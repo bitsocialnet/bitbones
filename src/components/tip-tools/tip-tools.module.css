@@ -1,0 +1,96 @@
+.linkButton {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
+
+/* the form sits in a wrapping flex header, on a line of its own */
+.form {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  padding: 4px 0;
+  font-size: 12px;
+  cursor: default;
+}
+
+.form input,
+.form select {
+  background-color: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  font: inherit;
+}
+
+.amount {
+  width: 90px;
+}
+
+.content {
+  flex: 1 1 160px;
+}
+
+.line {
+  flex-basis: 100%;
+}
+
+.dim {
+  color: var(--dim);
+}
+
+.status {
+  color: var(--warn);
+}
+
+.error {
+  color: var(--error);
+  overflow-wrap: anywhere;
+}
+
+.tip {
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  font-size: 10px;
+}
+
+/* the list of a comment's tips, on a line of its own in the wrapping flex header */
+.tipListWrapper {
+  flex-basis: 100%;
+  font-size: 12px;
+  cursor: default;
+}
+
+.tipList {
+  margin: 4px 0;
+  padding-left: 16px;
+}
+
+.tipList summary {
+  cursor: pointer;
+}
+
+.tipDetails {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 8px;
+  margin: 4px 0 8px;
+  font-size: 11px;
+}
+
+.tipDetails dt {
+  color: var(--dim);
+}
+
+.tipDetails dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
