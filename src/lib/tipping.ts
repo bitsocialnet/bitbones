@@ -2,6 +2,7 @@
 // relative imports, so scripts/__tests__/tipping.node-test.mjs can import this file directly.
 import { concatHex, formatUnits, isAddress, isHash, keccak256, parseUnits, recoverMessageAddress, stringToHex } from 'viem';
 import type { Address, Hash, Hex } from 'viem';
+import type { Community } from '@bitsocial/bitsocial-react-hooks';
 
 // ---------------------------------------------------------------------------------------------
 // author wallet proof
@@ -245,6 +246,8 @@ export interface TippingConfig {
   feeRecipient?: Address;
   // the position of the tipping challenge in community.challenges: the key its pre-answer goes under
   challengeIndex: number;
+  // the loaded community, whose signature the comments of its tips are validated against
+  community?: Community;
 }
 
 const parseBaseUnits = (value: unknown): bigint | undefined => (typeof value === 'string' && /^\d+$/.test(value) ? BigInt(value) : undefined);
@@ -613,11 +616,37 @@ interface TipParty {
 // signature is not checked: pkc-js checks one when it fetches it, but not when `validatePages` is off.
 // The check lives in src/lib/tipping-comment.ts, which registers itself here. A comment is unproven until
 // one is registered, and the account's own party, which is no loaded comment and has no cid, needs none.
-export type CommentValidator = (party: TipParty) => Promise<string | undefined>;
+export type CommentValidator = (party: TipParty, community?: Community) => Promise<string | undefined>;
 let commentValidator: CommentValidator | undefined;
 export const setCommentValidator = (validator: CommentValidator | undefined) => {
   commentValidator = validator;
   commentValidations.clear();
+};
+
+const sameJson = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+// Why what tipping reads off a comment is not what its signed records say, or undefined when it is. The
+// signatures of raw.comment and raw.commentUpdate are verified elsewhere: a wrapper around a valid
+// record can still carry other wallets, another parent or another tip. The wallets, the key and the
+// parent must be the author's, and a tip the one the community signed into its update.
+export const getSignedRecordMismatch = (party: TipParty): string | undefined => {
+  const raw = party.raw as
+    | {
+        comment?: { author?: { wallets?: unknown }; signature?: { publicKey?: unknown }; parentCid?: unknown };
+        commentUpdate?: { tip?: unknown; signature?: { signedPropertyNames?: unknown } };
+      }
+    | undefined;
+  const signed = raw?.comment;
+  if (!sameJson(signed?.author?.wallets, party.author?.wallets) || signed?.signature?.publicKey !== party.signature?.publicKey || signed?.parentCid !== party.parentCid) {
+    return 'the comment does not match its signed record';
+  }
+  if (party.tip !== undefined) {
+    const signedPropertyNames = raw?.commentUpdate?.signature?.signedPropertyNames;
+    if (!sameJson(raw?.commentUpdate?.tip, party.tip) || !Array.isArray(signedPropertyNames) || !signedPropertyNames.includes('tip')) {
+      return "the tip is not the one in the community's signed update";
+    }
+  }
+  return undefined;
 };
 
 const commentValidations = new Map<string, Promise<string | undefined>>();
@@ -628,14 +657,24 @@ const getRawUpdateSignature = (party: TipParty): unknown => {
 };
 
 // kept per comment and update, as validating hashes the record and verifies two signatures
-export const getPartyValidationError = (party: TipParty | undefined): Promise<string | undefined> => {
+export const getPartyValidationError = (party: TipParty | undefined, community?: Community): Promise<string | undefined> => {
   if (typeof party?.cid !== 'string') {
     return Promise.resolve(undefined);
   }
   if (!commentValidator) {
     return Promise.resolve('the comment is not validated');
   }
-  const key = JSON.stringify([party.cid, getRawUpdateSignature(party), party.author?.wallets, party.signature?.publicKey]);
+  const key = JSON.stringify([
+    party.cid,
+    getRawUpdateSignature(party),
+    party.author?.wallets,
+    party.signature?.publicKey,
+    party.parentCid,
+    party.tip,
+    community?.publicKey,
+    community?.name,
+    community?.signature?.publicKey,
+  ]);
   const known = commentValidations.get(key);
   if (known) {
     return known;
@@ -643,7 +682,7 @@ export const getPartyValidationError = (party: TipParty | undefined): Promise<st
   if (commentValidations.size >= 2000) {
     commentValidations.clear();
   }
-  const validation = commentValidator(party).catch((error: unknown) => (error instanceof Error ? error.message : 'the comment could not be validated'));
+  const validation = commentValidator(party, community).catch((error: unknown) => (error instanceof Error ? error.message : 'the comment could not be validated'));
   commentValidations.set(key, validation);
   return validation;
 };
@@ -654,10 +693,10 @@ export const getPartyKeyAddress = (party: TipParty | undefined): string | undefi
 // The addresses a publication's author has proven, in ascending order of their author.wallets key.
 // Every entry whose proof verifies counts, whatever its key: the key is a label the author chose,
 // and the proof shows control of the address on every chain where the same key controls it.
-export const getProvenWalletAddresses = async (party: TipParty | undefined, nowSeconds?: number): Promise<string[]> => {
+export const getProvenWalletAddresses = async (party: TipParty | undefined, nowSeconds?: number, community?: Community): Promise<string[]> => {
   const wallets = party?.author?.wallets;
   const keyAddress = getPartyKeyAddress(party);
-  if (!wallets || typeof wallets !== 'object' || !keyAddress || (await getPartyValidationError(party))) {
+  if (!wallets || typeof wallets !== 'object' || !keyAddress || (await getPartyValidationError(party, community))) {
     return [];
   }
   // code unit order, so every client sorts the same way
@@ -676,9 +715,14 @@ export const getProvenWalletAddresses = async (party: TipParty | undefined, nowS
 // no wallet, and then the author can't be tipped.
 // `excluded` are addresses the tipper has proven too: tipping/v1 rejects a tip whose recipient is also
 // one of the tipper's wallets, so those are skipped.
-export const getTipRecipientAddress = async (party: TipParty | undefined, nowSeconds?: number, excluded: string[] = []): Promise<string | undefined> => {
+export const getTipRecipientAddress = async (
+  party: TipParty | undefined,
+  nowSeconds?: number,
+  excluded: string[] = [],
+  community?: Community,
+): Promise<string | undefined> => {
   const isExcluded = (address: unknown) => typeof address === 'string' && excluded.some((other) => other.toLowerCase() === address.toLowerCase());
-  if (await getPartyValidationError(party)) {
+  if (await getPartyValidationError(party, community)) {
     return undefined;
   }
   const wallets = party?.author?.wallets;
@@ -686,7 +730,7 @@ export const getTipRecipientAddress = async (party: TipParty | undefined, nowSec
   if (eth && !isExcluded((eth as WalletProof).address) && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
     return (eth as WalletProof).address;
   }
-  return (await getProvenWalletAddresses(party, nowSeconds)).find((address) => !isExcluded(address));
+  return (await getProvenWalletAddresses(party, nowSeconds, community)).find((address) => !isExcluded(address));
 };
 
 const includesAddress = (addresses: string[], address: string): boolean => addresses.some((proven) => proven.toLowerCase() === address.toLowerCase());
@@ -721,7 +765,7 @@ export const getTipCheckError = (check: TipCheck): string | undefined =>
 // - the tip's sender is an address the tipper has proven,
 // - the tip's receiver is an address the tipped author has proven.
 // All of it is offline. Whether the transaction exists is the community's word, not checked here.
-export const checkTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<TipCheck | undefined> => {
+export const checkTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number, community?: Community): Promise<TipCheck | undefined> => {
   const tip = getTip(reply);
   if (!tip) {
     return undefined;
@@ -729,18 +773,21 @@ export const checkTip = async (reply: TipParty | undefined, parent: TipParty | u
   if (!parent || typeof parent.cid !== 'string' || reply?.parentCid !== parent.cid) {
     return { tip, isReplyToParent: false, senderProven: false, receiverProven: false };
   }
-  const [tipperAddresses, recipientAddresses] = await Promise.all([getProvenWalletAddresses(reply, nowSeconds), getProvenWalletAddresses(parent, nowSeconds)]);
+  const [tipperAddresses, recipientAddresses] = await Promise.all([
+    getProvenWalletAddresses(reply, nowSeconds, community),
+    getProvenWalletAddresses(parent, nowSeconds, community),
+  ]);
   return { tip, isReplyToParent: true, senderProven: includesAddress(tipperAddresses, tip.from), receiverProven: includesAddress(recipientAddresses, tip.to) };
 };
 
 // The tip a reply carries once it verifies, or undefined.
-export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number): Promise<Tip | undefined> => {
-  const check = await checkTip(reply, parent, nowSeconds);
+export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | undefined, nowSeconds?: number, community?: Community): Promise<Tip | undefined> => {
+  const check = await checkTip(reply, parent, nowSeconds, community);
   return check && !getTipCheckError(check) ? check.tip : undefined;
 };
 
 // everything verifyTip reads, so the same inputs give the same promise and changed ones a new check
-const getVerifiedTipKey = (reply: TipParty, parent: TipParty): string | undefined => {
+const getVerifiedTipKey = (reply: TipParty, parent: TipParty, community?: Community): string | undefined => {
   try {
     return JSON.stringify([
       reply.cid,
@@ -753,6 +800,9 @@ const getVerifiedTipKey = (reply: TipParty, parent: TipParty): string | undefine
       parent.author?.wallets,
       parent.signature?.publicKey,
       getRawUpdateSignature(parent),
+      community?.publicKey,
+      community?.name,
+      community?.signature?.publicKey,
     ]);
   } catch {
     return undefined;
@@ -776,17 +826,17 @@ const remember = <Value>(cache: Map<string, Value>, key: string, value: Value): 
 };
 
 // checkTip with the promise kept per input, so a component can read it with React's use()
-export const getTipCheck = (reply: TipParty | undefined, parent: TipParty | undefined): Promise<TipCheck | undefined> => {
-  const key = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent) : undefined;
+export const getTipCheck = (reply: TipParty | undefined, parent: TipParty | undefined, community?: Community): Promise<TipCheck | undefined> => {
+  const key = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent, community) : undefined;
   if (!key) {
     return noCheck;
   }
-  return tipChecks.get(key) ?? remember(tipChecks, key, checkTip(reply, parent));
+  return tipChecks.get(key) ?? remember(tipChecks, key, checkTip(reply, parent, undefined, community));
 };
 
 // verifyTip with the promise kept per input
-export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | undefined): Promise<Tip | undefined> => {
-  const key = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent) : undefined;
+export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | undefined, community?: Community): Promise<Tip | undefined> => {
+  const key = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent, community) : undefined;
   if (!key) {
     return noTip;
   }
@@ -795,7 +845,7 @@ export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | u
     remember(
       verifiedTips,
       key,
-      getTipCheck(reply, parent).then((check) => (check && !getTipCheckError(check) ? check.tip : undefined)),
+      getTipCheck(reply, parent, community).then((check) => (check && !getTipCheckError(check) ? check.tip : undefined)),
     )
   );
 };
@@ -808,19 +858,19 @@ export const getTipReplies = <Reply extends TipParty>(parent: TipParty | undefin
 // What a comment was tipped: the verified tips on its loaded replies, summed per chain and token. A community
 // cannot write to the tipped comment's own update, so this is the only total there is, and it
 // covers only the replies the client has loaded. A tip that fails verifyTip is left out.
-export const getVerifiedTipTotals = (parent: TipParty | undefined, replies: (TipParty | undefined)[] | undefined): Promise<TipTotal[]> => {
+export const getVerifiedTipTotals = (parent: TipParty | undefined, replies: (TipParty | undefined)[] | undefined, community?: Community): Promise<TipTotal[]> => {
   const tipReplies = getTipReplies(parent, replies);
   if (!parent || !tipReplies.length) {
     return noTotals;
   }
-  const keys = tipReplies.map((reply) => getVerifiedTipKey(reply, parent));
+  const keys = tipReplies.map((reply) => getVerifiedTipKey(reply, parent, community));
   const key = JSON.stringify(keys);
   return (
     verifiedTipTotals.get(key) ??
     remember(
       verifiedTipTotals,
       key,
-      Promise.all(tipReplies.map((reply) => getVerifiedTip(reply, parent))).then((tips) => sumTips(tips.flatMap((tip) => tip ?? []))),
+      Promise.all(tipReplies.map((reply) => getVerifiedTip(reply, parent, community))).then((tips) => sumTips(tips.flatMap((tip) => tip ?? []))),
     )
   );
 };

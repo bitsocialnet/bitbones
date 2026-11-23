@@ -19,6 +19,7 @@ import {
   getTipFeeConfigError,
   getTipRecipientAddress,
   setCommentValidator,
+  getSignedRecordMismatch,
   getTipSendPlan,
   getTipSettleOutcome,
   getTokenKey,
@@ -1170,4 +1171,26 @@ test('wallets on a comment that does not validate are unproven, and a comment is
   assert.deepEqual(await getProvenWalletAddresses(comment), []);
   assert.equal(await getTipRecipientAddress(comment), undefined);
   setCommentValidator(async () => undefined);
+});
+
+test('what tipping reads off a comment must be what its signed records say', () => {
+  const wallets = { eth: { address: '0x1', timestamp: 1, signature: { signature: '0x2', type: 'eip191' } } };
+  const raw = {
+    comment: { author: { wallets }, signature: { publicKey: 'key' }, parentCid: 'parent' },
+    commentUpdate: { tip: { txHash: '0xabc' }, signature: { signedPropertyNames: ['cid', 'tip'] } },
+  };
+  const party = { cid: 'reply', parentCid: 'parent', author: { wallets }, signature: { publicKey: 'key' }, tip: { txHash: '0xabc' }, raw };
+  assert.equal(getSignedRecordMismatch(party), undefined);
+  assert.equal(getSignedRecordMismatch({ ...party, tip: undefined }), undefined);
+  // rewrapped as a reply to another comment, with other wallets or another key
+  assert.match(getSignedRecordMismatch({ ...party, parentCid: 'other' }), /signed record/);
+  assert.match(getSignedRecordMismatch({ ...party, author: { wallets: {} } }), /signed record/);
+  assert.match(getSignedRecordMismatch({ ...party, signature: { publicKey: 'other' } }), /signed record/);
+  // a fabricated tip, and a tip the community's signature does not cover
+  assert.match(getSignedRecordMismatch({ ...party, tip: { txHash: '0xdef' } }), /signed update/);
+  assert.match(
+    getSignedRecordMismatch({ ...party, raw: { ...raw, commentUpdate: { ...raw.commentUpdate, signature: { signedPropertyNames: ['cid'] } } } }),
+    /signed update/,
+  );
+  assert.match(getSignedRecordMismatch({ ...party, raw: undefined }), /signed record/);
 });
