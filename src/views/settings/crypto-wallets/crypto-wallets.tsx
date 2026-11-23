@@ -72,7 +72,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
   };
 
   const walletsInputs = walletsArray.map((wallet, index) => {
-    const blockExplorerUrl = wallet.chainTicker === 'sol' ? 'https://solscan.io/verifiedsignatures' : 'https://etherscan.io/verifiedSignatures';
+    const blockExplorerUrl = 'https://etherscan.io/verifiedSignatures';
     return (
       <div>
         <input onChange={(e) => setWalletsArrayProperty(index, 'chainTicker', e.target.value)} value={wallet.chainTicker} placeholder='chain ticker e.g. eth, matic...' />
@@ -154,23 +154,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       if (!wallet.timestamp) {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
-      // a wallet linked with another signature type, such as a sol one, is not verified here: it keeps its type
-      // a new sol row has no saved entry, so its type comes from the ticker, as the solscan link does. A saved
-      // entry keeps its own type, even eip191 under a sol ticker.
-      const otherType =
-        savedWallet?.signature?.type && savedWallet.signature.type !== walletSignatureType
-          ? savedWallet.signature.type
-          : !savedWallet && wallet.chainTicker === 'sol'
-            ? 'sol'
-            : undefined;
-      if (otherType) {
-        wallets[wallet.chainTicker] = {
-          address: wallet.address.trim(),
-          timestamp: wallet.timestamp,
-          signature: { signature: wallet.signature.trim(), type: otherType },
-        };
-        continue;
-      }
+      // an edited row is a new proof, signed in this form, so it is checked as eip191; a row left as it was keeps its entry above
       // eip191 is the only proof a community accepts
       // a pasted signature may have v as 0 or 1, or a high s: store it in the one encoding a proof may have
       const signature = normalizeWalletSignature(wallet.signature.trim()) ?? wallet.signature.trim();
