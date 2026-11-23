@@ -154,16 +154,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       if (!wallet.timestamp) {
         return alert(`${wallet.chainTicker} missing timestamp, must click "copy message to sign" again and resign`);
       }
-      // a saved wallet linked with another signature type (e.g. imported with the account) is not verified here: it keeps its type
-      const otherType = savedWallet?.signature?.type && savedWallet.signature.type !== walletSignatureType ? savedWallet.signature.type : undefined;
-      if (otherType) {
-        wallets[wallet.chainTicker] = {
-          address: wallet.address.trim(),
-          timestamp: wallet.timestamp,
-          signature: { signature: wallet.signature.trim(), type: otherType },
-        };
-        continue;
-      }
+      // an edited row is a new proof, signed in this form, so it is checked as eip191; a row left as it was keeps its entry above
       // eip191 is the only proof a community accepts
       // a pasted signature may have v as 0 or 1, or a high s: store it in the one encoding a proof may have
       const signature = normalizeWalletSignature(wallet.signature.trim()) ?? wallet.signature.trim();
