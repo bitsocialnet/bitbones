@@ -41,6 +41,7 @@ import {
   walletTimestampAllowanceSeconds,
   getFlowAfterSettle,
   getFlowAfterStorageChange,
+  getDecimalsInputIssue,
   isSameTip,
   shouldPublishClaim,
   writePendingTip,
@@ -1127,4 +1128,17 @@ test('a tip reply already published before a reload is not published again by it
   assert.equal(shouldPublishClaim('0xbb', new Set(), []), true);
   // this page published it already
   assert.equal(shouldPublishClaim('0xbb', new Set(['0xbb']), []), false);
+});
+
+test('the reason an ERC-20 amount can not be typed names a missing RPC url, not a wait', () => {
+  const token = { type: 'erc20', chainId: 8453 };
+  // no RPC for the chain: waiting never helps
+  assert.match(getDecimalsInputIssue(token, undefined, undefined), /no RPC url for chain id 8453/);
+  // an RPC that did not answer: a retry can help
+  assert.match(getDecimalsInputIssue(token, 'https://rpc.example', undefined), /try again/);
+  // nothing in the way
+  assert.equal(getDecimalsInputIssue(token, undefined, 6), undefined);
+  assert.equal(getDecimalsInputIssue(token, 'https://rpc.example', 6), undefined);
+  assert.equal(getDecimalsInputIssue({ type: 'native', chainId: 1 }, undefined, undefined), undefined);
+  assert.equal(getDecimalsInputIssue({ type: 'erc721', chainId: 1 }, undefined, undefined), undefined);
 });

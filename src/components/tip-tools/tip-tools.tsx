@@ -3,6 +3,7 @@ import { useAccount, useComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import {
   formatTokenAmount,
+  getDecimalsInputIssue,
   getParentBindingSuffix,
   getProvenWalletAddresses,
   getRequiredFee,
@@ -438,7 +439,8 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
   // An NFT is tipped by its token id; a fungible amount is typed in whole tokens. When a token's decimals
   // could not be read no amount is parsed: reading it as base units and then as whole tokens once a later
   // read succeeds would change what the same typed number means.
-  const decimalsUnknown = token.type === 'erc20' && decimals === undefined;
+  const decimalsIssue = getDecimalsInputIssue(token, rpcUrl, decimals);
+  const decimalsUnknown = decimalsIssue !== undefined;
   const amountOrTokenId =
     token.type === 'erc721'
       ? /^\d+$/.test(amountText.trim())
@@ -448,7 +450,7 @@ const LoadedTipInputs = ({ config, tokens, busy, sendTip }: TipInputsProps) => {
         ? undefined
         : parseTokenAmount(amountText, decimals ?? 0);
   const inputError = decimalsUnknown
-    ? "the token's decimals could not be read, so an amount can't be typed yet: wait a few seconds and try again"
+    ? decimalsIssue
     : token.type === 'erc721'
       ? amountOrTokenId === undefined
         ? 'invalid token id'

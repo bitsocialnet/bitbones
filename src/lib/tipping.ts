@@ -905,3 +905,14 @@ export const getFlowAfterSettle = <T extends { txHash?: string; feeTxHash?: stri
 // this page published, and `storedPublished` what any page of this browser published before.
 export const shouldPublishClaim = (txHash: string, publishedThisSession: ReadonlySet<string>, storedPublished: readonly string[]): boolean =>
   !publishedThisSession.has(txHash) && !storedPublished.includes(txHash);
+
+// Why an ERC-20 amount can't be typed yet, or undefined when it can. Without its decimals an amount in
+// whole tokens means nothing. A chain with no RPC url is named as that, since waiting never helps.
+export const getDecimalsInputIssue = (token: { type: string; chainId: number }, rpcUrl: string | undefined, decimals: number | undefined): string | undefined => {
+  if (token.type !== 'erc20' || decimals !== undefined) {
+    return undefined;
+  }
+  return rpcUrl
+    ? "the token's decimals could not be read, so an amount can't be typed yet: wait a few seconds and try again"
+    : `no RPC url for chain id ${token.chainId}, set one in settings`;
+};
