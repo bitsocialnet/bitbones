@@ -510,6 +510,9 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   setStatus(parentCid, 'linking the in-app wallet...');
   await ensureInAppWallet(account);
 
+  // `mined`, `feeFailed` and `accepted` describe the previous record on this comment, not the one about to
+  // be saved. Left over, they show recovery text for a tip nothing was signed for, or hide its resend controls.
+  const resetFlags = <T extends Record<string, boolean | undefined>>(flags: T): T => ({ ...flags, [parentCid]: false });
   const saved = useTipStore.getState().setPendingTip(parentCid, {
     accountId: account?.id,
     communityAddress: comment.communityAddress,
@@ -523,6 +526,7 @@ const start = async (account: Account | undefined, comment: Comment, config: Tip
   if (!saved) {
     throw Error("the tip could not be saved in this browser's storage, so nothing was sent");
   }
+  useTipStore.setState((state) => ({ mined: resetFlags(state.mined), feeFailed: resetFlags(state.feeFailed), accepted: resetFlags(state.accepted) }));
   await settle(account, parentCid);
 };
 

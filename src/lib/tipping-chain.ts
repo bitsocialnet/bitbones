@@ -324,6 +324,10 @@ export const waitForTransaction = async (rpcUrl: string, hash: string, expectedT
       (log) =>
         log.address.toLowerCase() === expectedTransfer.token.toLowerCase() &&
         log.topics[0] === transferTopic &&
+        // an ERC-20 Transfer has 3 topics and its amount in data; an ERC-721-shaped log (4 topics, or empty
+        // data) must be skipped, not decoded: BigInt('0x') throws and would make the wait indeterminate
+        log.topics.length === 3 &&
+        log.data !== '0x' &&
         topicAddress(log.topics[2]) === expectedTransfer.to.toLowerCase() &&
         BigInt(log.data) >= expectedTransfer.amount,
     )
