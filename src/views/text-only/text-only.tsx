@@ -6,6 +6,7 @@ import { Virtuoso, type StateSnapshot, type VirtuosoHandle } from 'react-virtuos
 import TextOnlyPost from '../../components/text-only-post';
 import { useParams } from 'react-router-dom';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
+import { formatLoadError, getFeedLoadError } from '../../lib/load-errors';
 
 const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
@@ -21,14 +22,15 @@ function TextOnly() {
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'hot';
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments });
+  const { feed, hasMore, loadMore, state: feedState } = useFeed({ communities, sortType, accountComments });
+  const feedLoadError = getFeedLoadError(feedState);
 
   let Footer;
   if (feed?.length === 0) {
     Footer = NoPosts;
   }
   if (hasMore) {
-    Footer = Loading;
+    Footer = feedLoadError ? () => formatLoadError(feedLoadError) : Loading;
   }
 
   // save last virtuoso state on each scroll

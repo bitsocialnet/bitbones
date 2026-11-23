@@ -10,15 +10,24 @@
   text-transform: uppercase;
 }
 
-.loading {
-  color: var(--warn);
+.loading,
+.failed {
   text-transform: none;
   letter-spacing: 0;
   overflow-wrap: anywhere;
+}
+
+.loading {
+  color: var(--warn);
 }
 
 .feedFooter {
   padding: 12px;
   color: var(--dim);
   overflow-wrap: anywhere;
+}
+
+/* after .feedFooter, which a failed footer also has */
+.failed {
+  color: var(--error);
 }

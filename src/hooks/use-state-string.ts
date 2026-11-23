@@ -45,9 +45,10 @@ const useStateString = (commentOrCommunity?: Comment | Community | false): strin
     }
 
     // fallback to comment or community state when possible. a community's `state` stays 'succeeded'
-    // while cached data exists, so its refresh lifecycle lives on `syncState` instead.
+    // while cached data exists, so its refresh lifecycle lives on `syncState` instead. a failed load or
+    // publication is not a loading state, the views show its error instead
     const lifecycleState = isCommunity ? target?.syncState : target?.state;
-    if (!stateString && target && lifecycleState !== 'succeeded') {
+    if (!stateString && target && lifecycleState !== 'succeeded' && target.state !== 'failed') {
       if (target.publishingState && target.publishingState !== 'stopped' && target.publishingState !== 'succeeded') {
         stateString = target.publishingState;
       } else if (target.updatingState && target.updatingState !== 'stopped' && target.updatingState !== 'succeeded') {

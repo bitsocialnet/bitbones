@@ -6,6 +6,7 @@ import { Virtuoso, type StateSnapshot, type VirtuosoHandle } from 'react-virtuos
 import BoardPost from '../../components/board-post';
 import { useParams } from 'react-router-dom';
 import { useCommunityIdentifiers } from '../../hooks/use-community-identifier';
+import { formatLoadError, getFeedLoadError } from '../../lib/load-errors';
 
 const lastVirtuosoStates: Record<string, StateSnapshot> = {};
 
@@ -20,9 +21,10 @@ function Board() {
   const [listSource] = useDefaultList();
   const sortType = params?.sortType || 'active';
   const communities = useCommunityIdentifiers(communityAddresses);
-  const { feed, hasMore, loadMore } = useFeed({ communities, sortType, accountComments });
+  const { feed, hasMore, loadMore, state: feedState } = useFeed({ communities, sortType, accountComments });
+  const feedLoadError = getFeedLoadError(feedState);
 
-  const Footer = hasMore ? Loading : undefined;
+  const Footer = hasMore ? (feedLoadError ? () => formatLoadError(feedLoadError) : Loading) : undefined;
 
   // save last virtuoso state on each scroll
   const virtuosoRef = useRef<VirtuosoHandle>(null);

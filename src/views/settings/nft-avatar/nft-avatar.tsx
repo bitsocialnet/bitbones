@@ -83,9 +83,11 @@ const NftAvatarForm = ({ account }: NftAvatarFormProps) => {
     id: tokenId || account?.author?.avatar?.id,
   };
   // the state starts from the saved signature, so once it is dropped the preview must not fall back to it
+  // an unchanged saved signature keeps its own type, a newly pasted one is eip191
+  const savedSignature = account?.author?.avatar?.signature;
   avatar.signature = {
     signature,
-    type: 'eip191',
+    type: savedSignature && savedSignature.signature === signature ? savedSignature.type : 'eip191',
   };
 
   const save = () => {

@@ -4,6 +4,7 @@ import useDefaultCommunityAddresses from '../../hooks/use-default-community-addr
 import useDefaultList from '../../hooks/use-default-list';
 import { useCommunityIdentifier, useCommunityIdentifiers } from '../../hooks/use-community-identifier';
 import utils from '../../lib/utils';
+import { formatLoadError, getCommunityLoadError } from '../../lib/load-errors';
 import styles from './stats.module.css';
 
 // the periods useCommunityStats reports, as in its field names (hourActiveUserCount, dayPostCount...)
@@ -20,13 +21,18 @@ const StatsRow = ({ communityAddress, period }: StatsRowProps) => {
   const community = useCommunity(communityIdentifier ? { community: communityIdentifier } : undefined);
   const stats = useCommunityStats(communityIdentifier ? { community: communityIdentifier } : undefined);
   const roleCount = community?.roles ? Object.keys(community.roles).length : undefined;
+  // a failed load can end in updatingState 'stopped', so it shows the hook's 'failed' state, and the
+  // error of a failed or retried first load is the cell's tooltip
+  const loadError = getCommunityLoadError(community);
   return (
     <tr>
       <td>
         <Link to={`/${communityAddress}`}>{communityAddress}</Link>
       </td>
       <td>{community?.title}</td>
-      <td className={community?.updatedAt ? undefined : styles.loading}>{community?.updatingState || community?.state}</td>
+      <td className={community?.updatedAt ? undefined : loadError?.failed ? styles.failed : styles.loading} title={loadError ? formatLoadError(loadError) : undefined}>
+        {loadError?.failed ? community.state : community?.updatingState || community?.state}
+      </td>
       <td>{community?.updatedAt ? utils.getFormattedTime(community.updatedAt) : ''}</td>
       <td className={styles.number}>{stats?.[`${period}ActiveUserCount`]}</td>
       <td className={styles.number}>{stats?.[`${period}PostCount`]}</td>

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import { useClientsStates } from '@bitsocial/bitsocial-react-hooks';
-import type { Comment, Community, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
+import { useAccountComment, useClientsStates } from '@bitsocial/bitsocial-react-hooks';
+import type { Comment, Community, UseCommunityResult, UseFeedResult } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
 import styles from './protocol-details.module.css';
 
@@ -89,15 +89,23 @@ interface CommentLineProps {
 
 // one mono line under a feed row or reply when verbose is on, the inspector has the rest
 export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
+  // only the account's own comment has an index, and it has no cid until it is published. A feed or
+  // reply row holds a snapshot of it whose state is pkc-js's, so whether it is still pending or its
+  // publication failed comes from useAccountComment, the state the reply rows and pending post label.
+  const accountCommentIndex = comment && !comment.cid && typeof comment.index === 'number' ? comment.index : undefined;
+  const { state: accountCommentState } = useAccountComment(accountCommentIndex !== undefined ? { commentIndex: accountCommentIndex } : undefined);
   if (!comment) {
     return null;
   }
+  const publishingState = accountCommentIndex === undefined ? undefined : accountCommentState === 'failed' ? 'failed' : 'pending';
   const updated = updatedComment || comment;
   const parts: [string, ReactNode][] = [
-    ['cid', comment.cid ? utils.getShortCid(comment.cid) : `pending #${comment.index}`],
+    // a comment that failed to load before it had a cid has no index, so it is neither pending nor failed
+    ['cid', comment.cid ? utils.getShortCid(comment.cid) : publishingState && `${publishingState} #${accountCommentIndex}`],
     ['v', comment.protocolVersion],
     ['sig', comment.signature?.type],
-    ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : 'none yet'],
+    // a failed publication never gets a CommentUpdate
+    ['updatedAt', updated.updatedAt ? `${utils.getShortAge(updated.updatedAt)} ago` : publishingState === 'failed' ? 'none' : 'none yet'],
     ['votes', typeof updated.upvoteCount === 'number' ? `+${updated.upvoteCount} -${updated.downvoteCount || 0}` : undefined],
     ['flags', utils.getCommentFlags(updated)],
   ];
@@ -115,7 +123,7 @@ export const CommentLine = ({ comment, updatedComment }: CommentLineProps) => {
 };
 
 interface CommunityDetailsProps {
-  community?: Community;
+  community?: UseCommunityResult;
 }
 
 export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
@@ -131,6 +139,12 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
           { name: 'address', value: community.address },
           { name: 'publicKey', value: community.publicKey },
           { name: 'updatingState', value: community.updatingState },
+          // state is 'failed' while there is no record and the load failed non-retriably; firstLoadFailed
+          // also covers an unreachable community that pkc-js keeps retrying, which keeps a loading state
+          { name: 'state', value: community.state },
+          { name: 'firstLoadFailed', value: community.firstLoadFailed ? 'true' : undefined },
+          { name: 'error', value: community.error?.message },
+          { name: 'lastRetriableError', value: community.lastRetriableError?.message },
           { name: 'updatedAt', value: community.updatedAt ? <Timestamp timestamp={community.updatedAt} /> : undefined },
           { name: 'createdAt', value: community.createdAt ? <Timestamp timestamp={community.createdAt} /> : undefined },
           { name: 'protocolVersion', value: community.protocolVersion },
@@ -148,7 +162,7 @@ export const CommunityDetails = ({ community }: CommunityDetailsProps) => {
 };
 
 interface FeedDetailsProps {
-  feedResult: UseFeedResult & { bufferedFeed?: Comment[] };
+  feedResult: UseFeedResult;
   communityCount: number;
   sortType: string;
   newerThan?: number;
@@ -169,6 +183,7 @@ export const FeedDetails = ({ feedResult, communityCount, sortType, newerThan, s
           { name: 'feed', value: `${feed?.length || 0} posts` },
           { name: 'bufferedFeed', value: `${bufferedFeed?.length || 0} posts` },
           { name: 'hasMore', value: String(hasMore) },
+          { name: 'state', value: feedResult.state },
           { name: 'communityKeysWithMore', value: communityKeysWithMore?.length || undefined },
           { name: 'communityKeysWithNewerPosts', value: communityKeysWithNewerPosts?.length || undefined },
           { name: 'communityKeysWithUnavailableSort', value: communityKeysWithUnavailableSort?.length ? communityKeysWithUnavailableSort.join(', ') : undefined },

@@ -1,6 +1,5 @@
 import { useMemo, useRef, useEffect } from 'react';
 import { useFeed } from '@bitsocial/bitsocial-react-hooks';
-import type { FeedResult } from '../../lib/feed-result';
 import { Virtuoso } from 'react-virtuoso';
 import type { Components, StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import { useParams } from 'react-router-dom';
@@ -31,16 +30,16 @@ function Community() {
   // single community feeds only need the time filter for sort types top and controversial
   const newerThan = sortType === 'topAll' || sortType === 'controversialAll' ? timeFilterSeconds : undefined;
   const communities = useCommunityIdentifiers(communityAddresses);
-  const feedResult = useFeed({ communities, sortType, newerThan, accountComments }) as FeedResult;
+  const feedResult = useFeed({ communities, sortType, newerThan, accountComments });
   const { feed, updatedFeed, hasMore, loadMore } = feedResult;
-  const loadingStateString = useFeedStateString(communityAddresses) || 'loading...';
+  const { stateString, failed } = useFeedStateString(communityAddresses, feedResult.state);
 
   let Footer: Components['Footer'];
   if (feed?.length === 0) {
     Footer = NoPosts;
   }
   if (hasMore) {
-    Footer = () => <FeedFooter>{loadingStateString}</FeedFooter>;
+    Footer = () => <FeedFooter failed={failed}>{stateString}</FeedFooter>;
   }
 
   // save last virtuoso state on each scroll
@@ -67,11 +66,9 @@ function Community() {
     <Panes
       aside={<CommunityInfo communityAddress={communityAddress} />}
       asideTitle={communityAddress}
-      inspector={
-        <Inspector fallback={<FeedDetails feedResult={feedResult} communityCount={1} sortType={sortType} newerThan={newerThan} stateString={loadingStateString} />} />
-      }
+      inspector={<Inspector fallback={<FeedDetails feedResult={feedResult} communityCount={1} sortType={sortType} newerThan={newerThan} stateString={stateString} />} />}
     >
-      <FeedHeader feedResult={feedResult} sortType={sortType} timeFilterName={newerThan ? params.timeFilterName : undefined} stateString={loadingStateString} />
+      <FeedHeader feedResult={feedResult} sortType={sortType} timeFilterName={newerThan ? params.timeFilterName : undefined} stateString={stateString} failed={failed} />
       <Virtuoso
         increaseViewportBy={{ bottom: 1200, top: 600 }}
         totalCount={feed?.length || 0}

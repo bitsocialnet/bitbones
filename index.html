@@ -9,7 +9,19 @@
     <meta name="description" content="developer gui client for bitsocial that shows the protocol data behind every view" />
     <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
     <title>bitbones</title>
-
+    <script>
+      // The signed web release is also bundled with desktop and Android and can be self-hosted.
+      if (location.origin === 'https://bitbones.app' || location.origin === 'https://www.bitbones.app') {
+        window.va = window.va || function () {
+          (window.vaq = window.vaq || []).push(arguments);
+        };
+        // Hash routes can contain community names and content IDs. Count visits to the app shell.
+        window.va('beforeSend', (event) => ({ ...event, url: location.origin + '/' }));
+        const analytics = document.createElement('script');
+        analytics.src = '/_vercel/insights/script.js';
+        document.head.append(analytics);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
