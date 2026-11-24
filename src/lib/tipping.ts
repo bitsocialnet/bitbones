@@ -787,7 +787,7 @@ export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | 
 };
 
 // everything verifyTip reads, so the same inputs give the same promise and changed ones a new check
-const getVerifiedTipKey = (reply: TipParty, parent: TipParty, community?: Community): string | undefined => {
+export const getVerifiedTipKey = (reply: TipParty, parent: TipParty, community?: Community): string | undefined => {
   try {
     return JSON.stringify([
       reply.cid,

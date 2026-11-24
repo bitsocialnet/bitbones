@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useBlock, useAuthorAddress, useEditedComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
@@ -20,11 +21,13 @@ interface FeedPostProps {
   post?: Comment;
   updatedPost?: Comment;
   index?: number;
+  // a line of its own under the meta line, e.g. what the inbox knows about a tip the row claims
+  note?: ReactNode;
 }
 
 // one post in a feed: score, title, one meta line, the verbose protocol line, media collapsed behind [+].
 // clicking the row inspects it in the right pane.
-const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
+const FeedPost = ({ post, updatedPost, note }: FeedPostProps) => {
   if (!updatedPost) {
     updatedPost = post;
   }
@@ -108,6 +111,7 @@ const FeedPost = ({ post, updatedPost }: FeedPostProps) => {
             </button>
           )}
         </div>
+        {note && <div className={styles.note}>{note}</div>}
         {verbose && <CommentLine comment={post} updatedComment={updatedPost} />}
         <CommentMedia comment={post} />
       </div>

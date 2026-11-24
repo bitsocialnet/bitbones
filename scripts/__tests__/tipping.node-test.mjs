@@ -58,6 +58,16 @@ import {
   signTransfer,
   simulateTransfer,
 } from '../../src/lib/tipping-chain.ts';
+import {
+  finalityConfirmations,
+  getResultToStore,
+  getTipErrorReport,
+  getTipResultKey,
+  readStoredTipResults,
+  verifiedTipsStorageKey,
+  verifyCheckedTip,
+  writeStoredTipResult,
+} from '../../src/lib/tipping-verification.ts';
 
 const usdc = getAddress('0xa0b86991c6218b36c1d19d4a5e9eb0ce3606eb48');
 const dai = getAddress('0x6b175474e89094c44da98b954eedeac495271d0f');
@@ -709,10 +719,12 @@ const fail = (error) => {
   throw error;
 };
 
-const startChain = async ({ known = [], sendError, latestNonce = 0, callError, lookupError, receipt, receiptError, transaction } = {}) => {
+const startChain = async ({ known = [], sendError, latestNonce = 0, callError, lookupError, receipt, receiptError, transaction, head } = {}) => {
   const sent = [];
   const handlers = {
     eth_chainId: () => '0xaa36a7',
+    // the chain's head, served only where a test sets one
+    ...(head !== undefined && { eth_blockNumber: () => `0x${head.toString(16)}` }),
     eth_getBlockByNumber: () => ({
       number: '0x10',
       hash: `0x${'11'.repeat(32)}`,
@@ -1075,7 +1087,163 @@ test('checking a tip on chain: an RPC error is not "not mined", a 721 log is ski
   const batched = await checkTipOnChain(batch.url, { ...tip, fee: { txHash: hash, to: recipient, amount: 10n, token } }, [tipper], parentBinding);
   assert.equal(batched.tip.matchesTip, true);
   assert.equal(batched.fee.matchesTip, true);
+  // a chain whose head can't be read leaves the depth unknown, and the check itself stands
+  assert.equal(batched.confirmations, undefined);
   await batch.close();
+
+  // the transaction is in block 16: with the head at 27 it is 12 blocks deep, its own block counted
+  const receipt = { ...base, logs: [log([topic, pad(tipper), pad(recipient)], value)] };
+  const deep = await startChain({ receipt, transaction, head: 27 });
+  assert.equal((await checkTipOnChain(deep.url, tip, [tipper], parentBinding)).confirmations, 12);
+  await deep.close();
+  const unmined = await startChain({ transaction, head: 27 });
+  const missing = await checkTipOnChain(unmined.url, tip, [tipper], parentBinding);
+  assert.equal(missing.tip.mined, false);
+  assert.equal(missing.confirmations, undefined);
+  await unmined.close();
+});
+
+const fakeStorage = () => {
+  const items = new Map();
+  return { items, getItem: (key) => items.get(key) ?? null, setItem: (key, value) => items.set(key, value) };
+};
+
+const passedOnChain = { mined: true, succeeded: true, sentByTipper: true, hasBinding: true, matchesTip: true };
+
+test('what of an on-chain lookup is kept for good: a final pass or a final wrong fact, nothing that can still change', () => {
+  assert.equal(finalityConfirmations, 12);
+  assert.equal(getResultToStore(passedOnChain, 12), true);
+  // a shallow block can be reorganized away, and an unknown depth is not a deep one
+  assert.equal(getResultToStore(passedOnChain, 11), undefined);
+  assert.equal(getResultToStore(passedOnChain, undefined), undefined);
+  // a transaction that is not mined yet may be mined later
+  assert.equal(getResultToStore({ mined: false, succeeded: false, sentByTipper: false, hasBinding: false, matchesTip: false }, 12), undefined);
+  for (const fact of ['succeeded', 'sentByTipper', 'hasBinding', 'matchesTip']) {
+    const wrong = { ...passedOnChain, [fact]: false };
+    assert.deepEqual(getResultToStore(wrong, 12), wrong);
+    assert.equal(getResultToStore(wrong, 11), undefined);
+  }
+});
+
+test('a tip is shown after its wallet proofs and its transaction verify, and a final result is asked of the chain once', async () => {
+  const tip = {
+    chainId: 11155111,
+    txHash: `0x${'CD'.repeat(32)}`,
+    type: 'erc20',
+    token: usdc,
+    from: '0x4444444444444444444444444444444444444444',
+    to: feeRecipient,
+    amount: 100n,
+  };
+  const check = { tip, isReplyToParent: true, senderProven: true, receiverProven: true };
+  const rpcUrl = 'https://rpc.example/v2/secret-api-key';
+  const input = { check, replyCid: 'QmReply', parentCid: 'QmParent', rpcUrl };
+  const key = getTipResultKey(tip, 'QmReply', 'QmParent');
+  // the same tip whatever the case of its hex, and another one when the community rewrites it
+  assert.equal(getTipResultKey({ ...tip, txHash: tip.txHash.toLowerCase(), from: tip.from.toUpperCase().replace('0X', '0x') }, 'QmReply', 'QmParent'), key);
+  assert.notEqual(getTipResultKey({ ...tip, amount: 101n }, 'QmReply', 'QmParent'), key);
+  assert.notEqual(getTipResultKey({ ...tip, to: nft }, 'QmReply', 'QmParent'), key);
+  assert.notEqual(getTipResultKey(tip, 'QmOtherReply', 'QmParent'), key);
+  assert.notEqual(getTipResultKey(tip, 'QmReply', 'QmOtherParent'), key);
+
+  let calls = 0;
+  const chain = (result) => async (url) => {
+    calls += 1;
+    assert.equal(url, rpcUrl);
+    if (result instanceof Error) {
+      throw result;
+    }
+    return result;
+  };
+  const neverAsked = () => assert.fail('the chain was asked');
+
+  // wallet proofs that do not verify: the chain is not asked, and nothing is stored
+  let storage = fakeStorage();
+  const unproven = await verifyCheckedTip(
+    { ...input, check: { ...check, senderProven: false }, offlineError: 'the sender is not a wallet the tipper proved' },
+    neverAsked,
+    storage,
+  );
+  assert.equal(unproven.status, 'failed');
+  assert.equal(unproven.error, 'the sender is not a wallet the tipper proved');
+  assert.equal(unproven.onChain, undefined);
+  assert.equal(storage.items.size, 0);
+
+  // no RPC for the chain: the tip is neither shown nor failed
+  assert.deepEqual(await verifyCheckedTip({ ...input, rpcUrl: undefined }, neverAsked, storage), { status: 'no-rpc', tip, resultKey: key });
+
+  // a pass in a shallow block is shown, and asked again next time
+  assert.equal((await verifyCheckedTip(input, chain({ tip: passedOnChain, confirmations: 3 }), storage)).status, 'verified');
+  assert.equal(storage.items.size, 0);
+  assert.equal((await verifyCheckedTip(input, chain({ tip: passedOnChain }), storage)).status, 'verified');
+  assert.equal(storage.items.size, 0);
+  assert.equal(calls, 2);
+
+  // a final pass is stored, and from then on the chain is not asked, even without an RPC
+  assert.equal((await verifyCheckedTip(input, chain({ tip: passedOnChain, confirmations: 12 }), storage)).status, 'verified');
+  assert.deepEqual(JSON.parse(storage.items.get(verifiedTipsStorageKey)), { [key]: true });
+  assert.equal((await verifyCheckedTip({ ...input, rpcUrl: undefined }, neverAsked, storage)).status, 'verified');
+  // the wallet proofs are still checked before a stored pass is trusted
+  assert.equal((await verifyCheckedTip({ ...input, offlineError: 'the receiver is not a wallet the tipped author proved' }, neverAsked, storage)).status, 'failed');
+  // the unpaid fee of a tip does not keep it from being shown
+  storage = fakeStorage();
+  const unpaidFee = { tip: passedOnChain, fee: { ...passedOnChain, mined: false }, confirmations: 12 };
+  assert.equal((await verifyCheckedTip(input, chain(unpaidFee), storage)).status, 'verified');
+
+  // a transaction that is not found may still be mined: failed for now, and not stored
+  storage = fakeStorage();
+  const notMined = await verifyCheckedTip(input, chain({ tip: { ...passedOnChain, mined: false } }), storage);
+  assert.equal(notMined.status, 'failed');
+  assert.match(notMined.error, /not found/);
+  assert.equal(notMined.stored, false);
+  assert.equal(storage.items.size, 0);
+
+  // a wrong fact in a shallow block is failed and asked again; in a final block it is stored with what the chain said
+  const wrong = { ...passedOnChain, sentByTipper: false };
+  assert.equal((await verifyCheckedTip(input, chain({ tip: wrong, confirmations: 2 }), storage)).stored, false);
+  assert.equal(storage.items.size, 0);
+  const failed = await verifyCheckedTip(input, chain({ tip: { ...wrong, logIndexes: [0] }, confirmations: 40 }), storage);
+  assert.equal(failed.status, 'failed');
+  assert.match(failed.error, /not sent by a wallet the tipper proved/);
+  assert.equal(failed.stored, true);
+  assert.deepEqual(JSON.parse(storage.items.get(verifiedTipsStorageKey)), { [key]: wrong });
+  const again = await verifyCheckedTip({ ...input, rpcUrl: undefined }, neverAsked, storage);
+  assert.deepEqual(
+    { status: again.status, error: again.error, onChain: again.onChain, stored: again.stored },
+    { status: 'failed', error: failed.error, onChain: wrong, stored: true },
+  );
+
+  // a recheck forgets the stored failure, and the chain is asked again
+  writeStoredTipResult(key, undefined, storage);
+  assert.deepEqual(readStoredTipResults(storage), {});
+  assert.equal((await verifyCheckedTip(input, chain({ tip: passedOnChain, confirmations: 40 }), storage)).status, 'verified');
+  assert.deepEqual(readStoredTipResults(storage), { [key]: true });
+
+  // an RPC that could not answer says nothing about the tip, and its url is not repeated
+  storage = fakeStorage();
+  const unreachable = await verifyCheckedTip(input, chain(Error(`HTTP request failed.\nURL: ${rpcUrl}\nDetails: rate limited`)), storage);
+  assert.equal(unreachable.status, 'failed');
+  assert.equal(unreachable.error, 'could not check the chain: HTTP request failed.');
+  assert.equal(unreachable.stored, false);
+  assert.equal(storage.items.size, 0);
+  const report = getTipErrorReport(unreachable);
+  assert.doesNotMatch(report, /secret-api-key/);
+  assert.match(report, /rate limited/);
+  assert.deepEqual(JSON.parse(getTipErrorReport(failed)), {
+    error: failed.error,
+    tip: { chainId: tip.chainId, txHash: tip.txHash, type: 'erc20', token: usdc, from: tip.from, to: tip.to, amount: '100' },
+    checks: { isReplyToParent: true, senderProven: true, receiverProven: true, ...wrong },
+    storedResult: true,
+  });
+
+  // results another tab stored are kept, and entries that are not results are dropped
+  storage = fakeStorage();
+  storage.setItem(verifiedTipsStorageKey, JSON.stringify({ other: true, junk: 'yes', half: { mined: true } }));
+  assert.deepEqual(readStoredTipResults(storage), { other: true });
+  writeStoredTipResult(key, true, storage);
+  assert.deepEqual(JSON.parse(storage.items.get(verifiedTipsStorageKey)), { other: true, [key]: true });
+  storage.setItem(verifiedTipsStorageKey, 'not json');
+  assert.deepEqual(readStoredTipResults(storage), {});
 });
 
 test("another tab replacing a failed fee clears this tab's failed-fee state", () => {
