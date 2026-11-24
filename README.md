@@ -23,6 +23,7 @@ bitbones works like a browser's devtools for the [Bitsocial protocol](https://bi
 | Platform | Where | Notes |
 | --- | --- | --- |
 | Web | [bitbones.app](https://bitbones.app) | static client, content comes from peers |
+| Web, latest `master` | [bitbones-master.vercel.app](https://bitbones-master.vercel.app) | rebuilt on every push to `master`, may include unreleased changes |
 | Mac, Windows, Linux | [release page](https://github.com/bitsocialnet/bitbones/releases/latest) | runs a full peer-to-peer Bitsocial node and seeds automatically |
 | Android | [release page](https://github.com/bitsocialnet/bitbones/releases/latest) | |
 
