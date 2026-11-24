@@ -1,12 +1,14 @@
 import { Suspense, use } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuthorAddress, useComment } from '@bitsocial/bitsocial-react-hooks';
+import { useAuthorAddress, useBlock, useComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
 import utils from '../../lib/utils';
 import FeedPost from '../feed-post';
 import { TipChecking, TipVerificationNote, TokenAmount } from '../tip-tools';
 import useTippingConfig from '../../hooks/use-tipping-config';
 import { useTipVerification } from '../../hooks/use-tip-verification';
+import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
+import useInspectorAvailable from '../../hooks/use-inspector-available';
 import type { TippingConfig } from '../../lib/tipping';
 import styles from './tip-notification.module.css';
 
@@ -35,6 +37,10 @@ interface VerifiedTipNotificationProps {
 const VerifiedTipNotification = ({ reply, parent, config, notification, index }: VerifiedTipNotificationProps) => {
   const verification = use(useTipVerification(reply, parent, config.community));
   const { shortAuthorAddress } = useAuthorAddress({ comment: reply });
+  const { blocked: hidden } = useBlock({ cid: reply.cid });
+  const [inspectedComment, setInspectedComment] = useInspectedComment();
+  // without the inspector pane on screen, a click would select a row nothing shows
+  const inspectorAvailable = useInspectorAvailable();
   if (!verification) {
     return <FeedPost index={index} post={notification} />;
   }
@@ -45,8 +51,14 @@ const VerifiedTipNotification = ({ reply, parent, config, notification, index }:
   const threadLink = `/${reply.communityAddress}/comment/${reply.cid}`;
   const tipped = getExcerpt(parent.title) ?? getExcerpt(parent.content);
   const message = getExcerpt(reply.content);
+  const inspected = inspectorAvailable && isSameComment(inspectedComment, reply);
+  const inspect = () => setInspectedComment(reply);
   return (
-    <div className={styles.tipNotification}>
+    // the row click is a mouse shortcut, the inspect button below is the keyboard path
+    <div
+      className={[styles.tipNotification, inspected ? styles.inspected : undefined, hidden || reply.removed ? styles.hidden : undefined].join(' ')}
+      onClick={inspectorAvailable ? inspect : undefined}
+    >
       <div className={styles.headline}>
         <Link to={threadLink} className={styles.amount} title={`tip ${tip.txHash} on chain id ${tip.chainId} from ${tip.from} to ${tip.to}`}>
           + tipped <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} />
@@ -55,6 +67,11 @@ const VerifiedTipNotification = ({ reply, parent, config, notification, index }:
         <span className={styles.meta}>
           <Link to={`/author/${reply.author?.address}/comment/${reply.cid}`}>u/{shortAuthorAddress}</Link> · {utils.getFormattedTime(reply.timestamp)} · to{' '}
           <Link to={`/${reply.communityAddress}`}>{reply.shortCommunityAddress || reply.communityAddress}</Link>
+          {inspectorAvailable && (
+            <button type='button' className={styles.inspect} onClick={inspect}>
+              inspect
+            </button>
+          )}
         </span>
       </div>
       <div className={styles.meta}>

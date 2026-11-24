@@ -69,9 +69,11 @@ const getVerificationEntry = (
       getTipCheck(reply, parent, community)
         .then((check) =>
           check
-            ? verifyCheckedTip({ check, offlineError: getTipCheckError(check), replyCid: String(reply.cid), parentCid: String(parent.cid), rpcUrl }, async (rpcUrl) =>
-                // the transaction has to be sent by one of the tipper's proven wallets, and end with the binding of the tipped comment
-                checkTipOnChain(rpcUrl, check.tip, await getProvenWalletAddresses(reply, undefined, community), getParentBindingSuffix(String(parent.cid))),
+            ? verifyCheckedTip(
+                { check, offlineError: getTipCheckError(check), replyCid: String(reply.cid), parentCid: String(parent.cid), rpcUrl },
+                async (rpcUrl, tip) =>
+                  // the transaction has to be sent by one of the tipper's proven wallets, and end with the binding of the tipped comment
+                  checkTipOnChain(rpcUrl, tip, await getProvenWalletAddresses(reply, undefined, community), getParentBindingSuffix(String(parent.cid))),
               )
             : undefined,
         )

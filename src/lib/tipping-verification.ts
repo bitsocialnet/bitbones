@@ -186,7 +186,7 @@ const withoutRpcUrl = (message: string, rpcUrl: string): string => message.split
 // and the community, and the tip reached its receiver either way. Never rejects.
 export const verifyCheckedTip = async (
   { check, offlineError, replyCid, parentCid, rpcUrl }: CheckedTip,
-  checkOnChain: (rpcUrl: string) => Promise<OnChainTipResult>,
+  checkOnChain: (rpcUrl: string, tip: Tip) => Promise<OnChainTipResult>,
   storage: StorageLike | undefined = getDefaultStorage(),
 ): Promise<TipVerification> => {
   const { tip } = check;
@@ -215,7 +215,9 @@ export const verifyCheckedTip = async (
   }
   let result: OnChainTipResult;
   try {
-    result = await checkOnChain(rpcUrl);
+    // the fee is left out of the lookup too: a fee transaction that can't be read must not fail the tip
+    const { fee: _fee, ...tipWithoutFee } = tip;
+    result = await checkOnChain(rpcUrl, tipWithoutFee);
   } catch (error) {
     const rpcError = withoutRpcUrl(error instanceof Error ? error.message : String(error), rpcUrl);
     return failed({ error: `could not check the chain: ${rpcError.split('\n')[0]}`, rpcError, stored: false });

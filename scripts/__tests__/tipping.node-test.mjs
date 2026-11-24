@@ -1147,9 +1147,10 @@ test('a tip is shown after its wallet proofs and its transaction verify, and a f
   assert.notEqual(getTipResultKey(tip, 'QmReply', 'QmOtherParent'), key);
 
   let calls = 0;
-  const chain = (result) => async (url) => {
+  const chain = (result) => async (url, looked) => {
     calls += 1;
     assert.equal(url, rpcUrl);
+    assert.deepEqual(looked, tip);
     if (result instanceof Error) {
       throw result;
     }
@@ -1189,6 +1190,9 @@ test('a tip is shown after its wallet proofs and its transaction verify, and a f
   storage = fakeStorage();
   const unpaidFee = { tip: passedOnChain, fee: { ...passedOnChain, mined: false }, confirmations: 12 };
   assert.equal((await verifyCheckedTip(input, chain(unpaidFee), storage)).status, 'verified');
+  // and its fee is not looked up at all, so a fee transaction that can't be read does not fail the tip
+  const withFee = { ...check, tip: { ...tip, fee: { txHash: 'not a hash', to: feeRecipient, amount: 1n } } };
+  assert.equal((await verifyCheckedTip({ ...input, check: withFee }, chain({ tip: passedOnChain, confirmations: 12 }), fakeStorage())).status, 'verified');
 
   // a transaction that is not found may still be mined: failed for now, and not stored
   storage = fakeStorage();
