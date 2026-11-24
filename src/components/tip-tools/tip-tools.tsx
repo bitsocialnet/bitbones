@@ -7,7 +7,7 @@ import {
   getDecimalsInputIssue,
   getParentBindingSuffix,
   getProvenWalletAddresses,
-  getRepeatedTipCids,
+  getEarlierTipClaims,
   getRequiredFee,
   getTip,
   getTipAmountError,
@@ -20,7 +20,7 @@ import {
   walletSignatureType,
 } from '../../lib/tipping';
 import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
-import '../../lib/tipping-comment';
+import { withLatestTip } from '../../lib/tipping-comment';
 import { checkTipOnChain, getBalanceOnce, getTokenInfo } from '../../lib/tipping-chain';
 import type { OnChainTipResult } from '../../lib/tipping-chain';
 import { getOnChainError, getTipErrorReport } from '../../lib/tipping-verification';
@@ -57,12 +57,6 @@ export const TokenAmount = (props: TokenAmountProps) => (
   </Suspense>
 );
 
-// The reply as its author signed it, with the tip from its live update when one has arrived. The
-// wallets and the key are read from the signed comment, and only the tip from the update, together
-// with the update's signed record, which is what the tip is checked against.
-const withLatestTip = (comment: Comment | undefined, updatedComment: Comment | undefined): Comment | undefined =>
-  comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip, raw: updatedComment.raw ?? comment.raw } : comment;
-
 // the click on a row selects it for the inspector
 const stopPropagation = (event: MouseEvent) => event.stopPropagation();
 
@@ -75,6 +69,13 @@ interface TipVerificationNoteProps {
 // no amount, as nothing about the tip is established.
 export const TipVerificationNote = ({ verification }: TipVerificationNoteProps) => {
   const [copied, setCopied] = useState(false);
+  if (verification.status === 'repeated') {
+    return (
+      <span className={styles.dim} title='one payment counts as one tip, and the earliest reply whose claim verifies keeps it'>
+        repeats a tip an earlier reply holds
+      </span>
+    );
+  }
   if (verification.status === 'no-rpc') {
     return (
       <span className={styles.dim} onClick={stopPropagation}>
@@ -106,34 +107,28 @@ export const TipVerificationNote = ({ verification }: TipVerificationNoteProps) 
 // shown while a tip's wallet proofs and its transaction are being checked
 export const TipChecking = () => <span className={styles.dim}>checking tip…</span>;
 
-// shown on a reply whose tip names a transaction an earlier reply to the same comment already claims
-export const TipRepeated = () => (
-  <span className={styles.dim} title='one payment counts as one tip, and the earliest reply that claims it keeps it'>
-    repeats a tip an earlier reply claims
-  </span>
-);
-
 interface TipLineProps {
   // the community's tipping options: a tip is shown only where the community advertises tipping/v1
   config?: TippingConfig;
   comment?: Comment;
   // the live version of the comment, where one has arrived
   updatedComment?: Comment;
-  // an earlier reply to the same comment claims the same transaction
-  repeated?: boolean;
+  // the earlier replies to the same comment that claim the same transaction, from getTipRivals
+  rivals?: Comment[];
 }
 
 interface VerifiedTipLineProps {
   config?: TippingConfig;
   comment?: Comment;
+  rivals?: Comment[];
 }
 
 // suspends while the tip is checked: the two wallet proofs behind it, then its transaction on its chain
-const VerifiedTipLine = ({ config, comment }: VerifiedTipLineProps) => {
+const VerifiedTipLine = ({ config, comment, rivals }: VerifiedTipLineProps) => {
   // the tipped comment, whose author's wallet the tip must have been sent to. Not fetched: a tip
   // whose parent is not loaded can't be verified, so it is not shown.
   const parent: Comment = useComment({ commentCid: comment?.parentCid, onlyIfCached: true });
-  const verification = use(useTipVerification(comment, parent, config?.community));
+  const verification = use(useTipVerification(comment, parent, config?.community, rivals));
   if (!verification) {
     return null;
   }
@@ -153,18 +148,15 @@ const VerifiedTipLine = ({ config, comment }: VerifiedTipLineProps) => {
 // The tip a reply carries, as the community wrote it to the comment update. Shown only once the
 // tipper's and the tipped author's wallet proofs verify and are the tip's sender and receiver, and
 // its transaction is found on its chain to be that transfer.
-export const TipLine = ({ config, comment, updatedComment, repeated }: TipLineProps) => {
+export const TipLine = ({ config, comment, updatedComment, rivals }: TipLineProps) => {
   const latest = withLatestTip(comment, updatedComment);
   // most replies carry no tip, and those mount nothing
   if (!config || !getTip(latest)) {
     return null;
   }
-  if (repeated) {
-    return <TipRepeated />;
-  }
   return (
     <Suspense fallback={<TipChecking />}>
-      <VerifiedTipLine config={config} comment={latest} />
+      <VerifiedTipLine config={config} comment={latest} rivals={rivals} />
     </Suspense>
   );
 };
@@ -188,8 +180,8 @@ interface TipRowProps {
   comment: Comment;
   reply: Comment;
   tip: Tip;
-  // an earlier reply claims the same transaction, so this one is not in the totals
-  repeated?: boolean;
+  // the earlier replies that claim the same transaction: once one verifies, this one is not in the totals
+  rivals?: Comment[];
 }
 
 // The offline check of one tip. Suspends while the wallet proofs are being checked.
@@ -199,8 +191,8 @@ const useTipCheckResult = (comment: Comment, reply: Comment, community?: Communi
 };
 
 // whether the tip is in the totals: the same verification that decides whether it is shown
-const TipStatus = ({ config, comment, reply }: Omit<TipRowProps, 'tip' | 'repeated'>) => {
-  const verification = use(useTipVerification(reply, comment, config?.community));
+const TipStatus = ({ config, comment, reply, rivals }: Omit<TipRowProps, 'tip'>) => {
+  const verification = use(useTipVerification(reply, comment, config?.community, rivals));
   if (!verification) {
     return <span className={styles.error}>unverified</span>;
   }
@@ -209,7 +201,7 @@ const TipStatus = ({ config, comment, reply }: Omit<TipRowProps, 'tip' | 'repeat
 
 const yesNo = (value: boolean): string => (value ? 'yes' : 'no');
 
-const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) => {
+const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip' | 'rivals'>) => {
   const { check, error } = useTipCheckResult(comment, reply, config?.community);
   if (!check) {
     return null;
@@ -291,20 +283,16 @@ const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'commen
 };
 
 // one tip of the list. It shows at once, and says "verifying" until its own check is done.
-const TipRow = ({ config, comment, reply, tip, repeated }: TipRowProps) => (
+const TipRow = ({ config, comment, reply, tip, rivals }: TipRowProps) => (
   <li>
     <details>
       <summary>
         <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} />
         {tip.tokenId !== undefined && ` #${tip.tokenId}`} from {reply.author?.shortAddress ?? reply.author?.address}{' '}
         <span className={styles.dim}>{formatTipTime(reply.timestamp)}</span>{' '}
-        {repeated ? (
-          <TipRepeated />
-        ) : (
-          <Suspense fallback={<span className={styles.dim}>verifying...</span>}>
-            <TipStatus config={config} comment={comment} reply={reply} />
-          </Suspense>
-        )}
+        <Suspense fallback={<span className={styles.dim}>verifying...</span>}>
+          <TipStatus config={config} comment={comment} reply={reply} rivals={rivals} />
+        </Suspense>
       </summary>
       <dl className={styles.tipDetails}>
         <dt>status</dt>
@@ -365,7 +353,7 @@ const formatTipTime = (timestamp: unknown): string => (typeof timestamp === 'num
 // Every tip the loaded replies claim for the comment, newest first, each with its own verification
 // state. A tip that does not verify, or that repeats an earlier reply's, is listed and is not in the totals.
 const TipList = ({ config, comment, replies }: TipListProps) => {
-  const repeated = getRepeatedTipCids(replies);
+  const rivals = getEarlierTipClaims(replies);
   const entries = getTipReplies(comment, replies)
     .flatMap((reply) => {
       const tip = getTip(reply);
@@ -375,7 +363,7 @@ const TipList = ({ config, comment, replies }: TipListProps) => {
   return (
     <ul className={styles.tipList}>
       {entries.map(({ reply, tip }) => (
-        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} repeated={repeated.has(String(reply.cid))} />
+        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} rivals={rivals.get(String(reply.cid))} />
       ))}
     </ul>
   );

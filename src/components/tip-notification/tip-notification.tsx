@@ -30,12 +30,13 @@ interface VerifiedTipNotificationProps {
   config: TippingConfig;
   // the reply as the inbox holds it, which is what the row falls back to
   notification: Comment;
+  rivals?: Comment[];
   index?: number;
 }
 
 // suspends while the tip is checked: the two wallet proofs behind it, then its transaction on its chain
-const VerifiedTipNotification = ({ reply, parent, config, notification, index }: VerifiedTipNotificationProps) => {
-  const verification = use(useTipVerification(reply, parent, config.community));
+const VerifiedTipNotification = ({ reply, parent, config, notification, rivals, index }: VerifiedTipNotificationProps) => {
+  const verification = use(useTipVerification(reply, parent, config.community, rivals));
   const { shortAuthorAddress } = useAuthorAddress({ comment: reply });
   const { blocked: hidden } = useBlock({ cid: reply.cid });
   const [inspectedComment, setInspectedComment] = useInspectedComment();
@@ -86,13 +87,15 @@ const VerifiedTipNotification = ({ reply, parent, config, notification, index }:
 interface TipNotificationProps {
   // a reply to one of the account's comments that carries something shaped like a tip
   notification: Comment;
+  // the earlier replies to the same comment that claim the same transaction, as the inbox holds them
+  rivals?: Comment[];
   index?: number;
 }
 
 // One inbox row for a reply that claims a tip. It reads as a tip only once the tip is verified, on the
 // wallet proofs and on its chain. Until then it is the reply's ordinary row, with a line that says
 // where the check stands.
-const TipNotification = ({ notification, index }: TipNotificationProps) => {
+const TipNotification = ({ notification, rivals, index }: TipNotificationProps) => {
   // a tip is shown only where the community advertises tipping/v1
   const config = useTippingConfig(notification.communityAddress);
   // The inbox keeps the reply as its parent's reply page had it. Where that copy came without its
@@ -112,7 +115,7 @@ const TipNotification = ({ notification, index }: TipNotificationProps) => {
   }
   return (
     <Suspense fallback={checking}>
-      <VerifiedTipNotification reply={reply} parent={parent} config={config} notification={notification} index={index} />
+      <VerifiedTipNotification reply={reply} parent={parent} config={config} notification={notification} rivals={rivals} index={index} />
     </Suspense>
   );
 };

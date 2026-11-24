@@ -24,7 +24,7 @@ import useVerbose from '../../hooks/use-verbose';
 import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
 import useInspectorAvailable from '../../hooks/use-inspector-available';
 import useTippingConfig from '../../hooks/use-tipping-config';
-import { getRepeatedTipCids } from '../../lib/tipping';
+import { getTipRivals } from '../../lib/tipping-comment';
 import type { TippingConfig } from '../../lib/tipping';
 import styles from './post.module.css';
 
@@ -60,11 +60,11 @@ interface ReplyProps {
   updatedReply?: Comment;
   // the community's tipping/v1 options, read once by the post and handed down the thread
   tippingConfig?: TippingConfig;
-  // the reply's tip names a transaction an earlier reply to the same comment already claims
-  repeatedTip?: boolean;
+  // the earlier replies to the same comment that claim the same transaction as this reply's tip
+  tipRivals?: Comment[];
 }
 
-const Reply = ({ reply, updatedReply, tippingConfig, repeatedTip }: ReplyProps) => {
+const Reply = ({ reply, updatedReply, tippingConfig, tipRivals }: ReplyProps) => {
   // handle pending mod or author edit
   const { state: editedReplyState, editedComment: editedReply } = useEditedComment({ comment: reply });
   if (editedReply) {
@@ -90,7 +90,7 @@ const Reply = ({ reply, updatedReply, tippingConfig, repeatedTip }: ReplyProps) 
   const inspect = () => setInspectedComment(updatedReply || reply);
 
   const score = (updatedReply?.upvoteCount || 0) - (updatedReply?.downvoteCount || 0);
-  const repeatedTipCids = getRepeatedTipCids(replies, updatedReplies);
+  const childTipRivals = getTipRivals(replies, updatedReplies);
   const loadNewReplies = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     loadMore();
@@ -114,7 +114,7 @@ const Reply = ({ reply, updatedReply, tippingConfig, repeatedTip }: ReplyProps) 
           {state && <span className={styles.label}>{state}</span>}
           {publishingStateString && <span className={styles.dim}>{publishingStateString}</span>}
           {/* the tip this reply carries, and what its own replies tipped it */}
-          <TipLine config={tippingConfig} comment={reply} updatedComment={updatedReply} repeated={repeatedTip} />
+          <TipLine config={tippingConfig} comment={reply} updatedComment={updatedReply} rivals={tipRivals} />
           <TipTotals config={tippingConfig} comment={reply} replies={replies} updatedReplies={updatedReplies} />
           <ReplyTools reply={reply}>
             <span className={styles.linkButton}>reply</span>
@@ -148,7 +148,7 @@ const Reply = ({ reply, updatedReply, tippingConfig, repeatedTip }: ReplyProps) 
               reply={childReply}
               updatedReply={updatedReplies[index]}
               tippingConfig={tippingConfig}
-              repeatedTip={repeatedTipCids.has(childReply?.cid)}
+              tipRivals={childTipRivals.get(childReply?.cid)}
             />
           ))}
         </div>
@@ -209,7 +209,7 @@ function Post() {
   // the post, or its CommentUpdate, failed to load and nothing loaded since; shown instead of the loading state
   const loadError = getCommentLoadError(post);
   const score = (post?.upvoteCount || 0) - (post?.downvoteCount || 0);
-  const repeatedTipCids = getRepeatedTipCids(replies, updatedReplies);
+  const tipRivals = getTipRivals(replies, updatedReplies);
   const host = post?.link ? utils.getHost(post.link) : '';
 
   return (
@@ -297,7 +297,7 @@ function Post() {
             reply={reply}
             updatedReply={updatedReplies[index]}
             tippingConfig={tippingConfig}
-            repeatedTip={repeatedTipCids.has(reply?.cid)}
+            tipRivals={tipRivals.get(reply?.cid)}
           />
         ))}
       </div>

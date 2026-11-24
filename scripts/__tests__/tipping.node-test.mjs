@@ -25,7 +25,7 @@ import {
   getTokenKey,
   getProvenWalletAddresses,
   getTipReplies,
-  getRepeatedTipCids,
+  getEarlierTipClaims,
   getTipCheck,
   getTipCheckError,
   getVerifiedTip,
@@ -66,6 +66,7 @@ import {
   getTipResultKey,
   getTipRetryDelay,
   isRetryableTipFailure,
+  rankTipVerification,
   readStoredTipResults,
   verifiedTipsStorageKey,
   verifyCheckedTip,
@@ -1106,18 +1107,22 @@ test('checking a tip on chain: an RPC error is not "not mined", a 721 log is ski
   await unmined.close();
 });
 
-test('one payment claimed by several replies is one tip, kept by the earliest reply to that comment', () => {
+test('one payment claimed by several replies is one tip, kept by the earliest reply whose claim verifies', () => {
   const claim = (cid, timestamp, parentCid = 'QmParent', hash = txHash) => ({
     cid,
     parentCid,
     timestamp,
     tip: { chainId: 1, txHash: hash, type: 'native', from: feeRecipient, to: nft, amount: '5' },
   });
-  // listed newest first, as a feed is: the earliest claim keeps the tip wherever it is in the list
+  const cids = (earlier, cid) => earlier.get(cid)?.map((reply) => reply.cid);
+  // listed newest first, as a feed is: each reply gets the claims before it, earliest first
   const replies = [claim('QmC', 30), claim('QmB', 20, 'QmParent', txHash.toUpperCase().replace('0X', '0x')), claim('QmA', 10)];
-  assert.deepEqual([...getRepeatedTipCids(replies)].sort(), ['QmB', 'QmC']);
-  // the same timestamp is settled by cid, so every client names the same reply
-  assert.deepEqual([...getRepeatedTipCids([claim('QmB', 10), claim('QmA', 10)])], ['QmB']);
+  const earlier = getEarlierTipClaims(replies);
+  assert.deepEqual(cids(earlier, 'QmC'), ['QmA', 'QmB']);
+  assert.deepEqual(cids(earlier, 'QmB'), ['QmA']);
+  assert.equal(earlier.has('QmA'), false);
+  // the same timestamp is settled by cid, so every client orders them the same way
+  assert.deepEqual([...getEarlierTipClaims([claim('QmB', 10), claim('QmA', 10)]).keys()], ['QmB']);
   // another transaction, another chain, or a reply to another comment is its own tip
   const other = [
     claim('QmA', 10),
@@ -1125,13 +1130,22 @@ test('one payment claimed by several replies is one tip, kept by the earliest re
     claim('QmE', 30, 'QmOtherParent'),
     { ...claim('QmF', 40), tip: { ...claim().tip, chainId: 10 } },
   ];
-  assert.equal(getRepeatedTipCids(other).size, 0);
-  // replies without a tip, without a cid, and missing ones are skipped
-  assert.equal(getRepeatedTipCids([undefined, { cid: 'QmG', parentCid: 'QmParent' }, { ...claim('x', 1), cid: undefined }, claim('QmA', 10)]).size, 0);
-  assert.equal(getRepeatedTipCids(undefined).size, 0);
-  // a tip that arrived in the live update counts as the reply's claim
-  const bare = { cid: 'QmH', parentCid: 'QmParent', timestamp: 50 };
-  assert.deepEqual([...getRepeatedTipCids([claim('QmA', 10), bare], [undefined, { tip: claim().tip }])], ['QmH']);
+  assert.equal(getEarlierTipClaims(other).size, 0);
+  // replies without a tip, without a cid, missing ones, and one listed twice are skipped
+  assert.equal(getEarlierTipClaims([undefined, { cid: 'QmG', parentCid: 'QmParent' }, { ...claim('x', 1), cid: undefined }, claim('QmA', 10), claim('QmA', 10)]).size, 0);
+  assert.equal(getEarlierTipClaims(undefined).size, 0);
+
+  // a verified tip is a repeat only once an earlier claim verifies too
+  const tip = { chainId: 1, txHash };
+  const verified = { status: 'verified', tip, resultKey: '0x1' };
+  const failed = { status: 'failed', tip, resultKey: '0x2', error: 'the sender is not a wallet the tipper proved' };
+  assert.deepEqual(rankTipVerification(verified, [verified]), { status: 'repeated', tip, resultKey: '0x1' });
+  // a copy of the transaction hash in an earlier reply that does not verify takes nothing from the tip
+  assert.equal(rankTipVerification(verified, [failed, undefined, { status: 'no-rpc', tip, resultKey: '0x3' }]), verified);
+  assert.equal(rankTipVerification(verified, []), verified);
+  // and a tip that does not verify itself keeps its own answer
+  assert.equal(rankTipVerification(failed, [verified]), failed);
+  assert.equal(rankTipVerification(undefined, [verified]), undefined);
 });
 
 test('a failure that is not final is asked of the chain again, with a wait that doubles up to five minutes', () => {

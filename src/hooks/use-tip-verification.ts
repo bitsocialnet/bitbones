@@ -8,7 +8,7 @@ import {
   getTip,
   getTipCheck,
   getTipCheckError,
-  getRepeatedTipCids,
+  getEarlierTipClaims,
   getTipReplies,
   getVerifiedTipKey,
   sumTips,
@@ -17,7 +17,7 @@ import type { TipTotal } from '../lib/tipping';
 import '../lib/tipping-comment';
 import { checkTipOnChain } from '../lib/tipping-chain';
 import type { OnChainTipResult } from '../lib/tipping-chain';
-import { getTipResultKey, getTipRetryDelay, isRetryableTipFailure, verifyCheckedTip, writeStoredTipResult } from '../lib/tipping-verification';
+import { getTipResultKey, getTipRetryDelay, isRetryableTipFailure, rankTipVerification, verifyCheckedTip, writeStoredTipResult } from '../lib/tipping-verification';
 import type { TipVerification } from '../lib/tipping-verification';
 import useTippingSettingsStore, { getTippingRpcUrl, useTippingRpcUrl } from './use-tipping-settings';
 
@@ -49,8 +49,14 @@ export const recheckTip = (resultKey: string) => useTipRecheckStore.getState().r
 const cacheLimit = 2000;
 const verifications = new Map<string, Promise<TipVerification | undefined>>();
 const lookups = new Map<string, Promise<OnChainTipResult>>();
+const ranked = new Map<string, Promise<TipVerification | undefined>>();
 const totals = new Map<string, Promise<TipTotal[]>>();
 const scheduledRetries = new Set<string>();
+interface VerificationEntry {
+  key: string;
+  verification: Promise<TipVerification | undefined>;
+}
+
 const noVerification: Promise<TipVerification | undefined> = Promise.resolve(undefined);
 const noTotals: Promise<TipTotal[]> = Promise.resolve([]);
 
@@ -82,25 +88,21 @@ const scheduleRetry = (resultKey: string, attempt: number) => {
   setTimeout(() => useTipRecheckStore.getState().retry(resultKey, attempt), getTipRetryDelay(attempt));
 };
 
-// The verification of the tip a reply carries, with its promise kept per input so a component can
-// read it with React's use(). Undefined when the reply carries no tip this client reads.
+// The verification of the tip a reply carries on its own, whatever other replies claim, with its
+// promise kept per input. Undefined when the reply carries no tip this client reads.
 const getVerificationEntry = (
   reply: Comment | undefined,
   parent: Comment | undefined,
   community: Community | undefined,
   rpcUrl: string | undefined,
   attempt: number,
-): { key: string; verification: Promise<TipVerification | undefined> } | undefined => {
+): VerificationEntry | undefined => {
   const inputKey = getTip(reply) && reply && parent ? getVerifiedTipKey(reply, parent, community) : undefined;
   const resultKey = getResultKey(reply, parent);
   if (!inputKey || !resultKey || !reply || !parent) {
     return undefined;
   }
   const key = `${inputKey}\n${rpcUrl ?? ''}\n${attempt}`;
-  // The lookup on the chain is kept apart from the wallet-proof check and by the tip alone. Every vote
-  // or reply re-signs a comment's update, which changes the input of the offline check and not the
-  // transaction, so it must not ask the chain again.
-  const lookupKey = `${resultKey}\n${rpcUrl ?? ''}\n${attempt}`;
   const verification =
     verifications.get(key) ??
     remember(
@@ -111,16 +113,16 @@ const getVerificationEntry = (
           check
             ? verifyCheckedTip(
                 { check, offlineError: getTipCheckError(check), replyCid: String(reply.cid), parentCid: String(parent.cid), rpcUrl },
-                (rpcUrl, tip) =>
-                  lookups.get(lookupKey) ??
-                  remember(
-                    lookups,
-                    lookupKey,
-                    // the transaction has to be sent by one of the tipper's proven wallets, and end with the binding of the tipped comment
-                    getProvenWalletAddresses(reply, undefined, community).then((senders) =>
-                      checkTipOnChain(rpcUrl, tip, senders, getParentBindingSuffix(String(parent.cid))),
-                    ),
-                  ),
+                async (rpcUrl, tip) => {
+                  // the transaction has to be sent by one of the tipper's proven wallets, and end with the binding of the tipped comment
+                  const senders = await getProvenWalletAddresses(reply, undefined, community);
+                  // The lookup on the chain is kept apart from the wallet-proof check: by the tip and the
+                  // wallets it was checked against. Every vote or reply re-signs a comment's update, which
+                  // changes the input of the offline check and not the transaction, so it must not ask the
+                  // chain again.
+                  const lookupKey = [resultKey, rpcUrl, attempt, ...senders.map((sender) => sender.toLowerCase()).sort()].join('\n');
+                  return lookups.get(lookupKey) ?? remember(lookups, lookupKey, checkTipOnChain(rpcUrl, tip, senders, getParentBindingSuffix(String(parent.cid))));
+                },
               )
             : undefined,
         )
@@ -136,15 +138,55 @@ const getVerificationEntry = (
   return { key, verification };
 };
 
-// Whether the tip a reply carries is shown: its wallet proofs verify and its transaction is the one
-// it claims, as looked up on its chain or as stored from an earlier lookup. The promise is deferred:
-// while a newer check runs, after a retry or an update of either comment, the last answer stays on
-// screen instead of the Suspense fallback.
-export const useTipVerification = (reply: Comment | undefined, parent: Comment | undefined, community?: Community): Promise<TipVerification | undefined> => {
+// The verification of a reply's tip among the earlier replies that claim the same transaction: a
+// repeat once one of those verifies. Each of them is verified on its own, against the same comment.
+const getRankedEntry = (
+  reply: Comment | undefined,
+  earlierClaims: Comment[] | undefined,
+  parent: Comment | undefined,
+  community: Community | undefined,
+  rpcUrl: string | undefined,
+  getAttempt: (resultKey: string | undefined) => number,
+): VerificationEntry | undefined => {
+  const getEntry = (claim: Comment | undefined) => getVerificationEntry(claim, parent, community, rpcUrl, getAttempt(getResultKey(claim, parent)));
+  const own = getEntry(reply);
+  const earlier = (earlierClaims ?? []).flatMap((claim) => getEntry(claim) ?? []);
+  if (!own || !earlier.length) {
+    return own;
+  }
+  const key = [own.key, ...earlier.map((entry) => entry.key)].join('\n\n');
+  const verification =
+    ranked.get(key) ??
+    remember(
+      ranked,
+      key,
+      Promise.all([own.verification, ...earlier.map((entry) => entry.verification)]).then(([verification, ...earlierVerifications]) =>
+        rankTipVerification(verification, earlierVerifications),
+      ),
+    );
+  return { key, verification };
+};
+
+// Whether the tip a reply carries is shown: its wallet proofs verify, its transaction is the one it
+// claims, as looked up on its chain or as stored from an earlier lookup, and no earlier reply holds
+// the same transaction (`earlierClaims`, from getTipRivals). The promise is deferred: while a newer
+// check runs, after a retry or an update of either comment, the last answer stays on screen instead
+// of the Suspense fallback.
+export const useTipVerification = (
+  reply: Comment | undefined,
+  parent: Comment | undefined,
+  community?: Community,
+  earlierClaims?: Comment[],
+): Promise<TipVerification | undefined> => {
+  // the earlier claims name the same transaction, so they are on the same chain
   const rpcUrl = useTippingRpcUrl(getTip(reply)?.chainId);
-  const resultKey = getResultKey(reply, parent);
-  const attempt = useTipRecheckStore((state) => (resultKey ? (state.attempts[resultKey] ?? 0) : 0));
-  return useDeferredValue(getVerificationEntry(reply, parent, community, rpcUrl, attempt)?.verification ?? noVerification);
+  const resultKeys = [reply, ...(earlierClaims ?? [])].map((claim) => getResultKey(claim, parent));
+  // one string, so a recheck of any of them reads the verification again and nothing else does
+  const attempts = useTipRecheckStore((state) => resultKeys.map((resultKey) => (resultKey ? (state.attempts[resultKey] ?? 0) : 0)).join(','))
+    .split(',')
+    .map(Number);
+  const getAttempt = (resultKey: string | undefined) => attempts[resultKeys.indexOf(resultKey)] ?? 0;
+  return useDeferredValue(getRankedEntry(reply, earlierClaims, parent, community, rpcUrl, getAttempt)?.verification ?? noVerification);
 };
 
 // What a comment was tipped: the verified tips on its loaded replies, summed per chain and token. A
@@ -156,15 +198,12 @@ export const useVerifiedTipTotals = (parent: Comment | undefined, replies: (Comm
   // a tip can be on any chain, so any RPC url that is set or any recheck reads the totals again
   const rpcUrlOverrides = useTippingSettingsStore((state) => state.rpcUrls);
   const attempts = useTipRecheckStore((state) => state.attempts);
-  const repeated = getRepeatedTipCids(replies);
+  const earlierClaims = getEarlierTipClaims(replies);
   const entries = getTipReplies(parent, replies).flatMap((reply) => {
-    if (repeated.has(String(reply.cid))) {
-      return [];
-    }
     const rpcUrl = rpcUrlOverrides[String(getTip(reply)?.chainId)] || getTippingRpcUrl(getTip(reply)?.chainId, chainProviders);
-    return getVerificationEntry(reply, parent, community, rpcUrl, attempts[getResultKey(reply, parent) ?? ''] ?? 0) ?? [];
+    return getRankedEntry(reply, earlierClaims.get(String(reply.cid)), parent, community, rpcUrl, (resultKey) => attempts[resultKey ?? ''] ?? 0) ?? [];
   });
-  const key = entries.map((entry) => entry.key).join('\n\n');
+  const key = entries.map((entry) => entry.key).join('\n\n\n');
   return useDeferredValue(
     entries.length
       ? (totals.get(key) ??

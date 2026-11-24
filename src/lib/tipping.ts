@@ -862,32 +862,35 @@ interface TipClaimant {
   timestamp?: unknown;
 }
 
-// The replies whose tip names a transaction that an earlier reply to the same comment already claims.
+// For each reply whose tip names a transaction that other replies to the same comment claim too, the
+// ones that come before it: by timestamp, then by cid, so every client orders them the same way.
 // Nothing in a transaction ties it to one reply, only to the tipped comment and to the tipper's
-// wallets, so the same tipper can claim one payment in several replies, and each would verify. The
-// earliest reply keeps the tip, by timestamp and then by cid, and the others are neither shown as
-// tips nor counted. It is decided on the claims alone, before any is verified, so the answer does not
-// depend on which check ends first. `updatedReplies` are the live versions, by the same index.
-export const getRepeatedTipCids = (replies: (TipClaimant | undefined)[] | undefined, updatedReplies?: (TipClaimant | undefined)[]): Set<string> => {
-  const first = new Map<string, { cid: string; timestamp: number }>();
-  const claims: { key: string; cid: string }[] = [];
-  (replies ?? []).forEach((reply, index) => {
-    if (typeof reply?.cid !== 'string' || typeof reply.parentCid !== 'string') {
-      return;
-    }
-    const tip = getTip({ tip: updatedReplies?.[index]?.tip ?? reply.tip });
-    if (!tip) {
-      return;
+// wallets, so the same tipper can claim one payment in several replies, and each would verify. A
+// reply stops being a tip only once one of these earlier claims verifies. A claim that merely comes
+// first decides nothing: anyone can copy a public transaction hash into a reply dated earlier.
+export const getEarlierTipClaims = <Reply extends TipClaimant>(replies: (Reply | undefined)[] | undefined): Map<string, Reply[]> => {
+  const claims = new Map<string, { reply: Reply; cid: string; timestamp: number }[]>();
+  for (const reply of replies ?? []) {
+    const tip = getTip(reply);
+    if (!reply || !tip || typeof reply.cid !== 'string' || typeof reply.parentCid !== 'string') {
+      continue;
     }
     const key = `${reply.parentCid}\n${tip.chainId}\n${tip.txHash.toLowerCase()}`;
-    const timestamp = typeof reply.timestamp === 'number' ? reply.timestamp : Infinity;
-    const earliest = first.get(key);
-    if (!earliest || timestamp < earliest.timestamp || (timestamp === earliest.timestamp && reply.cid < earliest.cid)) {
-      first.set(key, { cid: reply.cid, timestamp });
-    }
-    claims.push({ key, cid: reply.cid });
-  });
-  return new Set(claims.flatMap(({ key, cid }) => (first.get(key)?.cid === cid ? [] : [cid])));
+    const claim = { reply, cid: reply.cid, timestamp: typeof reply.timestamp === 'number' ? reply.timestamp : Infinity };
+    claims.set(key, [...(claims.get(key) ?? []), claim]);
+  }
+  const earlier = new Map<string, Reply[]>();
+  for (const rivals of claims.values()) {
+    rivals.sort((a, b) => a.timestamp - b.timestamp || (a.cid < b.cid ? -1 : a.cid > b.cid ? 1 : 0));
+    rivals.forEach(({ cid }, index) => {
+      // a cid listed twice is one reply, not a rival of itself
+      const before = rivals.slice(0, index).flatMap((rival) => (rival.cid === cid ? [] : [rival.reply]));
+      if (before.length && !earlier.has(cid)) {
+        earlier.set(cid, before);
+      }
+    });
+  }
+  return earlier;
 };
 
 // What a comment was tipped: the verified tips on its loaded replies, summed per chain and token. A community

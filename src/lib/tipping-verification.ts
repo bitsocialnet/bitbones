@@ -167,7 +167,19 @@ export interface TipVerificationFailure {
   stored: boolean;
 }
 
-export type TipVerification = { status: 'verified'; tip: Tip; resultKey: string } | { status: 'no-rpc'; tip: Tip; resultKey: string } | TipVerificationFailure;
+export type TipVerification =
+  | { status: 'verified'; tip: Tip; resultKey: string }
+  | { status: 'no-rpc'; tip: Tip; resultKey: string }
+  // the tip verifies, and so does an earlier reply that claims the same transaction
+  | { status: 'repeated'; tip: Tip; resultKey: string }
+  | TipVerificationFailure;
+
+// One payment is one tip: a verified tip is a repeat once an earlier reply that claims the same
+// transaction verifies too. An earlier claim that does not verify takes nothing from this one.
+export const rankTipVerification = (verification: TipVerification | undefined, earlierClaims: (TipVerification | undefined)[]): TipVerification | undefined =>
+  verification?.status === 'verified' && earlierClaims.some((earlier) => earlier?.status === 'verified')
+    ? { status: 'repeated', tip: verification.tip, resultKey: verification.resultKey }
+    : verification;
 
 export interface CheckedTip {
   // the offline check of the tip, and why it failed if it did
