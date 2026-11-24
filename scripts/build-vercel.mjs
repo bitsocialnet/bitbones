@@ -5,7 +5,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { verifyReleaseManifestSignature } from './generate-release-manifest.mjs';
 
-if (process.env.VERCEL_ENV !== 'production') {
+// bitbones.app production serves the latest signed release. Previews, and the separate
+// bitbones-master Vercel project (which sets BITBONES_BUILD_FROM_SOURCE=1), build the checked-out commit.
+if (process.env.VERCEL_ENV !== 'production' || process.env.BITBONES_BUILD_FROM_SOURCE === '1') {
   execFileSync('corepack', ['yarn', 'build'], { stdio: 'inherit' });
 } else {
   const temporaryDirectory = await mkdtemp(path.join(tmpdir(), 'bitbones-release-'));
