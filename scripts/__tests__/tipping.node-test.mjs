@@ -25,6 +25,7 @@ import {
   getTokenKey,
   getProvenWalletAddresses,
   getTipReplies,
+  getRepeatedTipCids,
   getTipCheck,
   getTipCheckError,
   getVerifiedTip,
@@ -63,6 +64,8 @@ import {
   getResultToStore,
   getTipErrorReport,
   getTipResultKey,
+  getTipRetryDelay,
+  isRetryableTipFailure,
   readStoredTipResults,
   verifiedTipsStorageKey,
   verifyCheckedTip,
@@ -1101,6 +1104,50 @@ test('checking a tip on chain: an RPC error is not "not mined", a 721 log is ski
   assert.equal(missing.tip.mined, false);
   assert.equal(missing.confirmations, undefined);
   await unmined.close();
+});
+
+test('one payment claimed by several replies is one tip, kept by the earliest reply to that comment', () => {
+  const claim = (cid, timestamp, parentCid = 'QmParent', hash = txHash) => ({
+    cid,
+    parentCid,
+    timestamp,
+    tip: { chainId: 1, txHash: hash, type: 'native', from: feeRecipient, to: nft, amount: '5' },
+  });
+  // listed newest first, as a feed is: the earliest claim keeps the tip wherever it is in the list
+  const replies = [claim('QmC', 30), claim('QmB', 20, 'QmParent', txHash.toUpperCase().replace('0X', '0x')), claim('QmA', 10)];
+  assert.deepEqual([...getRepeatedTipCids(replies)].sort(), ['QmB', 'QmC']);
+  // the same timestamp is settled by cid, so every client names the same reply
+  assert.deepEqual([...getRepeatedTipCids([claim('QmB', 10), claim('QmA', 10)])], ['QmB']);
+  // another transaction, another chain, or a reply to another comment is its own tip
+  const other = [
+    claim('QmA', 10),
+    claim('QmD', 20, 'QmParent', feeTxHash),
+    claim('QmE', 30, 'QmOtherParent'),
+    { ...claim('QmF', 40), tip: { ...claim().tip, chainId: 10 } },
+  ];
+  assert.equal(getRepeatedTipCids(other).size, 0);
+  // replies without a tip, without a cid, and missing ones are skipped
+  assert.equal(getRepeatedTipCids([undefined, { cid: 'QmG', parentCid: 'QmParent' }, { ...claim('x', 1), cid: undefined }, claim('QmA', 10)]).size, 0);
+  assert.equal(getRepeatedTipCids(undefined).size, 0);
+  // a tip that arrived in the live update counts as the reply's claim
+  const bare = { cid: 'QmH', parentCid: 'QmParent', timestamp: 50 };
+  assert.deepEqual([...getRepeatedTipCids([claim('QmA', 10), bare], [undefined, { tip: claim().tip }])], ['QmH']);
+});
+
+test('a failure that is not final is asked of the chain again, with a wait that doubles up to five minutes', () => {
+  const base = { status: 'failed', error: 'x', offline: {}, stored: false };
+  const passed = { mined: true, succeeded: true, sentByTipper: true, hasBinding: true, matchesTip: true };
+  // not mined yet, wrong in a shallow block, or an RPC that could not answer
+  assert.equal(isRetryableTipFailure({ ...base, onChain: { ...passed, mined: false } }), true);
+  assert.equal(isRetryableTipFailure({ ...base, onChain: { ...passed, hasBinding: false } }), true);
+  assert.equal(isRetryableTipFailure({ ...base, rpcError: 'rate limited' }), true);
+  // a stored failure is final, and a failed wallet proof is the same however often it is checked
+  assert.equal(isRetryableTipFailure({ ...base, onChain: { ...passed, hasBinding: false }, stored: true }), false);
+  assert.equal(isRetryableTipFailure(base), false);
+  assert.equal(isRetryableTipFailure({ status: 'verified' }), false);
+  assert.equal(isRetryableTipFailure({ status: 'no-rpc' }), false);
+  assert.equal(isRetryableTipFailure(undefined), false);
+  assert.deepEqual([0, 1, 2, 4, 5, 50].map(getTipRetryDelay), [15_000, 30_000, 60_000, 240_000, 300_000, 300_000]);
 });
 
 const fakeStorage = () => {

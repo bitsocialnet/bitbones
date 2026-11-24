@@ -7,6 +7,7 @@ import {
   getDecimalsInputIssue,
   getParentBindingSuffix,
   getProvenWalletAddresses,
+  getRepeatedTipCids,
   getRequiredFee,
   getTip,
   getTipAmountError,
@@ -105,12 +106,21 @@ export const TipVerificationNote = ({ verification }: TipVerificationNoteProps) 
 // shown while a tip's wallet proofs and its transaction are being checked
 export const TipChecking = () => <span className={styles.dim}>checking tip…</span>;
 
+// shown on a reply whose tip names a transaction an earlier reply to the same comment already claims
+export const TipRepeated = () => (
+  <span className={styles.dim} title='one payment counts as one tip, and the earliest reply that claims it keeps it'>
+    repeats a tip an earlier reply claims
+  </span>
+);
+
 interface TipLineProps {
   // the community's tipping options: a tip is shown only where the community advertises tipping/v1
   config?: TippingConfig;
   comment?: Comment;
   // the live version of the comment, where one has arrived
   updatedComment?: Comment;
+  // an earlier reply to the same comment claims the same transaction
+  repeated?: boolean;
 }
 
 interface VerifiedTipLineProps {
@@ -143,11 +153,14 @@ const VerifiedTipLine = ({ config, comment }: VerifiedTipLineProps) => {
 // The tip a reply carries, as the community wrote it to the comment update. Shown only once the
 // tipper's and the tipped author's wallet proofs verify and are the tip's sender and receiver, and
 // its transaction is found on its chain to be that transfer.
-export const TipLine = ({ config, comment, updatedComment }: TipLineProps) => {
+export const TipLine = ({ config, comment, updatedComment, repeated }: TipLineProps) => {
   const latest = withLatestTip(comment, updatedComment);
   // most replies carry no tip, and those mount nothing
   if (!config || !getTip(latest)) {
     return null;
+  }
+  if (repeated) {
+    return <TipRepeated />;
   }
   return (
     <Suspense fallback={<TipChecking />}>
@@ -175,6 +188,8 @@ interface TipRowProps {
   comment: Comment;
   reply: Comment;
   tip: Tip;
+  // an earlier reply claims the same transaction, so this one is not in the totals
+  repeated?: boolean;
 }
 
 // The offline check of one tip. Suspends while the wallet proofs are being checked.
@@ -184,7 +199,7 @@ const useTipCheckResult = (comment: Comment, reply: Comment, community?: Communi
 };
 
 // whether the tip is in the totals: the same verification that decides whether it is shown
-const TipStatus = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) => {
+const TipStatus = ({ config, comment, reply }: Omit<TipRowProps, 'tip' | 'repeated'>) => {
   const verification = use(useTipVerification(reply, comment, config?.community));
   if (!verification) {
     return <span className={styles.error}>unverified</span>;
@@ -276,16 +291,20 @@ const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'commen
 };
 
 // one tip of the list. It shows at once, and says "verifying" until its own check is done.
-const TipRow = ({ config, comment, reply, tip }: TipRowProps) => (
+const TipRow = ({ config, comment, reply, tip, repeated }: TipRowProps) => (
   <li>
     <details>
       <summary>
         <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} />
         {tip.tokenId !== undefined && ` #${tip.tokenId}`} from {reply.author?.shortAddress ?? reply.author?.address}{' '}
         <span className={styles.dim}>{formatTipTime(reply.timestamp)}</span>{' '}
-        <Suspense fallback={<span className={styles.dim}>verifying...</span>}>
-          <TipStatus config={config} comment={comment} reply={reply} />
-        </Suspense>
+        {repeated ? (
+          <TipRepeated />
+        ) : (
+          <Suspense fallback={<span className={styles.dim}>verifying...</span>}>
+            <TipStatus config={config} comment={comment} reply={reply} />
+          </Suspense>
+        )}
       </summary>
       <dl className={styles.tipDetails}>
         <dt>status</dt>
@@ -344,8 +363,9 @@ interface TipListProps {
 const formatTipTime = (timestamp: unknown): string => (typeof timestamp === 'number' ? new Date(timestamp * 1000).toLocaleString() : 'unknown');
 
 // Every tip the loaded replies claim for the comment, newest first, each with its own verification
-// state. A tip that does not verify is listed as unverified and is not in the totals.
+// state. A tip that does not verify, or that repeats an earlier reply's, is listed and is not in the totals.
 const TipList = ({ config, comment, replies }: TipListProps) => {
+  const repeated = getRepeatedTipCids(replies);
   const entries = getTipReplies(comment, replies)
     .flatMap((reply) => {
       const tip = getTip(reply);
@@ -355,7 +375,7 @@ const TipList = ({ config, comment, replies }: TipListProps) => {
   return (
     <ul className={styles.tipList}>
       {entries.map(({ reply, tip }) => (
-        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} />
+        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} repeated={repeated.has(String(reply.cid))} />
       ))}
     </ul>
   );

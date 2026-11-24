@@ -4,7 +4,8 @@ import { Virtuoso } from 'react-virtuoso';
 import type { StateSnapshot, VirtuosoHandle } from 'react-virtuoso';
 import FeedPost from '../../components/feed-post';
 import TipNotification from '../../components/tip-notification';
-import { getTip } from '../../lib/tipping';
+import { TipRepeated } from '../../components/tip-tools';
+import { getRepeatedTipCids, getTip } from '../../lib/tipping';
 import styles from './inbox.module.css';
 
 let lastVirtuosoState: StateSnapshot | undefined;
@@ -12,6 +13,8 @@ let lastVirtuosoState: StateSnapshot | undefined;
 function Inbox() {
   const { notifications, markAsRead } = useNotifications();
   const account = useAccount();
+  // one payment claimed by several replies is one tip, kept by the earliest of them
+  const repeatedTipCids = getRepeatedTipCids(notifications);
   const unreadNotificationCount = account?.unreadNotificationCount;
 
   // save last virtuoso state on each scroll
@@ -45,7 +48,13 @@ function Inbox() {
         itemContent={(index, notification) => (
           <div className={notification.markedAsRead === false ? styles.unreadNotification : styles.readNotification}>
             {/* a reply that carries a tip is checked before it reads as one */}
-            {getTip(notification) ? <TipNotification index={index} notification={notification} /> : <FeedPost index={index} post={notification} />}
+            {!getTip(notification) ? (
+              <FeedPost index={index} post={notification} />
+            ) : repeatedTipCids.has(notification.cid) ? (
+              <FeedPost index={index} post={notification} note={<TipRepeated />} />
+            ) : (
+              <TipNotification index={index} notification={notification} />
+            )}
           </div>
         )}
         useWindowScroll={true}

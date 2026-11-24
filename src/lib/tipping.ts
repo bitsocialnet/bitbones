@@ -855,6 +855,41 @@ export const getTipReplies = <Reply extends TipParty>(parent: TipParty | undefin
   // flat reply sorts list a whole subtree, so keep only the replies to this comment
   typeof parent?.cid === 'string' ? (replies ?? []).flatMap((reply) => (reply && reply.parentCid === parent.cid && getTip(reply) ? [reply] : [])) : [];
 
+interface TipClaimant {
+  cid?: unknown;
+  parentCid?: unknown;
+  tip?: unknown;
+  timestamp?: unknown;
+}
+
+// The replies whose tip names a transaction that an earlier reply to the same comment already claims.
+// Nothing in a transaction ties it to one reply, only to the tipped comment and to the tipper's
+// wallets, so the same tipper can claim one payment in several replies, and each would verify. The
+// earliest reply keeps the tip, by timestamp and then by cid, and the others are neither shown as
+// tips nor counted. It is decided on the claims alone, before any is verified, so the answer does not
+// depend on which check ends first. `updatedReplies` are the live versions, by the same index.
+export const getRepeatedTipCids = (replies: (TipClaimant | undefined)[] | undefined, updatedReplies?: (TipClaimant | undefined)[]): Set<string> => {
+  const first = new Map<string, { cid: string; timestamp: number }>();
+  const claims: { key: string; cid: string }[] = [];
+  (replies ?? []).forEach((reply, index) => {
+    if (typeof reply?.cid !== 'string' || typeof reply.parentCid !== 'string') {
+      return;
+    }
+    const tip = getTip({ tip: updatedReplies?.[index]?.tip ?? reply.tip });
+    if (!tip) {
+      return;
+    }
+    const key = `${reply.parentCid}\n${tip.chainId}\n${tip.txHash.toLowerCase()}`;
+    const timestamp = typeof reply.timestamp === 'number' ? reply.timestamp : Infinity;
+    const earliest = first.get(key);
+    if (!earliest || timestamp < earliest.timestamp || (timestamp === earliest.timestamp && reply.cid < earliest.cid)) {
+      first.set(key, { cid: reply.cid, timestamp });
+    }
+    claims.push({ key, cid: reply.cid });
+  });
+  return new Set(claims.flatMap(({ key, cid }) => (first.get(key)?.cid === cid ? [] : [cid])));
+};
+
 // What a comment was tipped: the verified tips on its loaded replies, summed per chain and token. A community
 // cannot write to the tipped comment's own update, so this is the only total there is, and it
 // covers only the replies the client has loaded. A tip that fails verifyTip is left out.

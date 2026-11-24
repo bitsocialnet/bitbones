@@ -231,6 +231,15 @@ export const verifyCheckedTip = async (
   return error ? failed({ error, onChain, stored: toStore !== undefined }) : { status: 'verified', tip, resultKey };
 };
 
+// Whether a failure can still turn into another answer, and so is asked of the chain again while the
+// tip is on screen: the RPC could not answer, or what it said is not final. A tip is often seen
+// before its transaction is mined. A failed wallet proof and a stored failure stay as they are.
+export const isRetryableTipFailure = (verification: TipVerification | undefined): boolean =>
+  verification?.status === 'failed' && !verification.stored && Boolean(verification.onChain || verification.rpcError);
+
+// how long to wait before the chain is asked again: 15 seconds, doubled each time, up to 5 minutes
+export const getTipRetryDelay = (attempt: number): number => Math.min(15_000 * 2 ** Math.max(0, attempt), 300_000);
+
 // everything known about a failed tip, as text to paste into a report. It names no RPC url.
 export const getTipErrorReport = ({ error, tip, offline, onChain, rpcError, stored }: TipVerificationFailure): string =>
   JSON.stringify(
