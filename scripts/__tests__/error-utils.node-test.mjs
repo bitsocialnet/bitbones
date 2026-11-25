@@ -69,15 +69,31 @@ test('a secret in the message is redacted where the stack repeats it, and the fr
   const multilineStack = JSON.parse(serializeError(multiline)).stack;
   assert.doesNotMatch(multilineStack, /private-token/);
   assert.match(multilineStack, /^Error: failed\n {4}at https:\/\/rpc\.example\/\[redacted\]\n\s+at /);
-  // a stack that no longer opens with the error's own text, e.g. a message changed after it was formatted
-  const changed = new Error('first https://rpc.example/stale-key');
-  void changed.stack;
-  changed.message = 'second';
-  assert.doesNotMatch(JSON.parse(serializeError(changed)).stack, /stale-key/);
-  // a stack without V8 frames is redacted whole
-  const firefoxStyle = new Error('failed on https://rpc.example/ff-key');
-  firefoxStyle.stack = 'publish@https://bitbones.app/assets/index.js:1:2\n';
-  assert.equal(JSON.parse(serializeError(firefoxStyle)).stack, 'publish@https://bitbones.app/[redacted]\n');
+  // the stack keeps the message it was formatted with: a message changed later, to other text or to a prefix of it
+  for (const later of ['second', 'first']) {
+    const changed = new Error('first https://rpc.example/v3/stale-key');
+    void changed.stack;
+    changed.message = later;
+    assert.doesNotMatch(JSON.parse(serializeError(changed)).stack, /stale-key/);
+  }
+});
+
+test("a stack keeps the urls of the app's own origin, its code locations, and redacts the others", () => {
+  const error = new Error('first');
+  error.stack = 'Error: first https://rpc.example/v3/private-token\n    at publish (https://bitbones.app/assets/index-abc.js:1:2345)';
+  // node has no location: every web url is redacted (the url pattern of /log takes the closing parenthesis with it)
+  assert.equal(JSON.parse(serializeError(error)).stack, 'Error: first https://rpc.example/[redacted]\n    at publish (https://bitbones.app/[redacted]');
+  globalThis.location = { origin: 'https://bitbones.app' };
+  try {
+    assert.equal(
+      JSON.parse(serializeError(error)).stack,
+      'Error: first https://rpc.example/[redacted]\n    at publish (https://bitbones.app/assets/index-abc.js:1:2345)',
+    );
+    // only an Error's own stack: other text keeps no url whole
+    assert.equal(JSON.parse(serializeError({ note: 'https://bitbones.app/assets/x.js' })).note, 'https://bitbones.app/[redacted]');
+  } finally {
+    delete globalThis.location;
+  }
 });
 
 test('a circular error is copied without throwing', () => {

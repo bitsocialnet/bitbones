@@ -1,18 +1,11 @@
 /* a line of its own above the status line, in the status bar's wrapping flex row */
 .errorList {
   flex-basis: 100%;
-  color: var(--error);
-  overflow-wrap: anywhere;
-}
-
-.errorList:empty {
-  display: none;
-}
-
-.errorList ul {
   margin: 0;
   padding: 0;
   list-style: none;
+  color: var(--error);
+  overflow-wrap: anywhere;
 }
 
 .errorList li {

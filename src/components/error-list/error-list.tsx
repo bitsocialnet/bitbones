@@ -29,11 +29,15 @@ const ErrorRow = ({ shownError, dismissError }: ErrorRowProps) => {
       });
   };
 
+  // A row's error text is its own alert, announced once when the row is added. The buttons sit outside
+  // it, so a copy result does not read the error again, and the result has its own polite region.
   return (
     <li>
-      <span className={styles.context}>{shownError.context}</span> {formatError(shownError.error)}{' '}
+      <span role='alert'>
+        <span className={styles.context}>{shownError.context}</span> {formatError(shownError.error)}
+      </span>{' '}
       <button type='button' className={styles.linkButton} onClick={copy}>
-        {copyResult ?? 'copy full error'}
+        <span aria-live='polite'>{copyResult ?? 'copy full error'}</span>
       </button>{' '}
       <button type='button' className={styles.linkButton} onClick={() => dismissError(shownError.id)}>
         dismiss
@@ -42,19 +46,17 @@ const ErrorRow = ({ shownError, dismissError }: ErrorRowProps) => {
   );
 };
 
-// The live region is always rendered, so an error added to it is announced
 const ErrorList = () => {
   const [errors, dismissError] = useErrors();
+  if (!errors.length) {
+    return null;
+  }
   return (
-    <div className={styles.errorList} role='alert'>
-      {errors.length > 0 && (
-        <ul>
-          {errors.map((shownError) => (
-            <ErrorRow key={shownError.id} shownError={shownError} dismissError={dismissError} />
-          ))}
-        </ul>
-      )}
-    </div>
+    <ul className={styles.errorList}>
+      {errors.map((shownError) => (
+        <ErrorRow key={shownError.id} shownError={shownError} dismissError={dismissError} />
+      ))}
+    </ul>
   );
 };
 
