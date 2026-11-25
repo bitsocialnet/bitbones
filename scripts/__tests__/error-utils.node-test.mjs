@@ -113,6 +113,28 @@ test("a stack keeps only the code locations of the app's own scripts", () => {
   }
 });
 
+test('keys are redacted too, as pkc-js keys errors by endpoint url', () => {
+  const error = new Error('Failed to publish');
+  error.details = {
+    providerToError: {
+      'https://user:pass@rpc.example.com/api/v0?token=abc': { message: 'refused' },
+    },
+    // two urls on one host redact to the same key: neither entry is lost
+    gatewayToError: {
+      'https://gateway.example/a-key': { message: 'timed out' },
+      'https://gateway.example/b-key': { message: 'not found' },
+    },
+  };
+  const copied = serializeError(error);
+  assert.doesNotMatch(copied, /user:pass|abc|a-key|b-key/);
+  const { details } = JSON.parse(copied);
+  assert.deepEqual(Object.keys(details.providerToError), ['https://rpc.example.com/api/v0?[redacted]"[redacted]"']);
+  assert.deepEqual(details.gatewayToError, {
+    'https://gateway.example/[redacted]': { message: 'timed out' },
+    'https://gateway.example/[redacted] (2)': { message: 'not found' },
+  });
+});
+
 test('a circular error is copied without throwing', () => {
   const error = new Error('loop');
   error.details = { error };

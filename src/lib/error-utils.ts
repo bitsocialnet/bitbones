@@ -47,7 +47,13 @@ const toPlainData = (value: unknown, key: string, seen: WeakSet<object>): unknow
     // name, message, cause and stack are not enumerable on an Error, so they are read by name
     const data: Record<string, unknown> = value instanceof Error ? { name: value.name, message: toPlainData(value.message, 'message', seen) } : {};
     for (const [childKey, child] of Object.entries(value)) {
-      data[childKey] = toPlainData(child, childKey, seen);
+      // keys are redacted too: pkc-js keys errors by endpoint url (details.providerToError, gatewayToError).
+      // Two urls on one host redact to the same key, so a later one is numbered rather than overwriting.
+      let dataKey = redactSecrets(childKey);
+      for (let count = 2; dataKey in data; count++) {
+        dataKey = `${redactSecrets(childKey)} (${count})`;
+      }
+      data[dataKey] = toPlainData(child, childKey, seen);
     }
     if (value instanceof Error) {
       if (value.cause !== undefined) {
