@@ -1,20 +1,19 @@
 // Pure logic for the tipping/v1 contract and the author wallet proof. No React, no network, and no
 // relative imports, so scripts/__tests__/tipping.node-test.mjs can import this file directly.
-import { concatHex, formatUnits, isAddress, isHash, keccak256, parseUnits, recoverMessageAddress, stringToHex } from 'viem';
+import { concatHex, formatUnits, isAddress, isHash, keccak256, parseUnits, stringToHex } from 'viem';
 import type { Address, Hash, Hex } from 'viem';
 import type { Community } from '@bitsocial/bitsocial-react-hooks';
+import { AUTHOR_WALLET_PROOF_CLOCK_ALLOWANCE_SECONDS, getWalletMessageToSign, verifyAuthorWallet } from '@bitsocial/bitsocial-react-hooks/author-wallet-proof';
 
 // ---------------------------------------------------------------------------------------------
 // author wallet proof
 // ---------------------------------------------------------------------------------------------
 
-// The exact string a wallet signs to link itself to an author (BSIP-22). Built by hand because the
-// field order and the absence of whitespace are part of the format. authorPublicKey is the key
-// address of the author's signing key (12D3KooW...), never the runtime author.address, which is the
-// author's name when they have one and follows the name when it is repointed. The wallet signs its
-// own address, in lowercase, so nobody can make up 65 bytes and claim whatever address they recover to.
-export const getWalletMessageToSign = (authorPublicKey: string, walletAddress: string, timestamp: number): string =>
-  `{"domainSeparator":"bitsocial-author-wallet","authorPublicKey":"${authorPublicKey}","walletAddress":"${walletAddress.toLowerCase()}","timestamp":${timestamp}}`;
+// The author wallet proof is BSIP-22, and the hooks library implements it: the exact string a wallet
+// signs (getWalletMessageToSign) and the check of an entry (verifyAuthorWallet). authorPublicKey is the
+// key address of the author's signing key (12D3KooW...), never the runtime author.address, which is the
+// author's name when they have one and follows the name when it is repointed.
+export { getWalletMessageToSign };
 
 export const walletSignatureType = 'eip191';
 
@@ -79,13 +78,12 @@ export interface WalletProof {
 }
 
 // a proof may be dated this far ahead of the verifier's clock, and no further. Fixed, not a setting.
-export const walletTimestampAllowanceSeconds = 300;
+export const walletTimestampAllowanceSeconds = AUTHOR_WALLET_PROOF_CLOCK_ALLOWANCE_SECONDS;
 
 // the order of the secp256k1 curve, and its lower half: a signature's s must not exceed the half
 const secp256k1Order = 0xfffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141n;
 const secp256k1HalfOrder = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0n;
 
-const walletAddressPattern = /^0x[0-9a-fA-F]{40}$/;
 // r || s || v, 65 bytes
 const walletSignaturePattern = /^0x[0-9a-fA-F]{130}$/;
 
@@ -122,79 +120,22 @@ export interface WalletProofResult {
   reason?: string;
 }
 
-// The three outcomes of BSIP-22, offline: one hash and one public key recovery. valid is the only
-// outcome that makes an entry a wallet to show as the author's, count, or send funds to. invalid is
-// a malformed or failing eip191 entry. unknown is another signature type: unproven, not wrong.
-// The v and s rules are checked before recovery because viem's recovery accepts both forms of each,
-// and verifiers that follow their libraries would disagree about the same entry.
-export const verifyWalletProof = async (wallet: unknown, authorPublicKey: string | undefined, nowSeconds: number = Date.now() / 1000): Promise<WalletProofResult> => {
-  const invalid = (reason: string): WalletProofResult => ({ outcome: 'invalid', reason });
-  const proof = wallet as Partial<WalletProof> | undefined;
+// The three outcomes of BSIP-22, offline and synchronous: one hash and one public key recovery, by
+// the hooks library. valid is the only outcome that makes an entry a wallet to show as the author's,
+// count, or send funds to. invalid is a malformed or failing eip191 entry. unknown is another
+// signature type: unproven, not wrong.
+export const verifyWalletProof = (wallet: unknown, authorPublicKey: string | undefined, nowSeconds?: number): WalletProofResult => {
   if (!authorPublicKey) {
-    return invalid('the author has no public key');
+    return { outcome: 'invalid', reason: 'the author has no public key' };
   }
-  if (!proof || typeof proof !== 'object') {
-    return invalid('no wallet');
-  }
-  // the shape comes first, whatever the type
-  if (typeof proof.address !== 'string') {
-    return invalid('the wallet address is not a 0x address');
-  }
-  if (typeof proof.timestamp !== 'number' || !Number.isInteger(proof.timestamp)) {
-    return invalid('the wallet timestamp is not an integer');
-  }
-  const type: unknown = proof.signature?.type;
-  if (typeof proof.signature?.signature !== 'string' || typeof type !== 'string') {
-    return invalid('the wallet signature is missing its signature or its type');
-  }
-  if (type !== walletSignatureType) {
-    return { outcome: 'unknown', reason: `the wallet signature type is not ${walletSignatureType}` };
-  }
-  // a literal address only: a name here would need an RPC and changes meaning when repointed
-  if (!walletAddressPattern.test(proof.address)) {
-    return invalid('the wallet address is not a 0x address');
-  }
-  if (proof.timestamp < 0) {
-    return invalid('the wallet timestamp is negative');
-  }
-  if (proof.timestamp > nowSeconds + walletTimestampAllowanceSeconds) {
-    return invalid('the wallet timestamp is in the future');
-  }
-  const signature = proof.signature.signature;
-  if (!walletSignaturePattern.test(signature)) {
-    return invalid('the wallet signature is not 65 bytes of hex');
-  }
-  const v = Number.parseInt(signature.substring(130), 16);
-  if (v !== 27 && v !== 28) {
-    return invalid('the wallet signature v is not 27 or 28');
-  }
-  if (BigInt(`0x${signature.substring(66, 130)}`) > secp256k1HalfOrder) {
-    return invalid('the wallet signature s is in the upper half of the curve order');
-  }
-  try {
-    const recovered = await recoverMessageAddress({ message: getWalletMessageToSign(authorPublicKey, proof.address, proof.timestamp), signature: signature as Hex });
-    return recovered.toLowerCase() === proof.address.toLowerCase() ? { outcome: 'valid' } : invalid('the wallet did not sign for this author');
-  } catch {
-    return invalid('the wallet signature is malformed');
-  }
-};
-
-const walletProofResults = new Map<string, Promise<WalletProofResult>>();
-
-// verifyWalletProof, once per entry and author key, for views that show an entry's outcome
-export const getWalletProofResult = (wallet: unknown, authorPublicKey: string | undefined): Promise<WalletProofResult> => {
-  const key = JSON.stringify([wallet, authorPublicKey]);
-  let result = walletProofResults.get(key);
-  if (!result) {
-    result = verifyWalletProof(wallet, authorPublicKey);
-    walletProofResults.set(key, result);
-  }
-  return result;
+  const result = verifyAuthorWallet(wallet, authorPublicKey, { nowSeconds });
+  // the hooks give no reason for unknown; this client shows one next to every entry that is not valid
+  return result.outcome === 'unknown' ? { outcome: 'unknown', reason: `the wallet signature type is not ${walletSignatureType}` } : result;
 };
 
 // undefined when the entry is a valid proof, otherwise why it is not (invalid and unknown alike)
-export const getWalletProofError = async (wallet: unknown, authorPublicKey: string | undefined, nowSeconds?: number): Promise<string | undefined> => {
-  const { outcome, reason } = await verifyWalletProof(wallet, authorPublicKey, nowSeconds);
+export const getWalletProofError = (wallet: unknown, authorPublicKey: string | undefined, nowSeconds?: number): string | undefined => {
+  const { outcome, reason } = verifyWalletProof(wallet, authorPublicKey, nowSeconds);
   return outcome === 'valid' ? undefined : (reason ?? 'not a valid wallet proof');
 };
 
@@ -701,13 +642,10 @@ export const getProvenWalletAddresses = async (party: TipParty | undefined, nowS
   }
   // code unit order, so every client sorts the same way
   const keys = Object.keys(wallets).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const addresses = await Promise.all(
-    keys.map(async (key) => {
-      const wallet = (wallets as Record<string, unknown>)[key];
-      return (await getWalletProofError(wallet, keyAddress, nowSeconds)) ? undefined : (wallet as WalletProof).address;
-    }),
-  );
-  return addresses.flatMap((address) => address ?? []);
+  return keys.flatMap((key) => {
+    const wallet = (wallets as Record<string, unknown>)[key];
+    return getWalletProofError(wallet, keyAddress, nowSeconds) ? [] : [(wallet as WalletProof).address];
+  });
 };
 
 // Where a tip to this comment's author is sent: the author's `eth` entry if its proof verifies,
@@ -727,7 +665,7 @@ export const getTipRecipientAddress = async (
   }
   const wallets = party?.author?.wallets;
   const eth = wallets && typeof wallets === 'object' ? (wallets as Record<string, unknown>).eth : undefined;
-  if (eth && !isExcluded((eth as WalletProof).address) && !(await getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds))) {
+  if (eth && !isExcluded((eth as WalletProof).address) && !getWalletProofError(eth, getPartyKeyAddress(party), nowSeconds)) {
     return (eth as WalletProof).address;
   }
   return (await getProvenWalletAddresses(party, nowSeconds, community)).find((address) => !isExcluded(address));
