@@ -63,7 +63,7 @@ const signInAppWallet = async (account: Account, inAppWallet: InAppWallet): Prom
 const getInAppWalletKey = (wallets: Record<string, Wallet> | undefined): string => (wallets?.eth ? 'evm' : 'eth');
 
 // whether the account publishes a valid proof of the in-app wallet, under any author.wallets key
-export const isInAppWalletProven = async (account: Account | undefined): Promise<boolean> => {
+export const isInAppWalletProven = (account: Account | undefined): boolean => {
   const inAppWallet = getInAppWallet(account);
   const keyAddress = getAccountKeyAddress(account);
   const wallets: Record<string, Wallet> = account?.author?.wallets ?? {};
@@ -71,7 +71,7 @@ export const isInAppWalletProven = async (account: Account | undefined): Promise
     return false;
   }
   for (const wallet of Object.values(wallets)) {
-    if (isSameAddress(wallet?.address, inAppWallet.address) && !(await getWalletProofError(wallet, keyAddress))) {
+    if (isSameAddress(wallet?.address, inAppWallet.address) && !getWalletProofError(wallet, keyAddress)) {
       return true;
     }
   }
@@ -86,7 +86,7 @@ export const ensureInAppWallet = async (account: Account | undefined): Promise<s
   if (!account || !inAppWallet) {
     throw Error('this account has no in-app wallet');
   }
-  if (await isInAppWalletProven(account)) {
+  if (isInAppWalletProven(account)) {
     return inAppWallet.address;
   }
   const wallets: Record<string, Wallet> | undefined = account.author?.wallets;
@@ -120,7 +120,7 @@ export const useWalletProofMigration = (): void => {
       const keyAddress = getAccountKeyAddress(account);
       const resigned: Record<string, Wallet> = {};
       for (const [key, wallet] of Object.entries(wallets)) {
-        if (isSameAddress(wallet?.address, inAppWallet.address) && (await getWalletProofError(wallet, keyAddress))) {
+        if (isSameAddress(wallet?.address, inAppWallet.address) && getWalletProofError(wallet, keyAddress)) {
           resigned[key] = await signInAppWallet(account, inAppWallet);
         }
       }

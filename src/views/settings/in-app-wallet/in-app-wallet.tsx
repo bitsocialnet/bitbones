@@ -1,4 +1,4 @@
-import { Suspense, use, useState } from 'react';
+import { useState } from 'react';
 import { useAccount, useCommunities } from '@bitsocial/bitsocial-react-hooks';
 import type { Account } from '@bitsocial/bitsocial-react-hooks';
 import { useCommunityIdentifiers } from '../../../hooks/use-community-identifier';
@@ -49,26 +49,13 @@ const ChainRpcUrl = ({ chainId, accountRpcUrl }: ChainRpcUrlProps) => {
   );
 };
 
-const provenChecks = new Map<string, Promise<boolean>>();
-
-// the same promise for the same wallets, so the status below can read it during render
-const getInAppWalletProven = (account: Account): Promise<boolean> => {
-  const key = JSON.stringify([account.signer?.publicKey, account.author?.wallets]);
-  let proven = provenChecks.get(key);
-  if (!proven) {
-    proven = isInAppWalletProven(account).catch(() => false);
-    provenChecks.set(key, proven);
-  }
-  return proven;
-};
-
 interface ProofStatusProps {
   account: Account;
 }
 
 // a tip's sender must be a wallet the tipper has proven, under any author.wallets key
 const ProofStatus = ({ account }: ProofStatusProps) => {
-  const proven = use(getInAppWalletProven(account));
+  const proven = isInAppWalletProven(account);
   const link = () => ensureInAppWallet(account).catch((error: Error) => alert(error.message));
   if (proven) {
     return <div>published in this account's wallets with a valid proof.</div>;
@@ -160,9 +147,7 @@ const InAppWallet = () => {
         <button onClick={() => navigator.clipboard.writeText(inAppWallet.address)}>copy</button>
       </div>
       <div>its key is this account's key, kept in this browser: deposit only what you mean to tip, plus the chain's coin for gas.</div>
-      <Suspense fallback={<div>checking its proof...</div>}>
-        <ProofStatus account={account} />
-      </Suspense>
+      <ProofStatus account={account} />
       {chainIds.map((chainId) => (
         <ChainRpcUrl key={chainId} chainId={chainId} accountRpcUrl={getTippingRpcUrl(chainId, account.chainProviders)} />
       ))}

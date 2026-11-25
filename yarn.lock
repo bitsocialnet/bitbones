@@ -1233,11 +1233,13 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@bitsocial/bitsocial-react-hooks@npm:0.3.3":
-  version: 0.3.3
-  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.3.3"
+"@bitsocial/bitsocial-react-hooks@npm:0.4.0":
+  version: 0.4.0
+  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.4.0"
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.10"
+    "@noble/curves": "npm:2.2.0"
+    "@noble/hashes": "npm:2.2.0"
     "@pkcprotocol/pkc-js": "npm:0.0.154"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     ethers: "npm:5.8.0"
@@ -1249,11 +1251,10 @@ __metadata:
     typestub-ipfs-only-hash: "npm:4.0.0"
     uint8arrays: "npm:3.1.1"
     uuid: "npm:14.0.3"
-    viem: "npm:2.55.8"
     zustand: "npm:4.5.7"
   peerDependencies:
     react: ">=16.8"
-  checksum: 10c0/8f656ddc4e316d015c2446a5a1d9a25c9c12427ec8c9545e0c218ed4b94a7a22c9120fd2779231e8f6a675f4815babdabac5c337cff8fc94389a706bcb145165
+  checksum: 10c0/50c3d4e594ad389037168d772fa22ae3972b6e27a1e165e5181d1607487e19db66488307b6e9edf7ccad764d1abf980944c1929c6ca8f24b4d7a8f9076e060db
   languageName: node
   linkType: hard
 
@@ -7310,7 +7311,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "bitbones@workspace:."
   dependencies:
-    "@bitsocial/bitsocial-react-hooks": "npm:0.3.3"
+    "@bitsocial/bitsocial-react-hooks": "npm:0.4.0"
     "@bitsocial/bso-resolver": "npm:0.0.11"
     "@capacitor/android": "npm:7.6.9"
     "@capacitor/app": "npm:7.0.1"
@@ -14438,27 +14439,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ox@npm:0.14.32":
-  version: 0.14.32
-  resolution: "ox@npm:0.14.32"
-  dependencies:
-    "@adraffy/ens-normalize": "npm:^1.11.0"
-    "@noble/ciphers": "npm:^1.3.0"
-    "@noble/curves": "npm:1.9.1"
-    "@noble/hashes": "npm:^1.8.0"
-    "@scure/bip32": "npm:^1.7.0"
-    "@scure/bip39": "npm:^1.6.0"
-    abitype: "npm:^1.2.3"
-    eventemitter3: "npm:5.0.1"
-  peerDependencies:
-    typescript: ">=5.4.0"
-  peerDependenciesMeta:
-    typescript:
-      optional: true
-  checksum: 10c0/e07c0b18f967f93bf9b52dd5f00cd72db38be435f06cb16e7852c08cc6f05730c031a3ae5dbe058682160ec25b8a8664df334e28fe0677f7848abd0b9a9b59f0
-  languageName: node
-  linkType: hard
-
 "ox@npm:0.14.57":
   version: 0.14.57
   resolution: "ox@npm:0.14.57"
@@ -18655,27 +18635,6 @@ __metadata:
     typescript:
       optional: true
   checksum: 10c0/4747450c511604dc2280b94b6a6eab53638058a559531f7707d31f21de51670449530f9ebc2fbc06d961b8b5a6cfadb920683e701058adc8996619b012bbc56d
-  languageName: node
-  linkType: hard
-
-"viem@npm:2.55.8":
-  version: 2.55.8
-  resolution: "viem@npm:2.55.8"
-  dependencies:
-    "@noble/curves": "npm:1.9.1"
-    "@noble/hashes": "npm:1.8.0"
-    "@scure/bip32": "npm:1.7.0"
-    "@scure/bip39": "npm:1.6.0"
-    abitype: "npm:1.2.3"
-    isows: "npm:1.0.7"
-    ox: "npm:0.14.32"
-    ws: "npm:8.21.0"
-  peerDependencies:
-    typescript: ">=5.0.4"
-  peerDependenciesMeta:
-    typescript:
-      optional: true
-  checksum: 10c0/30457ab22c174e02680831f841cd27ba806346ea2099e6b091a53bb46f0bcd6406d93704ef1d91be0d21fd367e38fe81573a9a89a84906e469bdb9c12be7a0bb
   languageName: node
   linkType: hard
 

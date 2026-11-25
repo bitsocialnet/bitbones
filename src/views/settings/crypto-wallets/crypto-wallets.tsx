@@ -1,8 +1,8 @@
-import { Suspense, use, useState } from 'react';
+import { useState } from 'react';
 import { useAccount, setAccount } from '@bitsocial/bitsocial-react-hooks';
 import type { Account, Wallet } from '@bitsocial/bitsocial-react-hooks';
 import { getAccountKeyAddress } from '../../../hooks/use-in-app-wallet';
-import { getWalletMessageToSign, getWalletProofError, getWalletProofResult, normalizeWalletSignature, walletSignatureType } from '../../../lib/tipping';
+import { getWalletMessageToSign, getWalletProofError, normalizeWalletSignature, verifyWalletProof, walletSignatureType } from '../../../lib/tipping';
 
 // the form edits a flat row per chain, while the account stores the signature nested inside a Wallet
 interface WalletInput {
@@ -19,8 +19,11 @@ interface SavedWalletStatusProps {
 
 // The outcome of an entry the account already stores, with the reason, so a proof signed the way
 // older clients did shows up as needing a new signature instead of failing silently elsewhere.
-const LoadedSavedWalletStatus = ({ wallet, authorPublicKey }: SavedWalletStatusProps) => {
-  const { outcome, reason } = use(getWalletProofResult(wallet, authorPublicKey));
+const SavedWalletStatus = ({ wallet, authorPublicKey }: SavedWalletStatusProps) => {
+  if (!wallet) {
+    return null;
+  }
+  const { outcome, reason } = verifyWalletProof(wallet, authorPublicKey);
   if (outcome === 'valid') {
     return <div>saved proof: valid</div>;
   }
@@ -31,13 +34,6 @@ const LoadedSavedWalletStatus = ({ wallet, authorPublicKey }: SavedWalletStatusP
     </div>
   );
 };
-
-const SavedWalletStatus = (props: SavedWalletStatusProps) =>
-  props.wallet ? (
-    <Suspense fallback={<div>saved proof: verifying...</div>}>
-      <LoadedSavedWalletStatus {...props} />
-    </Suspense>
-  ) : null;
 
 interface CryptoWalletsFormProps {
   account?: Account;
@@ -116,7 +112,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
     );
   });
 
-  const save = async () => {
+  const save = () => {
     // start from the entries the account stores now, and change only what the rows say
     const savedWallets = account.author?.wallets || {};
     const wallets: Record<string, Wallet> = { ...savedWallets };
@@ -159,7 +155,7 @@ const CryptoWalletsForm = ({ account }: CryptoWalletsFormProps) => {
       // a pasted signature may have v as 0 or 1, or a high s: store it in the one encoding a proof may have
       const signature = normalizeWalletSignature(wallet.signature.trim()) ?? wallet.signature.trim();
       const proof: Wallet = { address: wallet.address.trim(), timestamp: wallet.timestamp, signature: { signature, type: walletSignatureType } };
-      const proofError = await getWalletProofError(proof, authorPublicKey);
+      const proofError = getWalletProofError(proof, authorPublicKey);
       if (proofError) {
         return alert(`${wallet.chainTicker}: ${proofError}. click "copy message to sign", sign that message with the wallet, and paste the new signature`);
       }

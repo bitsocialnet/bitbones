@@ -134,12 +134,12 @@ test('a proof may be dated at most 300 seconds ahead of the verifier', async () 
   assert.equal(walletTimestampAllowanceSeconds, 300);
   // valid from the proof's timestamp less the allowance
   assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999700), undefined);
-  assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999699), 'the wallet timestamp is in the future');
-  assert.equal(await getWalletProofError({ ...vector.entry, timestamp: 1790000301 }, vector.keyAddress, 1790000000), 'the wallet timestamp is in the future');
+  assert.equal(await getWalletProofError(vector.entry, vector.keyAddress, 1789999699), 'timestamp is more than 300 seconds in the future');
+  assert.equal(await getWalletProofError({ ...vector.entry, timestamp: 1790000301 }, vector.keyAddress, 1790000000), 'timestamp is more than 300 seconds in the future');
   for (const timestamp of [1790000000.5, '1790000000', undefined]) {
-    assert.equal(await getWalletProofError({ ...vector.entry, timestamp }, vector.keyAddress, 1790000000), 'the wallet timestamp is not an integer');
+    assert.equal(await getWalletProofError({ ...vector.entry, timestamp }, vector.keyAddress, 1790000000), 'timestamp is not an integer');
   }
-  assert.equal(await getWalletProofError({ ...vector.entry, timestamp: -1 }, vector.keyAddress, 1790000000), 'the wallet timestamp is negative');
+  assert.equal(await getWalletProofError({ ...vector.entry, timestamp: -1 }, vector.keyAddress, 1790000000), 'timestamp is negative');
 });
 
 test('a proof has one accepted signature encoding: v of 27 or 28 and a low s', async () => {
@@ -148,19 +148,19 @@ test('a proof has one accepted signature encoding: v of 27 or 28 and a low s', a
   // v written as 1 in place of 28
   const v01 = toV01(signature);
   assert.equal(v01.substring(130), '01');
-  assert.equal(await getWalletProofError(withSignature(v01), vector.keyAddress, now), 'the wallet signature v is not 27 or 28');
-  assert.equal(await getWalletProofError(withSignature(`${signature.substring(0, 130)}00`), vector.keyAddress, now), 'the wallet signature v is not 27 or 28');
+  assert.equal(await getWalletProofError(withSignature(v01), vector.keyAddress, now), 'signature v is not 27 or 28');
+  assert.equal(await getWalletProofError(withSignature(`${signature.substring(0, 130)}00`), vector.keyAddress, now), 'signature v is not 27 or 28');
 
   // the high s twin recovers the same address, which is why it has to be rejected by rule
   const highS = toHighS(signature);
   assert.equal(highS.substring(130), '1b');
   assert.equal((await recoverMessageAddress({ message: vector.message, signature: highS })).toLowerCase(), vector.entry.address.toLowerCase());
-  assert.equal(await getWalletProofError(withSignature(highS), vector.keyAddress, now), 'the wallet signature s is in the upper half of the curve order');
+  assert.equal(await getWalletProofError(withSignature(highS), vector.keyAddress, now), 'signature s is in the upper half of the curve order');
 
   for (const malformed of ['0x1234', signature.substring(0, 130), `${signature}00`, signature.substring(2), `0x${'zz'.repeat(65)}`]) {
-    assert.equal(await getWalletProofError(withSignature(malformed), vector.keyAddress, now), 'the wallet signature is not 65 bytes of hex');
+    assert.equal(await getWalletProofError(withSignature(malformed), vector.keyAddress, now), 'signature is not 65 bytes as 0x and 130 hex digits');
   }
-  assert.equal(await getWalletProofError(withSignature(undefined), vector.keyAddress, now), 'the wallet signature is missing its signature or its type');
+  assert.equal(await getWalletProofError(withSignature(undefined), vector.keyAddress, now), 'signature.signature is not a string');
 });
 
 test('a signature is normalised to the accepted encoding before it is stored', async () => {
@@ -191,14 +191,14 @@ const legacySignatures = [
 test('a proof signed over the messages of the first clients is not valid', async () => {
   const now = 1790000000;
   for (const signature of legacySignatures) {
-    assert.equal(await getWalletProofError(withSignature(signature), vector.keyAddress, now), 'the wallet did not sign for this author');
+    assert.equal(await getWalletProofError(withSignature(signature), vector.keyAddress, now), 'signature does not recover the wallet address');
   }
 });
 
 test('a wallet proof is valid only for the author key it names', async () => {
   const now = 1790000000;
   // copied into a publication signed by another key
-  assert.equal(await getWalletProofError(vector.entry, '12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J', now), 'the wallet did not sign for this author');
+  assert.equal(await getWalletProofError(vector.entry, '12D3KooWScGWHZLpStnX74jENavUzXK4EBVCSRSnHes1JJBdLX5J', now), 'signature does not recover the wallet address');
   // the strings older clients signed, and the field name they used
   const account = privateKeyToAccount(vector.walletPrivateKey);
   for (const message of [
@@ -207,18 +207,19 @@ test('a wallet proof is valid only for the author key it names', async () => {
     `{"domainSeparator":"bitsocial-author-wallet","authorAddress":"${vector.keyAddress}","timestamp":1790000000}`,
   ]) {
     const old = withSignature(normalizeWalletSignature(await account.signMessage({ message })));
-    assert.equal(await getWalletProofError(old, vector.keyAddress, now), 'the wallet did not sign for this author');
+    assert.equal(await getWalletProofError(old, vector.keyAddress, now), 'signature does not recover the wallet address');
   }
-  for (const address of ['example.eth', vector.entry.address.substring(2), `${vector.entry.address}00`, undefined]) {
-    assert.equal(await getWalletProofError({ ...vector.entry, address }, vector.keyAddress, now), 'the wallet address is not a 0x address');
+  for (const address of ['example.eth', vector.entry.address.substring(2), `${vector.entry.address}00`]) {
+    assert.equal(await getWalletProofError({ ...vector.entry, address }, vector.keyAddress, now), 'address is not a 0x address with 40 hex digits');
   }
+  assert.equal(await getWalletProofError({ ...vector.entry, address: undefined }, vector.keyAddress, now), 'address is not a string');
   // another signature type is unproven, not wrong
   for (const type of ['sol', 'eip712']) {
     const entry = { ...vector.entry, signature: { ...vector.entry.signature, type } };
     assert.deepEqual(await verifyWalletProof(entry, vector.keyAddress, now), { outcome: 'unknown', reason: 'the wallet signature type is not eip191' });
   }
   assert.equal((await verifyWalletProof({ ...vector.entry, signature: { ...vector.entry.signature, type: undefined } }, vector.keyAddress, now)).outcome, 'invalid');
-  assert.equal(await getWalletProofError(undefined, vector.keyAddress, now), 'no wallet');
+  assert.equal(await getWalletProofError(undefined, vector.keyAddress, now), 'wallet is not an object');
   assert.equal(await getWalletProofError(vector.entry, undefined, now), 'the author has no public key');
 });
 
