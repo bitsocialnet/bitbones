@@ -49,9 +49,11 @@ const toPlainData = (value: unknown, key: string, seen: WeakSet<object>): unknow
     for (const [childKey, child] of Object.entries(value)) {
       // keys are redacted too: pkc-js keys errors by endpoint url (details.providerToError, gatewayToError).
       // Two urls on one host redact to the same key, so a later one is numbered rather than overwriting.
-      let dataKey = redactSecrets(childKey);
-      for (let count = 2; dataKey in data; count++) {
-        dataKey = `${redactSecrets(childKey)} (${count})`;
+      // A key the redaction left alone is not numbered: an Error's own name or message replaces the one above.
+      const redactedKey = redactSecrets(childKey);
+      let dataKey = redactedKey;
+      for (let count = 2; redactedKey !== childKey && dataKey in data; count++) {
+        dataKey = `${redactedKey} (${count})`;
       }
       data[dataKey] = toPlainData(child, childKey, seen);
     }

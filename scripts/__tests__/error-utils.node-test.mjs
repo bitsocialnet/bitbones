@@ -29,6 +29,8 @@ const pkcError = () => {
 
 test('the copied error keeps what an alert dropped: code, details, cause and stack', () => {
   const copied = JSON.parse(serializeError(pkcError()));
+  // the name set on the error is its own field: listed once, not numbered as a second name
+  assert.deepEqual(Object.keys(copied), ['name', 'message', 'code', 'details', 'cause', 'stack']);
   assert.equal(copied.name, 'PKCError');
   assert.equal(copied.message, 'Failed to resolve the community address');
   assert.equal(copied.code, 'ERR_FAILED_TO_RESOLVE_COMMUNITY');
