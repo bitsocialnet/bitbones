@@ -53,6 +53,23 @@ test('the copied error redacts endpoint credentials and secret fields, as /log d
   assert.equal(details.signer.privateKey, '[redacted]');
 });
 
+test('a secret in the message is redacted where the stack repeats it, and the frames are kept', () => {
+  const cause = new Error('refused by https://rpc.example/cause-key');
+  const error = new Error('timed out on https://rpc.example/secret-key with token=abc123', { cause });
+  // only an Error's own stack keeps its frames: a field named stack anywhere else is ordinary text
+  error.details = { stack: 'Error: copied from https://rpc.example/nested-key' };
+  const copied = serializeError(error);
+  assert.doesNotMatch(copied, /secret-key|abc123|cause-key|nested-key/);
+  const data = JSON.parse(copied);
+  assert.match(data.stack, /^Error: timed out on https:\/\/rpc\.example\/\[redacted\] with token="\[redacted\]"\n\s+at /);
+  assert.match(data.cause.stack, /^Error: refused by https:\/\/rpc\.example\/\[redacted\]\n\s+at /);
+  assert.equal(data.details.stack, 'Error: copied from https://rpc.example/[redacted]');
+  // a stack without V8 frames is redacted whole
+  const firefoxStyle = new Error('failed on https://rpc.example/ff-key');
+  firefoxStyle.stack = 'publish@https://bitbones.app/assets/index.js:1:2\n';
+  assert.equal(JSON.parse(serializeError(firefoxStyle)).stack, 'publish@https://bitbones.app/[redacted]\n');
+});
+
 test('a circular error is copied without throwing', () => {
   const error = new Error('loop');
   error.details = { error };
