@@ -13,18 +13,10 @@ const URL_PATTERN = /\b(?:https?|wss?):\/\/[^\s"'<>]+/g;
 
 export const isSecretKey = (key: string): boolean => SECRET_KEY.test(key);
 
-const hasOrigin = (url: string, origin: string): boolean => {
-  try {
-    return new URL(url).origin === origin;
-  } catch {
-    return false;
-  }
-};
-
 // secret fields written out in text, and endpoint urls, whose paths and queries can carry credentials.
-// Urls on `keepOrigin` are left whole: the app's own urls, such as the code locations in a stack.
-export const redactSecrets = (text: string, keepOrigin?: string): string =>
-  text.replace(SECRET_FIELD, '$1"[redacted]"').replace(URL_PATTERN, (url) => (keepOrigin && hasOrigin(url, keepOrigin) ? url : utils.getRedactedUrl(url)));
+// A url `keepUrl` accepts is left whole, such as a code location in a stack.
+export const redactSecrets = (text: string, keepUrl?: (url: string) => boolean): string =>
+  text.replace(SECRET_FIELD, '$1"[redacted]"').replace(URL_PATTERN, (url) => (keepUrl?.(url) ? url : utils.getRedactedUrl(url)));
 
 // a JSON.stringify replacer that drops the values of secret keys
 export const secretReplacer = (key: string, value: unknown): unknown => (isSecretKey(key) ? '[redacted]' : value);

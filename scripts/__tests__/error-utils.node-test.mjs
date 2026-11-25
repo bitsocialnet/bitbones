@@ -78,7 +78,7 @@ test('a secret in the message is redacted where the stack repeats it, and the fr
   }
 });
 
-test("a stack keeps the urls of the app's own origin, its code locations, and redacts the others", () => {
+test("a stack keeps only the code locations of the app's own scripts", () => {
   const error = new Error('first');
   error.stack = 'Error: first https://rpc.example/v3/private-token\n    at publish (https://bitbones.app/assets/index-abc.js:1:2345)';
   // node has no location: every web url is redacted (the url pattern of /log takes the closing parenthesis with it)
@@ -89,8 +89,25 @@ test("a stack keeps the urls of the app's own origin, its code locations, and re
       JSON.parse(serializeError(error)).stack,
       'Error: first https://rpc.example/[redacted]\n    at publish (https://bitbones.app/assets/index-abc.js:1:2345)',
     );
+    // a dev server's scripts, with its cache-busting query
+    const dev = new Error('dev');
+    dev.stack = 'Error: dev\n    at f (https://bitbones.app/node_modules/.vite/deps/react.js?v=1a2b:10:5)\n    at g (https://bitbones.app/src/app.tsx?t=17:3:1)';
+    assert.equal(JSON.parse(serializeError(dev)).stack, dev.stack);
+    // a url on the app's origin that is not a code location, in the message of the error and of its cause
+    const cause = new Error('refused https://bitbones.app/v3/cause-token');
+    const sameOrigin = new Error('failed https://bitbones.app/v3/private-token', { cause });
+    const copied = JSON.parse(serializeError(sameOrigin));
+    assert.doesNotMatch(JSON.stringify(copied), /private-token|cause-token/);
+    assert.match(copied.stack, /^Error: failed https:\/\/bitbones\.app\/\[redacted\]\n/);
+    assert.match(copied.cause.stack, /^Error: refused https:\/\/bitbones\.app\/\[redacted\]\n/);
+    // nor a script url with a query other than the dev server's, or on another origin that starts the same
+    for (const url of ['https://bitbones.app/a.js?token=x:1:2', 'https://bitbones.app.example/a.js:1:2']) {
+      const other = new Error('other');
+      other.stack = `Error: other\n    at f (${url})`;
+      assert.doesNotMatch(JSON.parse(serializeError(other)).stack, /token=x|a\.js/);
+    }
     // only an Error's own stack: other text keeps no url whole
-    assert.equal(JSON.parse(serializeError({ note: 'https://bitbones.app/assets/x.js' })).note, 'https://bitbones.app/[redacted]');
+    assert.equal(JSON.parse(serializeError({ note: 'https://bitbones.app/assets/x.js:1:2' })).note, 'https://bitbones.app/[redacted]');
   } finally {
     delete globalThis.location;
   }
