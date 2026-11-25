@@ -64,6 +64,16 @@ test('a secret in the message is redacted where the stack repeats it, and the fr
   assert.match(data.stack, /^Error: timed out on https:\/\/rpc\.example\/\[redacted\] with token="\[redacted\]"\n\s+at /);
   assert.match(data.cause.stack, /^Error: refused by https:\/\/rpc\.example\/\[redacted\]\n\s+at /);
   assert.equal(data.details.stack, 'Error: copied from https://rpc.example/[redacted]');
+  // a message with a line shaped like a frame is still redacted in full, and the real frames are kept
+  const multiline = new Error('failed\n    at https://rpc.example/v3/private-token');
+  const multilineStack = JSON.parse(serializeError(multiline)).stack;
+  assert.doesNotMatch(multilineStack, /private-token/);
+  assert.match(multilineStack, /^Error: failed\n {4}at https:\/\/rpc\.example\/\[redacted\]\n\s+at /);
+  // a stack that no longer opens with the error's own text, e.g. a message changed after it was formatted
+  const changed = new Error('first https://rpc.example/stale-key');
+  void changed.stack;
+  changed.message = 'second';
+  assert.doesNotMatch(JSON.parse(serializeError(changed)).stack, /stale-key/);
   // a stack without V8 frames is redacted whole
   const firefoxStyle = new Error('failed on https://rpc.example/ff-key');
   firefoxStyle.stack = 'publish@https://bitbones.app/assets/index.js:1:2\n';
