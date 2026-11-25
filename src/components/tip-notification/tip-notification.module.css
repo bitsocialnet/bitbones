@@ -63,6 +63,11 @@
   text-decoration: underline;
 }
 
+/* a tip that could not be checked at all */
+.unchecked {
+  color: var(--dim);
+}
+
 .message {
   margin-top: 2px;
   font-size: 12px;

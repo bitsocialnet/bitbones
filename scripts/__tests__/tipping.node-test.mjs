@@ -25,6 +25,7 @@ import {
   getTokenKey,
   getProvenWalletAddresses,
   getTipReplies,
+  claimsSameTransaction,
   getEarlierTipClaims,
   getTipCheck,
   getTipCheckError,
@@ -1134,6 +1135,14 @@ test('one payment claimed by several replies is one tip, kept by the earliest re
   // replies without a tip, without a cid, missing ones, and one listed twice are skipped
   assert.equal(getEarlierTipClaims([undefined, { cid: 'QmG', parentCid: 'QmParent' }, { ...claim('x', 1), cid: undefined }, claim('QmA', 10), claim('QmA', 10)]).size, 0);
   assert.equal(getEarlierTipClaims(undefined).size, 0);
+
+  // an earlier reply whose live update carries another tip by now is no claim on this one
+  assert.equal(claimsSameTransaction(claim('QmA', 10), claim('QmB', 20, 'QmParent', txHash.toUpperCase().replace('0X', '0x'))), true);
+  assert.equal(claimsSameTransaction(claim('QmA', 10), claim('QmB', 20, 'QmParent', feeTxHash)), false);
+  assert.equal(claimsSameTransaction(claim('QmA', 10), claim('QmB', 20, 'QmOtherParent')), false);
+  assert.equal(claimsSameTransaction(claim('QmA', 10), { ...claim('QmB', 20), tip: { ...claim().tip, chainId: 10 } }), false);
+  assert.equal(claimsSameTransaction(claim('QmA', 10), { cid: 'QmB', parentCid: 'QmParent' }), false);
+  assert.equal(claimsSameTransaction(undefined, claim('QmB', 20)), false);
 
   // a verified tip is a repeat only once an earlier claim verifies too
   const tip = { chainId: 1, txHash };

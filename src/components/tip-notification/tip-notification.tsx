@@ -10,6 +10,7 @@ import useTippingConfig from '../../hooks/use-tipping-config';
 import { useTipVerification } from '../../hooks/use-tip-verification';
 import useInspectedComment, { isSameComment } from '../../hooks/use-inspected-comment';
 import useInspectorAvailable from '../../hooks/use-inspector-available';
+import { claimsSameTransaction } from '../../lib/tipping';
 import type { TippingConfig } from '../../lib/tipping';
 import styles from './tip-notification.module.css';
 
@@ -112,19 +113,27 @@ const TipNotification = ({ notification, rivals, index }: TipNotificationProps) 
   // The earlier claims are loaded the same way. One that could not be checked would not count as
   // verified, and this reply would then show the same payment as a second tip.
   const rivalCidsToLoad = (rivals ?? []).flatMap((rival) => (hasSignedRecords(rival) ? [] : [String(rival.cid)]));
-  const { comments: loadedRivals } = useComments(rivalCidsToLoad.length ? { commentCids: rivalCidsToLoad } : undefined);
+  const { comments: loadedRivals, state: rivalsState } = useComments(rivalCidsToLoad.length ? { commentCids: rivalCidsToLoad } : undefined);
   const checkedRivals = (rivals ?? []).map((rival) => (hasSignedRecords(rival) ? rival : loadedRivals[rivalCidsToLoad.indexOf(String(rival.cid))]));
   // the tipped comment, whose author's wallet the tip must have been sent to
   const parent: Comment = useComment({ commentCid: notification.parentCid });
   if (!config) {
     return <FeedPost index={index} post={notification} />;
   }
+  // A load that failed is not waited for. Without the reply or the tipped comment the tip can't be
+  // checked, and the row says so. (The hooks report no failed load for the account's own comment.)
+  const failedLoad = getCommentLoadError(reply) ? 'the reply' : getCommentLoadError(parent) ? 'the tipped comment' : undefined;
+  if (failedLoad && (!isLoaded(reply) || !isLoaded(parent))) {
+    return <FeedPost index={index} post={notification} note={<span className={styles.unchecked}>tip not checked: {failedLoad} failed to load</span>} />;
+  }
   const checking = <FeedPost index={index} post={notification} note={<TipChecking />} />;
-  // an earlier claim that failed to load can't be checked, and takes nothing from this reply
-  const settledRivals = checkedRivals.filter((rival) => !getCommentLoadError(rival));
-  if (!isLoaded(reply) || !isLoaded(parent) || !settledRivals.every(isLoaded)) {
+  // useComments is failed once none of the earlier claims is still loading and one failed: one that
+  // did not load can't be checked, and takes nothing from this reply
+  if (!isLoaded(reply) || !isLoaded(parent) || (rivalsState !== 'failed' && !checkedRivals.every(isLoaded))) {
     return checking;
   }
+  // the live update of an earlier reply may by now carry another tip, which is no claim on this one
+  const settledRivals = checkedRivals.filter(isLoaded).filter((rival) => claimsSameTransaction(rival, reply));
   return (
     <Suspense fallback={checking}>
       <VerifiedTipNotification reply={reply} parent={parent} config={config} notification={notification} rivals={settledRivals} index={index} />

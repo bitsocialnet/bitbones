@@ -862,6 +862,20 @@ interface TipClaimant {
   timestamp?: unknown;
 }
 
+// whether two replies claim the same transaction as a tip of the same comment
+export const claimsSameTransaction = (a: TipClaimant | undefined, b: TipClaimant | undefined): boolean => {
+  const tipA = getTip(a);
+  const tipB = getTip(b);
+  return Boolean(
+    tipA &&
+    tipB &&
+    typeof a?.parentCid === 'string' &&
+    a.parentCid === b?.parentCid &&
+    tipA.chainId === tipB.chainId &&
+    tipA.txHash.toLowerCase() === tipB.txHash.toLowerCase(),
+  );
+};
+
 // For each reply whose tip names a transaction that other replies to the same comment claim too, the
 // ones that come before it: by timestamp, then by cid, so every client orders them the same way.
 // Nothing in a transaction ties it to one reply, only to the tipped comment and to the tipper's
