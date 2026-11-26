@@ -5,6 +5,7 @@ import { useSubscribe, useBlock, useAccount, useCommunity, usePublishCommentMode
 import type { Challenge, Comment, PublishCommentModerationOptions } from '@bitsocial/bitsocial-react-hooks';
 import { alertChallengeVerificationFailed } from '../../lib/utils';
 import challengesStore from '../../hooks/use-challenges';
+import { showError } from '../../hooks/use-errors';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 const { addChallenge } = challengesStore.getState();
 
@@ -78,10 +79,7 @@ const ModTools = ({ post, closeModal }: ModToolsProps) => {
     communityAddress: post?.communityAddress,
     onChallenge: (...args: [Challenge, Comment?]) => addChallenge([...args, post]),
     onChallengeVerification: alertChallengeVerificationFailed,
-    onError: (error: Error) => {
-      console.warn(error);
-      alert(error);
-    },
+    onError: (error: Error) => showError('publishCommentModeration', error),
   };
   const [publishCommentModerationOptions, setPublishCommentModerationOptions] = useState(defaultPublishOptions);
   const { state, publishCommentModeration } = usePublishCommentModeration(publishCommentModerationOptions);

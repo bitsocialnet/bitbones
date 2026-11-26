@@ -6,6 +6,7 @@ import stringify from 'json-stringify-pretty-compact';
 import { useParams, useNavigate } from 'react-router-dom';
 import { alertChallengeVerificationFailed } from '../../lib/utils';
 import useChallenges from '../../hooks/use-challenges';
+import { showError } from '../../hooks/use-errors';
 import ChallengeBuilder from './challenge-builder';
 import { useCommunityIdentifier } from '../../hooks/use-community-identifier';
 
@@ -72,10 +73,7 @@ function CommunitySettings() {
         alertChallengeVerificationFailed(challengeVerification, communityEdit);
       }
     },
-    onError: (error: Error) => {
-      console.warn(error);
-      alert(`failed editing community: ${error.message}`);
-    },
+    onError: (error: Error) => showError('publishCommunityEdit', error),
   } as PublishCommunityEditOptions);
 
   // set the initial community json
@@ -90,8 +88,7 @@ function CommunitySettings() {
 
       await publishCommunityEdit();
     } catch (e) {
-      console.warn(e);
-      alert(`failed editing community: ${(e as Error).message}`);
+      showError('publishCommunityEdit', e);
     }
   };
 

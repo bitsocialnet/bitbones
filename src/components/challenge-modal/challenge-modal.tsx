@@ -3,6 +3,7 @@ import { useFloating, useDismiss, useRole, useClick, useInteractions, FloatingFo
 import type { ChallengeAnswersByIndex } from '@bitsocial/bitsocial-react-hooks';
 import styles from './challenge-modal.module.css';
 import useChallenges, { type PendingChallenge } from '../../hooks/use-challenges';
+import { showError } from '../../hooks/use-errors';
 import {
   getChallengeAnswers,
   getChallengeEntries,
@@ -18,10 +19,7 @@ import {
 // calls on it alongside the preview fields the utils read
 type PublishingPublication = ChallengePublication & AnswerablePublication;
 
-const onPublishChallengeAnswersError = (error: Error) => {
-  console.warn(error);
-  alert(`failed publishing challenge answers: ${error.message}`);
-};
+const onPublishChallengeAnswersError = (error: Error) => showError('publishChallengeAnswers', error);
 
 interface ChallengeProps {
   challenge: PendingChallenge;

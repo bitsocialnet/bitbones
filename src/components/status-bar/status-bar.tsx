@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import useHeightVariable from '../../hooks/use-height-variable';
 import { useAccount } from '@bitsocial/bitsocial-react-hooks';
 import { useProtocolLogRecording } from '../../hooks/use-protocol-log';
+import useErrors from '../../hooks/use-errors';
+import ErrorList from '../error-list';
 import styles from './status-bar.module.css';
 
 // pkcOptions keys that list clients, with the label shown for their count
@@ -25,9 +27,11 @@ const StatusBar = () => {
   const unreadNotificationCount = account?.unreadNotificationCount || 0;
   const statusBarRef = useRef<HTMLElement>(null);
   useHeightVariable(statusBarRef, '--statusbar-height');
+  const [errors] = useErrors();
 
   return (
-    <footer className={styles.statusBar} ref={statusBarRef}>
+    <footer className={[styles.statusBar, errors.length ? styles.hasErrors : undefined].join(' ')} ref={statusBarRef}>
+      <ErrorList />
       <Link to='/profile'>u/{account?.author?.shortAddress || '…'}</Link>
       {unreadNotificationCount > 0 && <Link to='/inbox'>inbox {unreadNotificationCount}</Link>}
       {clientLists.map(([key, label]) =>

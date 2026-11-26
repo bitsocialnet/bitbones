@@ -9,6 +9,7 @@ import { isLink, useDefaultAndSubscriptionsCommunities } from './utils';
 import { getSubmitError } from './validate-submit';
 import type { SubmitCommunity } from './utils';
 import { alertChallengeVerificationFailed } from '../../../lib/utils';
+import { showError } from '../../../hooks/use-errors';
 
 interface SetSubmitStoreOptions {
   communityAddress?: string;
@@ -65,10 +66,7 @@ const useSubmitStore = create<SubmitState>((setState, getState) => ({
           }
         },
         onChallengeVerification: alertChallengeVerificationFailed,
-        onError: (error: Error) => {
-          console.warn(error);
-          alert(error);
-        },
+        onError: (error: Error) => showError('publishComment', error),
       };
       // bitbones only has 1 input for link or content, detect if is link before publishing
       if (isLink(nextState.publishCommentOptions.content)) {

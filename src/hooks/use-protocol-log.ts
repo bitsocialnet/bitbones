@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import debug from 'debug';
-import utils from '../lib/utils';
+import { redactSecrets, secretReplacer } from '../lib/redact-secrets';
 
 // pkc-js and the hooks log through the shared `debug` module (via @pkcprotocol/pkc-logger). While recording,
 // this enables their namespaces and replaces debug's output function, so the /log view shows the
@@ -31,19 +31,6 @@ interface ProtocolLogState {
 let nextId = 0;
 let pending: ProtocolLogEntry[] = [];
 let flushTimeout: ReturnType<typeof setTimeout> | undefined;
-
-// The hooks log whole account objects, which hold the signer's private key, and pkcOptions, whose kubo
-// rpc options can carry authorization headers. Never show anything that looks like a secret.
-// Key names are matched whole, so `author` and `authorAddress` stay visible.
-const SECRET_KEY_NAMES = 'privateKey|password|passphrase|secret|authKey|pkcRpcAuthKey|authorization|auth|headers|mnemonic|seed|token|apiKey|api_key';
-const SECRET_KEY = new RegExp(`^(?:${SECRET_KEY_NAMES})$`, 'i');
-const SECRET_FIELD = new RegExp(
-  `((?:"|')?\\b(?:${SECRET_KEY_NAMES})(?:"|')?\\s*[:=]\\s*)(\\{[^{}]*\\}|"[^"]*"|'[^']*'|(?:Bearer|Basic|Token)\\s+[^\\s,}]+|[^\\s,}]+)`,
-  'gi',
-);
-const URL_PATTERN = /\b(?:https?|wss?):\/\/[^\s"'<>]+/g;
-const redactSecrets = (text: string) => text.replace(SECRET_FIELD, '$1"[redacted]"').replace(URL_PATTERN, (url) => utils.getRedactedUrl(url));
-const secretReplacer = (key: string, value: unknown) => (SECRET_KEY.test(key) ? '[redacted]' : value);
 
 const stringifyArg = (arg: unknown): string => {
   if (typeof arg === 'string') {

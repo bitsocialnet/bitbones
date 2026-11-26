@@ -35,4 +35,9 @@
   .statusBar {
     position: static;
   }
+
+  /* an error stays in view until it is dismissed, as an alert did */
+  .statusBar.hasErrors {
+    position: sticky;
+  }
 }

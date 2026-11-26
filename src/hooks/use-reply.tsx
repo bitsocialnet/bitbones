@@ -4,6 +4,7 @@ import { create } from 'zustand';
 import usePublishCommentWithAbandon from './use-publish-comment-with-abandon';
 import { alertChallengeVerificationFailed } from '../lib/utils';
 import { incrementReadReplyCount } from './use-unread-reply-count';
+import { showError } from './use-errors';
 
 interface SetReplyStoreOptions {
   communityAddress?: string;
@@ -53,10 +54,7 @@ const useReplyStore = create<ReplyState>((setState, getState) => ({
           }
           alertChallengeVerificationFailed(challengeVerification, comment);
         },
-        onError: (error: Error) => {
-          console.warn(error);
-          alert(error);
-        },
+        onError: (error: Error) => showError('publishComment', error),
       };
       return {
         content: { ...state.content, [parentCid]: content },

@@ -110,7 +110,7 @@ Use square rows, panes, tables, and text controls as the baseline. Use understat
 
 ### Navigation and status
 
-Use grouped text links and compact controls in the topbar. Underline the active view. Keep the active account, configured client counts, library and app versions, and log recording indicator in the status bar.
+Use grouped text links and compact controls in the topbar. Underline the active view. Keep the active account, configured client counts, library and app versions, and log recording indicator in the status bar. List the five newest publish and edit errors above the status line until they are dismissed, each with a control that copies the full error. A sixth error drops the oldest one.
 
 ### Feed and thread
 

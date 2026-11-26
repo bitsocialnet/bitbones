@@ -1,0 +1,30 @@
+/* a line of its own above the status line, in the status bar's wrapping flex row */
+.errorList {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--error);
+  overflow-wrap: anywhere;
+}
+
+.errorList li {
+  padding: 2px 0;
+}
+
+.context {
+  color: var(--fg);
+}
+
+.linkButton {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--link);
+  font: inherit;
+  cursor: pointer;
+}
+
+.linkButton:hover {
+  text-decoration: underline;
+}
