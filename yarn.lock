@@ -1233,9 +1233,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@bitsocial/bitsocial-react-hooks@npm:0.4.0":
-  version: 0.4.0
-  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.4.0"
+"@bitsocial/bitsocial-react-hooks@npm:0.4.2":
+  version: 0.4.2
+  resolution: "@bitsocial/bitsocial-react-hooks@npm:0.4.2"
   dependencies:
     "@bitsocial/bso-resolver": "npm:0.0.10"
     "@noble/curves": "npm:2.2.0"
@@ -1254,7 +1254,7 @@ __metadata:
     zustand: "npm:4.5.7"
   peerDependencies:
     react: ">=16.8"
-  checksum: 10c0/50c3d4e594ad389037168d772fa22ae3972b6e27a1e165e5181d1607487e19db66488307b6e9edf7ccad764d1abf980944c1929c6ca8f24b4d7a8f9076e060db
+  checksum: 10c0/66ff7175f2db4ac8073b0d76d7e6d3009d7c8a81c5bb20d797d2743689b22d5ecabd55e5f169e278b2a6a30b4039980b801478f4e009259fbe3bb8386a2953b7
   languageName: node
   linkType: hard
 
@@ -4429,6 +4429,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@noble/curves@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@noble/curves@npm:2.4.0"
+  dependencies:
+    "@noble/hashes": "npm:2.4.0"
+  checksum: 10c0/b60b737f65cc4e128dd94fea467df1ed73c5c0c089ef1bdb61614a0897db1fa7151d7f95bb7205854a9030d3f80a879e00f3bb74990befde061184ae43dfaec6
+  languageName: node
+  linkType: hard
+
 "@noble/curves@npm:^2.0.1":
   version: 2.3.0
   resolution: "@noble/curves@npm:2.3.0"
@@ -4472,6 +4481,13 @@ __metadata:
   version: 2.3.0
   resolution: "@noble/hashes@npm:2.3.0"
   checksum: 10c0/85651da4c1ea1db15fcacac7f38e4c4e6d60154cd116200b1002c198893bfad2733b31108352fde307126bab789f82f47b5bee8a12462b12f25fd0703aed7dce
+  languageName: node
+  linkType: hard
+
+"@noble/hashes@npm:2.4.0":
+  version: 2.4.0
+  resolution: "@noble/hashes@npm:2.4.0"
+  checksum: 10c0/f5820a38c52886073a69722a030688ad188bbacb822d01554545371259961c2b916266c57c013c2ce5a0d78aec977142fc68fd2a79be4c97b0644fcee9bb35f6
   languageName: node
   linkType: hard
 
@@ -5677,9 +5693,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@pkcprotocol/pkc-js@npm:0.0.154":
-  version: 0.0.154
-  resolution: "@pkcprotocol/pkc-js@npm:0.0.154"
+"@pkcprotocol/pkc-js@npm:0.0.163":
+  version: 0.0.163
+  resolution: "@pkcprotocol/pkc-js@npm:0.0.163"
   dependencies:
     "@enhances/with-resolvers": "npm:0.0.5"
     "@helia/bitswap": "npm:4.0.20"
@@ -5699,7 +5715,8 @@ __metadata:
     "@libp2p/webtransport": "npm:6.0.44"
     "@multiformats/multiaddr": "npm:13.0.3"
     "@multiformats/murmur3": "npm:2.2.5"
-    "@noble/curves": "npm:2.2.0"
+    "@noble/curves": "npm:2.4.0"
+    "@noble/hashes": "npm:2.4.0"
     "@pkcprotocol/pkc-logger": "npm:0.1.0"
     "@types/better-sqlite3": "npm:7.6.13"
     assert: "npm:2.1.0"
@@ -5727,7 +5744,7 @@ __metadata:
     localforage: "npm:1.10.0"
     lodash.merge: "npm:4.6.2"
     lru-cache: "npm:10.1.0"
-    multiformats: "npm:14.0.5"
+    multiformats: "npm:14.0.7"
     node-forge: "npm:1.4.2"
     open-graph-scraper: "npm:6.11.0"
     p-limit: "npm:7.3.0"
@@ -5748,7 +5765,7 @@ __metadata:
     uuid: "npm:14.0.3"
     ws: "npm:8.22.0"
     zod: "npm:4.6.7"
-  checksum: 10c0/f4d12f5307c60faa5e4d6f77508e1af0be1eaace485ab6ccf4a5fcca9b8dfe9f3243d93f11cc471d1028714aac236857e62cac36d1dc715c0d509d5a9e451f6a
+  checksum: 10c0/1c7005129531b402dbcb6c3aad5613ac5b8868374d9560616d23fa97bd9e57c690c2633a87abc53be4366281664012c37ba5907c4f66f140ef246817a2c8d001
   languageName: node
   linkType: hard
 
@@ -7311,7 +7328,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "bitbones@workspace:."
   dependencies:
-    "@bitsocial/bitsocial-react-hooks": "npm:0.4.0"
+    "@bitsocial/bitsocial-react-hooks": "npm:0.4.2"
     "@bitsocial/bso-resolver": "npm:0.0.11"
     "@capacitor/android": "npm:7.6.9"
     "@capacitor/app": "npm:7.0.1"
@@ -7326,7 +7343,7 @@ __metadata:
     "@electron-forge/maker-zip": "npm:7.8.0"
     "@electron/rebuild": "npm:3.7.2"
     "@floating-ui/react": "npm:0.27.20"
-    "@pkcprotocol/pkc-js": "npm:0.0.154"
+    "@pkcprotocol/pkc-js": "npm:0.0.163"
     "@playwright/cli": "npm:0.1.24"
     "@reforged/maker-appimage": "npm:5.1.1"
     "@types/memoizee": "npm:0.4.12"
@@ -13857,10 +13874,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"multiformats@npm:14.0.5, multiformats@npm:^14.0.0, multiformats@npm:^14.0.2":
-  version: 14.0.5
-  resolution: "multiformats@npm:14.0.5"
-  checksum: 10c0/3e3de2da477e51434099636b1d107f1f431dab3441f485665c38e6b33d16db673919c55c2bafc2170295173d84ff78c3ff540e4a62682b20d6cdea8d2ed7fd2b
+"multiformats@npm:14.0.7, multiformats@npm:^14.0.0, multiformats@npm:^14.0.2":
+  version: 14.0.7
+  resolution: "multiformats@npm:14.0.7"
+  checksum: 10c0/944f2ac1f0b4bfe8c2fccf70f4697222348c53461631ff919a3cb6758ef6032035dc0b9089359ecfe75a52921be428d444b7794115f2e4e2d976ffb7b4d64420
   languageName: node
   linkType: hard
 
