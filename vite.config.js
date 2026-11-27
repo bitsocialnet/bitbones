@@ -7,7 +7,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 const packageJson = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 const appVersion = packageJson.version;
 const isProfilingBuild = process.env.REACT_PERF_PROFILE === '1';
-const commitRef = process.env.VITE_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_SHA || '';
+// Vercel sets VERCEL_GIT_COMMIT_SHA and GitHub Actions sets GITHUB_SHA; neither has the VITE_ prefix,
+// so the value only reaches the app through the define below.
+const commitRef = process.env.VITE_COMMIT_REF || process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || '';
 
 // Serve and emit /version.json, and expose the version to the app as an env value. Importing
 // package.json from src/ instead would inline the WHOLE manifest — every dependency and version —
@@ -40,6 +42,7 @@ function appVersionMetadataPlugin() {
 export default defineConfig({
   define: {
     'import.meta.env.VITE_APP_VERSION': JSON.stringify(appVersion),
+    'import.meta.env.VITE_COMMIT_REF': JSON.stringify(commitRef),
     // shown in the status bar, the dependencies are pinned to exact versions
     'import.meta.env.VITE_PKC_JS_VERSION': JSON.stringify(packageJson.dependencies['@pkcprotocol/pkc-js']),
     'import.meta.env.VITE_HOOKS_VERSION': JSON.stringify(packageJson.dependencies['@bitsocial/bitsocial-react-hooks']),
