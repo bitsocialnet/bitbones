@@ -1,4 +1,5 @@
 import { Suspense, use, useState, type MouseEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { useAccount, useComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment, Community } from '@bitsocial/bitsocial-react-hooks';
 import {
@@ -6,6 +7,7 @@ import {
   getDecimalsInputIssue,
   getParentBindingSuffix,
   getProvenWalletAddresses,
+  getEarlierTipClaims,
   getRequiredFee,
   getTip,
   getTipAmountError,
@@ -14,17 +16,18 @@ import {
   getTipCheck,
   getTipCheckError,
   getTipFeeConfigError,
-  getVerifiedTip,
-  getVerifiedTipTotals,
   parseTokenAmount,
   walletSignatureType,
 } from '../../lib/tipping';
 import type { Tip, TipToken, TipTokenType, TippingConfig } from '../../lib/tipping';
-import '../../lib/tipping-comment';
+import { withLatestTip } from '../../lib/tipping-comment';
 import { checkTipOnChain, getBalanceOnce, getTokenInfo } from '../../lib/tipping-chain';
-import type { OnChainTipCheck, OnChainTipResult } from '../../lib/tipping-chain';
+import type { OnChainTipResult } from '../../lib/tipping-chain';
+import { getOnChainError, getTipErrorReport } from '../../lib/tipping-verification';
+import type { TipVerification } from '../../lib/tipping-verification';
 import { getInAppWallet } from '../../hooks/use-in-app-wallet';
 import useTip, { useHasPendingTip } from '../../hooks/use-tip';
+import { recheckTip, useTipVerification, useVerifiedTipTotals } from '../../hooks/use-tip-verification';
 import { useTippingRpcUrl } from '../../hooks/use-tipping-settings';
 import styles from './tip-tools.module.css';
 
@@ -48,17 +51,61 @@ const LoadedTokenAmount = ({ chainId, type, address, amount }: TokenAmountProps)
 };
 
 // '1.5 USDC'. Until the token's contract answers, the amount is shown in base units.
-const TokenAmount = (props: TokenAmountProps) => (
+export const TokenAmount = (props: TokenAmountProps) => (
   <Suspense fallback={props.amount === undefined ? '...' : `${props.amount} base units`}>
     <LoadedTokenAmount {...props} />
   </Suspense>
 );
 
-// The reply as its author signed it, with the tip from its live update when one has arrived. The
-// wallets and the key are read from the signed comment, and only the tip from the update, together
-// with the update's signed record, which is what the tip is checked against.
-const withLatestTip = (comment: Comment | undefined, updatedComment: Comment | undefined): Comment | undefined =>
-  comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip, raw: updatedComment.raw ?? comment.raw } : comment;
+// the click on a row selects it for the inspector
+const stopPropagation = (event: MouseEvent) => event.stopPropagation();
+
+interface TipVerificationNoteProps {
+  // a tip that is not verified, or not yet
+  verification: Exclude<TipVerification, { status: 'verified' }>;
+}
+
+// Why a claimed tip is not shown as one: no RPC is set for its chain, or its check failed. It shows
+// no amount, as nothing about the tip is established.
+export const TipVerificationNote = ({ verification }: TipVerificationNoteProps) => {
+  const [copied, setCopied] = useState(false);
+  if (verification.status === 'repeated') {
+    return (
+      <span className={styles.dim} title='one payment counts as one tip, and the earliest reply whose claim verifies keeps it'>
+        repeats a tip an earlier reply holds
+      </span>
+    );
+  }
+  if (verification.status === 'no-rpc') {
+    return (
+      <span className={styles.dim} onClick={stopPropagation}>
+        claims a tip on chain {verification.tip.chainId} · <Link to='/settings'>set an RPC to verify</Link>
+      </span>
+    );
+  }
+  const copy = () =>
+    navigator.clipboard.writeText(getTipErrorReport(verification)).then(
+      () => setCopied(true),
+      () => {},
+    );
+  return (
+    <span className={styles.note} onClick={stopPropagation}>
+      <span className={styles.error}>tip failed check: {verification.error}</span>
+      <button type='button' className={styles.linkButton} onClick={copy}>
+        {copied ? 'copied' : 'copy error'}
+      </button>
+      {/* the offline check reads only the two comments, and asking again gives the same answer */}
+      {(verification.onChain || verification.rpcError) && (
+        <button type='button' className={styles.linkButton} onClick={() => recheckTip(verification.resultKey)}>
+          recheck
+        </button>
+      )}
+    </span>
+  );
+};
+
+// shown while a tip's wallet proofs and its transaction are being checked
+export const TipChecking = () => <span className={styles.dim}>checking tip…</span>;
 
 interface TipLineProps {
   // the community's tipping options: a tip is shown only where the community advertises tipping/v1
@@ -66,22 +113,30 @@ interface TipLineProps {
   comment?: Comment;
   // the live version of the comment, where one has arrived
   updatedComment?: Comment;
+  // the earlier replies to the same comment that claim the same transaction, from getTipRivals
+  rivals?: Comment[];
 }
 
 interface VerifiedTipLineProps {
   config?: TippingConfig;
   comment?: Comment;
+  rivals?: Comment[];
 }
 
-// suspends while the two wallet proofs behind the tip are checked, and shows nothing if one fails
-const VerifiedTipLine = ({ config, comment }: VerifiedTipLineProps) => {
+// suspends while the tip is checked: the two wallet proofs behind it, then its transaction on its chain
+const VerifiedTipLine = ({ config, comment, rivals }: VerifiedTipLineProps) => {
   // the tipped comment, whose author's wallet the tip must have been sent to. Not fetched: a tip
   // whose parent is not loaded can't be verified, so it is not shown.
   const parent: Comment = useComment({ commentCid: comment?.parentCid, onlyIfCached: true });
-  const tip = use(getVerifiedTip(comment, parent, config?.community));
-  if (!tip) {
+  const verification = use(useTipVerification(comment, parent, config?.community, rivals));
+  if (!verification) {
     return null;
   }
+  if (verification.status !== 'verified') {
+    // a tip whose wallet proofs don't verify stays unshown. One that only the chain can settle says so.
+    return verification.status === 'failed' && !verification.onChain && !verification.rpcError ? null : <TipVerificationNote verification={verification} />;
+  }
+  const { tip } = verification;
   return (
     <span className={styles.tip} title={`tip ${tip.txHash} on chain id ${tip.chainId} from ${tip.from} to ${tip.to}`}>
       tipped <TokenAmount chainId={tip.chainId} type={tip.type} address={tip.token} amount={tip.amount} />
@@ -91,16 +146,17 @@ const VerifiedTipLine = ({ config, comment }: VerifiedTipLineProps) => {
 };
 
 // The tip a reply carries, as the community wrote it to the comment update. Shown only once the
-// tipper's and the tipped author's wallet proofs verify and are the tip's sender and receiver.
-export const TipLine = ({ config, comment, updatedComment }: TipLineProps) => {
+// tipper's and the tipped author's wallet proofs verify and are the tip's sender and receiver, and
+// its transaction is found on its chain to be that transfer.
+export const TipLine = ({ config, comment, updatedComment, rivals }: TipLineProps) => {
   const latest = withLatestTip(comment, updatedComment);
   // most replies carry no tip, and those mount nothing
   if (!config || !getTip(latest)) {
     return null;
   }
   return (
-    <Suspense fallback={null}>
-      <VerifiedTipLine config={config} comment={latest} />
+    <Suspense fallback={<TipChecking />}>
+      <VerifiedTipLine config={config} comment={latest} rivals={rivals} />
     </Suspense>
   );
 };
@@ -124,6 +180,8 @@ interface TipRowProps {
   comment: Comment;
   reply: Comment;
   tip: Tip;
+  // the earlier replies that claim the same transaction: once one verifies, this one is not in the totals
+  rivals?: Comment[];
 }
 
 // The offline check of one tip. Suspends while the wallet proofs are being checked.
@@ -132,14 +190,18 @@ const useTipCheckResult = (comment: Comment, reply: Comment, community?: Communi
   return { check, error: check ? getTipCheckError(check) : undefined };
 };
 
-const TipStatus = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) => {
-  const { error } = useTipCheckResult(comment, reply, config?.community);
-  return error ? <span className={styles.error}>unverified</span> : <span className={styles.dim}>verified</span>;
+// whether the tip is in the totals: the same verification that decides whether it is shown
+const TipStatus = ({ config, comment, reply, rivals }: Omit<TipRowProps, 'tip'>) => {
+  const verification = use(useTipVerification(reply, comment, config?.community, rivals));
+  if (!verification) {
+    return <span className={styles.error}>unverified</span>;
+  }
+  return verification.status === 'verified' ? <span className={styles.dim}>verified</span> : <TipVerificationNote verification={verification} />;
 };
 
 const yesNo = (value: boolean): string => (value ? 'yes' : 'no');
 
-const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) => {
+const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip' | 'rivals'>) => {
   const { check, error } = useTipCheckResult(comment, reply, config?.community);
   if (!check) {
     return null;
@@ -150,8 +212,8 @@ const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) =
       <dt>checked</dt>
       <dd>
         reply to the tipped comment: {yesNo(check.isReplyToParent)}; sender is a wallet the tipper proved: {yesNo(check.senderProven)}; receiver is a wallet the tipped
-        author proved: {yesNo(check.receiverProven)}. The wallet proofs are checked in this client. The transaction is only looked up when you ask below, otherwise its
-        existence is the community's word.
+        author proved: {yesNo(check.receiverProven)}. The wallet proofs are checked in this client. A tip is shown and counted once its transaction is found on its chain;
+        the lookup below shows each result, and the fee's.
       </dd>
     </>
   );
@@ -159,27 +221,8 @@ const TipCheckDetails = ({ config, comment, reply }: Omit<TipRowProps, 'tip'>) =
 
 type OnChainState = { status: 'idle' } | { status: 'checking' } | { status: 'done'; result: OnChainTipResult } | { status: 'error'; message: string };
 
-const getOnChainError = (result: OnChainTipCheck, what: string): string | undefined => {
-  if (!result.mined) {
-    return `the ${what} transaction was not found on this chain`;
-  }
-  if (!result.succeeded) {
-    return `the ${what} transaction failed`;
-  }
-  if (!result.sentByTipper) {
-    return `the ${what} transaction was not sent by a wallet the tipper proved`;
-  }
-  if (!result.hasBinding) {
-    return `the ${what} transaction does not end with the parent binding of the tipped comment`;
-  }
-  if (!result.matchesTip) {
-    return `the ${what} transaction is not a transfer of this token to this wallet of this amount`;
-  }
-  return undefined;
-};
-
-// Looks the transaction up through the RPC set for its chain. Only on a click: every check is an
-// RPC call, and a thread can carry many tips.
+// Looks the tip's and its fee's transactions up through the RPC set for the chain, and shows what each
+// result was. On a click: the lookup that decides whether a tip is shown is kept, and this one is not.
 const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'comment' | 'reply' | 'tip' | 'config'>) => {
   const rpcUrl = useTippingRpcUrl(tip.chainId);
   const [state, setState] = useState<OnChainState>({ status: 'idle' });
@@ -240,7 +283,7 @@ const OnChainCheck = ({ comment, reply, tip, config }: Pick<TipRowProps, 'commen
 };
 
 // one tip of the list. It shows at once, and says "verifying" until its own check is done.
-const TipRow = ({ config, comment, reply, tip }: TipRowProps) => (
+const TipRow = ({ config, comment, reply, tip, rivals }: TipRowProps) => (
   <li>
     <details>
       <summary>
@@ -248,7 +291,7 @@ const TipRow = ({ config, comment, reply, tip }: TipRowProps) => (
         {tip.tokenId !== undefined && ` #${tip.tokenId}`} from {reply.author?.shortAddress ?? reply.author?.address}{' '}
         <span className={styles.dim}>{formatTipTime(reply.timestamp)}</span>{' '}
         <Suspense fallback={<span className={styles.dim}>verifying...</span>}>
-          <TipStatus comment={comment} reply={reply} />
+          <TipStatus config={config} comment={comment} reply={reply} rivals={rivals} />
         </Suspense>
       </summary>
       <dl className={styles.tipDetails}>
@@ -308,8 +351,9 @@ interface TipListProps {
 const formatTipTime = (timestamp: unknown): string => (typeof timestamp === 'number' ? new Date(timestamp * 1000).toLocaleString() : 'unknown');
 
 // Every tip the loaded replies claim for the comment, newest first, each with its own verification
-// state. A tip that does not verify is listed as unverified and is not in the totals.
+// state. A tip that does not verify, or that repeats an earlier reply's, is listed and is not in the totals.
 const TipList = ({ config, comment, replies }: TipListProps) => {
+  const rivals = getEarlierTipClaims(replies);
   const entries = getTipReplies(comment, replies)
     .flatMap((reply) => {
       const tip = getTip(reply);
@@ -319,24 +363,21 @@ const TipList = ({ config, comment, replies }: TipListProps) => {
   return (
     <ul className={styles.tipList}>
       {entries.map(({ reply, tip }) => (
-        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} />
+        <TipRow key={reply.cid ?? tip.txHash} config={config} comment={comment} reply={reply} tip={tip} rivals={rivals.get(String(reply.cid))} />
       ))}
     </ul>
   );
 };
 
-// the click on a reply's body selects it for the inspector
-const stopPropagation = (event: MouseEvent) => event.stopPropagation();
-
 const VerifiedTipTotals = ({ config, comment, replies }: VerifiedTipTotalsProps) => {
   const [isListOpen, setIsListOpen] = useState(false);
-  const totals = use(getVerifiedTipTotals(comment, replies, config?.community));
+  const totals = use(useVerifiedTipTotals(comment, replies, config?.community));
   if (!totals.length) {
     return null;
   }
   return (
     <>
-      <span className={styles.tip} title='summed per chain and token from the verified tips on the loaded replies'>
+      <span className={styles.tip} title='summed per chain and token from the tips on the loaded replies that are verified on their chain'>
         tips:{' '}
         {totals.map((total, index) => (
           <span key={getTokenKey({ ...total, address: total.token })}>
@@ -369,7 +410,8 @@ const VerifiedTipTotals = ({ config, comment, replies }: VerifiedTipTotalsProps)
 };
 
 // what a comment was tipped, summed from its loaded replies, one total per token. A tip that does
-// not verify against its tipper's and this comment's author's wallets is left out.
+// not verify against its tipper's and this comment's author's wallets, or whose transaction is not
+// found on its chain to be that transfer, is left out.
 export const TipTotals = ({ config, comment, replies, updatedReplies }: TipTotalsProps) => {
   const latestReplies = replies?.map((reply, index) => withLatestTip(reply, updatedReplies?.[index])) ?? [];
   if (!config || !comment || !getTipReplies(comment, latestReplies).length) {

@@ -1,0 +1,75 @@
+/* the same box as a feed row, so tips and replies line up in the inbox */
+.tipNotification {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.tipNotification:hover {
+  background-color: var(--bg2);
+}
+
+.inspected,
+.inspected:hover {
+  background-color: var(--sel);
+}
+
+/* a blocked author's or a removed reply, as a feed row dims it */
+.hidden {
+  opacity: 0.35;
+}
+
+.inspect {
+  margin-left: 10px;
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--dim);
+  font: inherit;
+  cursor: pointer;
+}
+
+.inspect:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+
+/* the one accented thing in the row */
+.amount {
+  color: var(--warn);
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.amount:hover {
+  text-decoration: underline;
+}
+
+.meta {
+  margin-top: 2px;
+  color: var(--dim);
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+
+.meta a:hover {
+  color: var(--fg);
+  text-decoration: underline;
+}
+
+/* a tip that could not be checked at all */
+.unchecked {
+  color: var(--dim);
+}
+
+.message {
+  margin-top: 2px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}

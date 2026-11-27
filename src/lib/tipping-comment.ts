@@ -1,6 +1,6 @@
 import { validateComment } from '@bitsocial/bitsocial-react-hooks';
 import type { Comment } from '@bitsocial/bitsocial-react-hooks';
-import { getSignedRecordMismatch, setCommentValidator } from './tipping';
+import { getEarlierTipClaims, getSignedRecordMismatch, setCommentValidator } from './tipping';
 
 // Registers the check of a carrying comment's own signature, which src/lib/tipping.ts runs before it
 // trusts anything a tip reads off a comment. Import this module wherever tipping reads a comment.
@@ -18,3 +18,14 @@ setCommentValidator(async (party, community) => {
   // everything tipping reads off the comment must be what was signed, not what a wrapper says
   return getSignedRecordMismatch(comment);
 });
+
+// The reply as its author signed it, with the tip from its live update when one has arrived. The
+// wallets and the key are read from the signed comment, and only the tip from the update, together
+// with the update's signed record, which is what the tip is checked against.
+export const withLatestTip = (comment: Comment | undefined, updatedComment: Comment | undefined): Comment | undefined =>
+  comment && updatedComment?.tip !== undefined ? { ...comment, tip: updatedComment.tip, raw: updatedComment.raw ?? comment.raw } : comment;
+
+// For each reply, by cid, the earlier replies to the same comment that claim the same transaction as
+// its tip. `updatedReplies` are the live versions, by the same index.
+export const getTipRivals = (replies: (Comment | undefined)[] | undefined, updatedReplies?: (Comment | undefined)[]): Map<string, Comment[]> =>
+  getEarlierTipClaims(replies?.map((reply, index) => withLatestTip(reply, updatedReplies?.[index])));

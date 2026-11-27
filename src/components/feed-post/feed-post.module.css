@@ -144,3 +144,8 @@
     display: none;
   }
 }
+
+.note {
+  margin-top: 2px;
+  font-size: 11px;
+}

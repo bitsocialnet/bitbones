@@ -56,6 +56,13 @@
   overflow-wrap: anywhere;
 }
 
+/* a tip that failed its check: the reason, then its actions */
+.note {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+}
+
 .tip {
   padding: 0 4px;
   border: 1px solid var(--border);

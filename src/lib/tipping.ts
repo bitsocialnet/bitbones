@@ -725,7 +725,7 @@ export const verifyTip = async (reply: TipParty | undefined, parent: TipParty | 
 };
 
 // everything verifyTip reads, so the same inputs give the same promise and changed ones a new check
-const getVerifiedTipKey = (reply: TipParty, parent: TipParty, community?: Community): string | undefined => {
+export const getVerifiedTipKey = (reply: TipParty, parent: TipParty, community?: Community): string | undefined => {
   try {
     return JSON.stringify([
       reply.cid,
@@ -792,6 +792,58 @@ export const getVerifiedTip = (reply: TipParty | undefined, parent: TipParty | u
 export const getTipReplies = <Reply extends TipParty>(parent: TipParty | undefined, replies: (Reply | undefined)[] | undefined): Reply[] =>
   // flat reply sorts list a whole subtree, so keep only the replies to this comment
   typeof parent?.cid === 'string' ? (replies ?? []).flatMap((reply) => (reply && reply.parentCid === parent.cid && getTip(reply) ? [reply] : [])) : [];
+
+interface TipClaimant {
+  cid?: unknown;
+  parentCid?: unknown;
+  tip?: unknown;
+  timestamp?: unknown;
+}
+
+// whether two replies claim the same transaction as a tip of the same comment
+export const claimsSameTransaction = (a: TipClaimant | undefined, b: TipClaimant | undefined): boolean => {
+  const tipA = getTip(a);
+  const tipB = getTip(b);
+  return Boolean(
+    tipA &&
+    tipB &&
+    typeof a?.parentCid === 'string' &&
+    a.parentCid === b?.parentCid &&
+    tipA.chainId === tipB.chainId &&
+    tipA.txHash.toLowerCase() === tipB.txHash.toLowerCase(),
+  );
+};
+
+// For each reply whose tip names a transaction that other replies to the same comment claim too, the
+// ones that come before it: by timestamp, then by cid, so every client orders them the same way.
+// Nothing in a transaction ties it to one reply, only to the tipped comment and to the tipper's
+// wallets, so the same tipper can claim one payment in several replies, and each would verify. A
+// reply stops being a tip only once one of these earlier claims verifies. A claim that merely comes
+// first decides nothing: anyone can copy a public transaction hash into a reply dated earlier.
+export const getEarlierTipClaims = <Reply extends TipClaimant>(replies: (Reply | undefined)[] | undefined): Map<string, Reply[]> => {
+  const claims = new Map<string, { reply: Reply; cid: string; timestamp: number }[]>();
+  for (const reply of replies ?? []) {
+    const tip = getTip(reply);
+    if (!reply || !tip || typeof reply.cid !== 'string' || typeof reply.parentCid !== 'string') {
+      continue;
+    }
+    const key = `${reply.parentCid}\n${tip.chainId}\n${tip.txHash.toLowerCase()}`;
+    const claim = { reply, cid: reply.cid, timestamp: typeof reply.timestamp === 'number' ? reply.timestamp : Infinity };
+    claims.set(key, [...(claims.get(key) ?? []), claim]);
+  }
+  const earlier = new Map<string, Reply[]>();
+  for (const rivals of claims.values()) {
+    rivals.sort((a, b) => a.timestamp - b.timestamp || (a.cid < b.cid ? -1 : a.cid > b.cid ? 1 : 0));
+    rivals.forEach(({ cid }, index) => {
+      // a cid listed twice is one reply, not a rival of itself
+      const before = rivals.slice(0, index).flatMap((rival) => (rival.cid === cid ? [] : [rival.reply]));
+      if (before.length && !earlier.has(cid)) {
+        earlier.set(cid, before);
+      }
+    });
+  }
+  return earlier;
+};
 
 // What a comment was tipped: the verified tips on its loaded replies, summed per chain and token. A community
 // cannot write to the tipped comment's own update, so this is the only total there is, and it

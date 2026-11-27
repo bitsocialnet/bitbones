@@ -370,6 +370,8 @@ interface TransferToCheck {
 // `logIndexes` are the Transfer events that match, so two payments in one transaction can be told apart
 interface TransferCheck extends OnChainTipCheck {
   logIndexes: number[];
+  // the block the transaction was mined in
+  blockNumber?: bigint;
 }
 
 const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCheck, parentBinding: Hex): Promise<TransferCheck> => {
@@ -424,6 +426,7 @@ const checkTransferOnChain = async (client: PublicClient, transfer: TransferToCh
     hasBinding: transaction.input.toLowerCase().endsWith(parentBinding.substring(2).toLowerCase()),
     matchesTip,
     logIndexes,
+    blockNumber: receipt.blockNumber,
   };
 };
 
@@ -431,6 +434,9 @@ export interface OnChainTipResult {
   tip: OnChainTipCheck;
   // undefined when the tip carries no fee
   fee?: OnChainTipCheck;
+  // how deep the tip's transaction is, its own block counted. undefined when it is not mined or the
+  // chain's head could not be read.
+  confirmations?: number;
 }
 
 // Looks the tip's transaction, and its fee's, up on their chain. `senders` are the wallets the
@@ -457,6 +463,13 @@ export const checkTipOnChain = async (rpcUrl: string, tip: Tip, senders: string[
     tip.fee?.token !== undefined &&
     feeCheck !== undefined &&
     tipCheck.logIndexes.some((tipLog) => feeCheck.logIndexes.some((feeLog) => feeLog !== tipLog));
-  const strip = ({ logIndexes: _logIndexes, ...check }: TransferCheck): OnChainTipCheck => check;
-  return { tip: strip(tipCheck), fee: feeCheck && (sameTransaction && !distinctPayments ? { ...strip(feeCheck), matchesTip: false } : strip(feeCheck)) };
+  const strip = ({ logIndexes: _logIndexes, blockNumber: _blockNumber, ...check }: TransferCheck): OnChainTipCheck => check;
+  // a head that can't be read leaves the depth unknown, and the check itself stands
+  const head = tipCheck.blockNumber === undefined ? undefined : await client.getBlockNumber({ cacheTime: 0 }).catch(() => undefined);
+  const confirmations = head === undefined || tipCheck.blockNumber === undefined ? undefined : Number(head - tipCheck.blockNumber) + 1;
+  return {
+    tip: strip(tipCheck),
+    fee: feeCheck && (sameTransaction && !distinctPayments ? { ...strip(feeCheck), matchesTip: false } : strip(feeCheck)),
+    ...(confirmations !== undefined && { confirmations }),
+  };
 };
